@@ -1,6 +1,7 @@
 #lang scribble/manual
 
-@(require (for-label amb) scribble/example)
+@(require (for-label racket/base racket/contract amb)
+          scribble/example)
 
 @(define (make-amb-eval)
    (make-base-eval #:lang 'racket/base

@@ -1,11 +1,13 @@
 #lang racket/base
 
-(require (for-syntax racket/base syntax/parse))
+(require (for-syntax racket/base syntax/parse)
+         racket/contract)
 
 (provide amb for/amb for*/amb
-         current-amb-tree
-         (struct-out exn:fail:amb)
-         raise-amb-error)
+         (contract-out
+          [raise-amb-error (-> any)]
+          [current-amb-tree (parameter/c (-> any))])
+         (struct-out exn:fail:amb))
 
 (struct exn:fail:amb exn:fail ()
   #:extra-constructor-name make-exn:fail:amb
