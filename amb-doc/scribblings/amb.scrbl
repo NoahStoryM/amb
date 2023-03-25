@@ -1,0 +1,46 @@
+#lang scribble/manual
+
+@(require (for-label amb) scribble/example)
+
+@(define (make-amb-eval)
+   (make-base-eval #:lang 'racket/base
+                   '(require amb)))
+
+@(define-syntax-rule (amb-examples body ...)
+   (examples #:eval (make-amb-eval) body ...))
+
+
+@title{amb: Ambiguous Operator}
+@defmodule[amb]
+@author[@author+email["Noah Ma" "noahstorym@gmail.com"]]
+
+@defform[(amb expr ...)]{
+The amb operator.
+}
+
+@deftogether[(@defform[(for/amb (for-clause ...) body-or-break ... body)]
+              @defform[(for*/amb (for-clause ...) body-or-break ... body)])]{
+Iterate like @racket[for/list] and @racket[for*/list] respectively,
+they allow programmers to explore different possibilities in a non-deterministic way.
+
+@(amb-examples
+  (let ([x (for/amb ([i (in-range 10)])
+             (displayln i)
+             i)])
+    (when (< x 5) (amb)))
+  (with-handlers ([exn:fail:amb? void])
+    (let ([x (for/amb ([i (in-range 10)]) i)])
+      (when (even? x) (amb))
+      (displayln x)
+      (amb))))
+}
+
+@defproc[(raise-amb-error) any]{
+Creates an @racket[exn:fail:amb] value and @racket[raise]s it as
+an exception.
+}
+
+@defstruct[(exn:fail:amb exn:fail) ()
+           #:inspector #f]{
+Raised when the amb tree is exhausted.
+}
