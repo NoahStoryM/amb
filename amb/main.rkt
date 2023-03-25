@@ -6,7 +6,7 @@
 (provide amb for/amb for*/amb
          (contract-out
           [raise-amb-error (-> any)]
-          [current-amb-tree (parameter/c (-> any))])
+          [current-amb-tree (parameter/c (-> none/c))])
          (struct-out exn:fail:amb))
 
 (struct exn:fail:amb exn:fail ()

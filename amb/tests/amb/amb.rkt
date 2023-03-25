@@ -2,13 +2,14 @@
 
 (require amb)
 
-(parameterize ([current-amb-tree void])
-  (let ([x (amb 2 1 -2 5  8 18)]
-        [y (amb 9 8  2 4 14 20)])
-    (when (> x y) (amb))
-    (displayln (list x y))
-    (amb))
-  (newline))
+(with-handlers ([exn:fail:amb? void])
+  (parameterize ([current-amb-tree raise-amb-error])
+    (let ([x (amb 2 1 -2 5  8 18)]
+          [y (amb 9 8  2 4 14 20)])
+      (when (> x y) (amb))
+      (displayln (list x y))
+      (amb))
+    (newline)))
 
 
 (parameterize ([current-amb-tree raise-amb-error])
@@ -27,6 +28,7 @@
 
 
 (time
- (parameterize ([current-amb-tree void])
-   (let ([i (for/amb ([i (in-range 1 100000)]) i)])
-     (amb))))
+ (with-handlers ([exn:fail:amb? void])
+   (parameterize ([current-amb-tree raise-amb-error])
+     (let ([i (for/amb ([i (in-range 1 100000)]) i)])
+       (amb)))))
