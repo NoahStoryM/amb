@@ -24,15 +24,28 @@ Iterate like @racket[for/list] and @racket[for*/list] respectively,
 they allow programmers to explore different possibilities in a non-deterministic way.
 
 @(amb-examples
-  (let ([x (for/amb ([i (in-range 10)])
-             (displayln i)
-             i)])
-    (when (< x 5) (amb)))
-  (with-handlers ([exn:fail:amb? void])
-    (let ([x (for/amb ([i (in-range 10)]) i)])
-      (when (even? x) (amb))
-      (displayln x)
-      (amb))))
+  (parameterize ([current-amb-tree raise-amb-error])
+    (let ([x (for/amb ([i (in-range 10)])
+               (displayln i)
+               i)])
+      (when (< x 5) (amb))))
+  (parameterize ([current-amb-tree raise-amb-error])
+    (with-handlers ([exn:fail:amb? void])
+      (let ([x (for/amb ([i (in-range 10)]) i)])
+        (when (even? x) (amb))
+        (displayln x)
+        (amb))))
+  (parameterize ([current-amb-tree raise-amb-error])
+    (let-values ([(x y)
+                  (for/amb ([v (in-list '([2 9] [9 2]))])
+                    (apply values v))])
+      (when (> x y) (amb))
+      (displayln (list x y)))))
+}
+
+@defparam[current-amb-tree amb-tree (-> any)]{
+The parameter detemines the procedure called by @racket[(amb)].
+By default, it is @racket[raise-amb-error].
 }
 
 @defproc[(raise-amb-error) any]{

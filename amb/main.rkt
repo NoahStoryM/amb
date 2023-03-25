@@ -1,8 +1,9 @@
 #lang racket/base
 
-(require racket/promise (for-syntax racket/base syntax/parse))
+(require (for-syntax racket/base syntax/parse))
 
 (provide amb for/amb for*/amb
+         current-amb-tree
          (struct-out exn:fail:amb)
          raise-amb-error)
 
@@ -18,31 +19,33 @@
       "amb tree exhausted"
       (current-continuation-marks)))))
 
-(define continue raise-amb-error)
+(define current-amb-tree (make-parameter raise-amb-error))
 
-(define update-continue!
+(define update-amb-tree!
   (λ (k alt*)
-    (define prev-continue continue)
-    (set! continue
-          (λ ()
-            (if (null? alt*)
-                (begin
-                  (set! continue prev-continue)
-                  (prev-continue))
-                (let ([alt1 (force (car alt*))])
-                  (set! alt* (cdr alt*))
-                  (k alt1)))))))
+    (define previous-amb-tree (current-amb-tree))
+    (define amb-tree
+      (λ ()
+        (if (null? alt*)
+            (begin
+              (current-amb-tree previous-amb-tree)
+              (previous-amb-tree))
+            (let ([alt1 (car alt*)])
+              (set! alt* (cdr alt*))
+              (call-with-values alt1 k)))))
+    (current-amb-tree amb-tree)))
 
 (define-syntax amb
   (syntax-parser
-    [(_) #'(continue)]
+    #:datum-literals (amb)
+    [(_) #'((current-amb-tree))]
     [(_ alt) #'alt]
     [(_ alt0 ... (amb alt1 ...) alt2 ...)
      #'(amb alt0 ... alt1 ... alt2 ...)]
     [(_ alt0 alt ...+)
      #'(let/cc k
-         (define alt* (list (delay alt) ...))
-         (update-continue! k alt*)
+         (define alt* (list (λ () alt) ...))
+         (update-amb-tree! k alt*)
          alt0)]))
 
 (define-syntaxes (for/amb for*/amb)
@@ -56,8 +59,8 @@
              (define alt*
                (#,derived-stx (clause ...)
                 #,@(apply append (syntax->list #'(break ...)))
-                (delay body ...)))
-             (update-continue! k alt*)
-             (continue))]))
+                (λ () body ...)))
+             (update-amb-tree! k alt*)
+             ((current-amb-tree)))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
