@@ -5,8 +5,8 @@
 
 (provide amb for/amb for*/amb
          (contract-out
-          [raise-amb-error (-> any)]
           [raise-amb-error (-> none/c)]
+          [make-amb-tree (-> continuation? (listof (-> any)) (-> none/c))]
           [current-amb-tree (parameter/c (-> none/c))])
          (struct-out exn:fail:amb))
 
@@ -24,19 +24,16 @@
 
 (define current-amb-tree (make-parameter raise-amb-error))
 
-(define update-amb-tree!
-  (λ (k alt*)
-    (define previous-amb-tree (current-amb-tree))
+(define make-amb-tree
+  (λ (k alt* [previous-amb-tree (current-amb-tree)])
     (define amb-tree
       (λ ()
         (if (null? alt*)
-            (begin
-              (current-amb-tree previous-amb-tree)
-              (previous-amb-tree))
+            (previous-amb-tree)
             (let ([alt1 (car alt*)])
               (set! alt* (cdr alt*))
               (call-with-values alt1 k)))))
-    (current-amb-tree amb-tree)))
+    amb-tree))
 
 (define-syntax amb
   (syntax-parser
@@ -48,7 +45,8 @@
     [(_ alt0 alt ...+)
      #'(let/cc k
          (define alt* (list (λ () alt) ...))
-         (update-amb-tree! k alt*)
+         (define amb-tree (make-amb-tree k alt*))
+         (current-amb-tree amb-tree)
          alt0)]))
 
 (define-syntaxes (for/amb for*/amb)
@@ -63,7 +61,8 @@
                (#,derived-stx (clause ...)
                 #,@(apply append (syntax->list #'(break ...)))
                 (λ () body ...)))
-             (update-amb-tree! k alt*)
-             ((current-amb-tree)))]))
+             (define amb-tree (make-amb-tree k alt*))
+             (current-amb-tree amb-tree)
+             (amb-tree))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))

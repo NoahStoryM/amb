@@ -44,6 +44,20 @@ they allow programmers to explore different possibilities in a non-deterministic
       (displayln (list x y)))))
 }
 
+@defproc[(make-amb-tree [k continuation?]
+                        [alt* (listof (-> any))]
+                        [previous-amb-tree (current-amb-tree) (-> none/c)])
+         (-> none/c)]{
+The function returns a procedure that represents an amb tree.
+When the amb tree is called, it tries one alternative in @racket[alt*] at a time,
+at which point it calls @racket[k] with the selected values. The next time amb tree is called,
+it tries the next alternative, and so on, until all alternatives have been exhausted.
+If all alternatives are exhausted, the amb tree invokes the previous amb tree.
+
+@racket[make-amb-tree] can be used to implement your own amb-style operators,
+or to customize the behavior of existing ones by setting @racket[current-amb-tree] to a new amb tree.
+}
+
 @defparam[current-amb-tree amb-tree (-> none/c)]{
 The parameter detemines the procedure called by @racket[(amb)].
 By default, it is @racket[raise-amb-error].
