@@ -49,7 +49,7 @@ The parameter detemines the procedure called by @racket[(amb)].
 By default, it is @racket[raise-amb-error].
 }
 
-@defproc[(raise-amb-error) any]{
+@defproc[(raise-amb-error) none/c]{
 Creates an @racket[exn:fail:amb] value and @racket[raise]s it as
 an exception.
 }
