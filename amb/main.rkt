@@ -7,8 +7,11 @@
 (provide amb for/amb for*/amb
          (contract-out
           [raise-amb-error (-> none/c)]
+          [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-tree (parameter/c (-> none/c))]
-          [make-amb-tree (->* (continuation? (listof (-> any))) ((-> none/c)) (-> none/c))])
+          [make-amb-tree (->* (continuation? (listof (-> any)))
+                              ((-> list? list?) (-> none/c))
+                              (-> none/c))])
          (struct-out exn:fail:amb))
 
 (define-syntax amb

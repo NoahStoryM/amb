@@ -8,6 +8,7 @@
 (require/typed/provide
     "../../amb/private/utils.rkt"
   [raise-amb-error (-> Nothing)]
+  [current-amb-shuffler (Parameter (All (A) (-> (Listof A) (Listof A))))]
   [current-amb-tree (Parameter (-> Nothing))]
   [#:struct (exn:fail:amb exn:fail) ()
    #:extra-constructor-name make-exn:fail:amb])
@@ -16,9 +17,8 @@
  "../../amb/private/utils.rkt"
  [make-amb-tree
   (All (A ...)
-       (->* ((-> A ... A Nothing)
-             (Listof (-> (Values A ... A))))
-            ((-> Nothing))
+       (->* ((-> A ... A Nothing) (Listof (-> (Values A ... A))))
+            ((All (A) (-> (Listof A) (Listof A))) (-> Nothing))
             (-> Nothing)))])
 
 

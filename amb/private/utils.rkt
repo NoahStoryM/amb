@@ -14,15 +14,17 @@
       "amb tree exhausted"
       (current-continuation-marks)))))
 
+(define current-amb-shuffler (make-parameter values))
 (define current-amb-tree (make-parameter raise-amb-error))
 
 (define make-amb-tree
-  (λ (k alt* [previous-amb-tree (current-amb-tree)])
-    (define amb-tree
-      (λ ()
-        (if (null? alt*)
-            (previous-amb-tree)
-            (let ([alt0 (car alt*)])
-              (set! alt* (cdr alt*))
-              (call-with-values alt0 k)))))
-    amb-tree))
+  (λ (k alt* [amb-shuffler (current-amb-shuffler)] [previous-amb-tree (current-amb-tree)])
+    (let ([alt* (amb-shuffler alt*)])
+      (define amb-tree
+        (λ ()
+          (if (null? alt*)
+              (previous-amb-tree)
+              (let ([alt0 (car alt*)])
+                (set! alt* (cdr alt*))
+                (call-with-values alt0 k)))))
+      amb-tree)))

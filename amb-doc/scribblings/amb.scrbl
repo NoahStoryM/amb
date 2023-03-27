@@ -46,6 +46,7 @@ they allow programmers to explore different possibilities in a non-deterministic
 
 @defproc[(make-amb-tree [k continuation?]
                         [alt* (listof (-> any))]
+                        [amb-shuffler (current-amb-shuffler) (-> list? list?)]
                         [previous-amb-tree (current-amb-tree) (-> none/c)])
          (-> none/c)]{
 The function returns a procedure that represents an amb tree.
@@ -61,6 +62,11 @@ or to customize the behavior of existing ones by setting @racket[current-amb-tre
 @defparam[current-amb-tree amb-tree (-> none/c)]{
 The parameter detemines the procedure called by @racket[(amb)].
 By default, it is @racket[raise-amb-error].
+}
+
+@defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
+The parameter returns a shuffler function that can be used to set the order of @racket[alt*].
+The default shuffler function simply returns its input list.
 }
 
 @defproc[(raise-amb-error) none/c]{
