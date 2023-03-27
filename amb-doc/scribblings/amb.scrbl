@@ -12,7 +12,7 @@
 
 
 @title{amb: Ambiguous Operator}
-@defmodule[amb]
+@defmodule*[(amb typed/amb)]
 @author[@author+email["Noah Ma" "noahstorym@gmail.com"]]
 
 @defform[(amb expr ...)]{

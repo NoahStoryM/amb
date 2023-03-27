@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require amb)
+(require "../main.rkt")
 
 (begin
   (with-handlers ([exn:fail:amb? void])

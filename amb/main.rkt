@@ -1,39 +1,15 @@
 #lang racket/base
 
-(require (for-syntax racket/base syntax/parse)
+(require "private/utils.rkt"
+         (for-syntax racket/base syntax/parse)
          racket/contract)
 
 (provide amb for/amb for*/amb
          (contract-out
           [raise-amb-error (-> none/c)]
-          [make-amb-tree (->* (continuation? (listof (-> any))) ((-> none/c)) (-> none/c))]
-          [current-amb-tree (parameter/c (-> none/c))])
+          [current-amb-tree (parameter/c (-> none/c))]
+          [make-amb-tree (->* (continuation? (listof (-> any))) ((-> none/c)) (-> none/c))])
          (struct-out exn:fail:amb))
-
-(struct exn:fail:amb exn:fail ()
-  #:extra-constructor-name make-exn:fail:amb
-  #:transparent)
-
-
-(define raise-amb-error
-  (λ ()
-    (raise
-     (make-exn:fail:amb
-      "amb tree exhausted"
-      (current-continuation-marks)))))
-
-(define current-amb-tree (make-parameter raise-amb-error))
-
-(define make-amb-tree
-  (λ (k alt* [previous-amb-tree (current-amb-tree)])
-    (define amb-tree
-      (λ ()
-        (if (null? alt*)
-            (previous-amb-tree)
-            (let ([alt1 (car alt*)])
-              (set! alt* (cdr alt*))
-              (call-with-values alt1 k)))))
-    amb-tree))
 
 (define-syntax amb
   (syntax-parser
