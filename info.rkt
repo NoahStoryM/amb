@@ -3,7 +3,7 @@
 (define license 'MIT)
 (define collection 'multi)
 
-(define deps '("base"))
+(define deps '("base" "typed-racket-lib"))
 (define build-deps '("scribble-lib" "racket-doc"))
 (define clean '("compiled" "private/compiled"))
 
