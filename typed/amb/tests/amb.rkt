@@ -13,6 +13,12 @@
       (displayln (list x y))
       (amb))))
 
+(with-handlers ([exn:fail:amb? void])
+  (parameterize ([current-amb-tree raise-amb-error])
+    (let ([ls (amb '(a b c) '(x y z))])
+      (displayln ls)
+      (amb))))
+
 (parameterize ([current-amb-tree raise-amb-error])
   (let ([b (amb (ann (amb) True)
                 (ann (amb) False)

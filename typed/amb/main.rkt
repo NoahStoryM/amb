@@ -24,9 +24,12 @@
 
 (define-syntax amb
   (let ()
+    (define-syntax-class literal
+      [pattern (~or* 'e e:boolean e:char e:number e:regexp e:byte-regexp e:str e:bytes)
+               #:with datum #'e])
     (define alt-parser
       (syntax-parser
-        #:datum-literals (amb ann :)
+        #:datum-literals (amb ann : quote)
         [(amb alt ...)
          (let ([alt* (syntax->list #'(alt ...))])
            #`(amb #,@(map alt-parser alt*)))]
@@ -37,6 +40,7 @@
          ;; TODO check t1 <=: t2
          #'(ann e t2)]
         [(ann e (~optional :) t) #'(ann e t)]
+        [e:literal #'(ann 'e.datum 'e.datum)]
         [e #'(ann e Nothing)]))
     (λ (stx)
       (syntax-parse stx
