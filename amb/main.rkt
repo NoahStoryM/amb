@@ -21,12 +21,12 @@
     [(_ alt) #'alt]
     [(_ alt0 ... (amb alt1 ...) alt2 ...)
      #'(amb alt0 ... alt1 ... alt2 ...)]
-    [(_ alt0 alt ...+)
+    [(_ alt ...+)
      #'(let/cc k
          (define alt* (list (λ () alt) ...))
          (define amb-tree (make-amb-tree k alt*))
          (current-amb-tree amb-tree)
-         alt0)]))
+         (amb-tree))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
