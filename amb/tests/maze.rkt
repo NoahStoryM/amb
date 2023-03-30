@@ -1,6 +1,6 @@
 #lang racket
 
-(require "../main.rkt")
+(require data/queue "../main.rkt")
 
 (current-amb-shuffler shuffle)
 
@@ -15,28 +15,30 @@
 (define (valid? x y)
   (and (>= x 0) (< x (length maze))
        (>= y 0) (< y (length (car maze)))
-       (list-ref (list-ref maze x) y)))
+       (list-ref (list-ref maze x) y)
+       #t))
 
 
 (define (solve-maze x y path dir*)
   (define ans '())
-  (with-handlers ([exn:fail:amb? void])
-    (parameterize ([current-amb-tree raise-amb-error])
+  (with-handlers ([exn:fail:contract? void])
+    (parameterize ([current-amb-queue (make-queue)])
       (let loop ([x x] [y y] [path path] [dir* dir*])
+        (unless (valid? x y) (amb))
         (define pos (cons x y))
+        (when (member pos path) (amb))
         (cond
-          [(or (member pos path) (not (valid? x y))) (amb)]
           [(eq? '** (list-ref (list-ref maze x) y))
-           (set! ans (cons (cons (reverse path) (reverse dir*)) ans))
+           (define res (cons (reverse path) (reverse dir*)))
+           (set! ans (cons res ans))
            (amb)]
           [else
-           (let ([dir (amb 'up 'down 'left 'right)])
-             (case dir
-               [(up)    (loop (- x 1) y (cons pos path) (cons dir dir*))]
-               [(down)  (loop (+ x 1) y (cons pos path) (cons dir dir*))]
-               [(left)  (loop x (- y 1) (cons pos path) (cons dir dir*))]
-               [(right) (loop x (+ y 1) (cons pos path) (cons dir dir*))]
-               [else (amb)]))]))))
+           (let-values ([(dir x y)
+                         (amb (values 'up    (sub1 x) y)
+                              (values 'down  (add1 x) y)
+                              (values 'left  x (sub1 y))
+                              (values 'right x (add1 y)))])
+             (loop x y (cons pos path) (cons dir dir*)))]))))
   ans)
 
 (pretty-print (solve-maze 0 0 '() '()))

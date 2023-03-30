@@ -1,6 +1,6 @@
 #lang typed/racket
 
-(require "../main.rkt")
+(require "../../data/queue.rkt" "../main.rkt")
 
 (current-amb-shuffler shuffle)
 
@@ -29,12 +29,13 @@
   (: ans (Listof (Pair (Listof (Pair Integer Integer))
                        (Listof (U 'up 'down 'left 'right)))))
   (define ans '())
-  (with-handlers ([exn:fail:amb? void])
-    (parameterize ([current-amb-tree raise-amb-error])
+  (with-handlers ([exn:fail:contract? void])
+    (parameterize ([current-amb-queue (make-queue)])
       (let loop ([x x] [y y] [path path] [dir* dir*])
+        (unless (valid? x y) (amb))
         (define pos (cons x y))
+        (when (member pos path) (amb))
         (cond
-          [(or (member pos path) (not (valid? x y))) (amb)]
           [(eq? '** (list-ref (list-ref maze x) y))
            (: res (Pair (Listof (Pair Integer Integer))
                         (Listof (U 'up 'down 'left 'right))))

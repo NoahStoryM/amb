@@ -2,31 +2,28 @@
 
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
-         racket/contract)
+         racket/contract
+         data/queue)
 
 (provide amb for/amb for*/amb
          (contract-out
-          [raise-amb-error (-> none/c)]
           [current-amb-shuffler (parameter/c (-> list? list?))]
-          [current-amb-tree (parameter/c (-> none/c))]
-          [make-amb-tree (->* (continuation? (listof (-> any)))
-                              ((-> list? list?) (-> none/c))
-                              (-> none/c))])
-         (struct-out exn:fail:amb))
+          [current-amb-queue    (parameter/c queue?)]
+          [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
+          [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
+          [insert-amb-node*! (-> continuation? (listof (-> any)) void?)]))
 
 (define-syntax amb
   (syntax-parser
     #:datum-literals (amb)
-    [(_) #'((current-amb-tree))]
-    [(_ alt) #'alt]
+    [(_) #'(((current-amb-dequeue!) (current-amb-queue)))]
     [(_ alt0 ... (amb alt1 ...) alt2 ...)
      #'(amb alt0 ... alt1 ... alt2 ...)]
     [(_ alt ...+)
      #'(let/cc k
          (define alt* (list (λ () alt) ...))
-         (define amb-tree (make-amb-tree k alt*))
-         (current-amb-tree amb-tree)
-         (amb-tree))]))
+         (insert-amb-node*! k alt*)
+         (amb))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
@@ -40,8 +37,7 @@
                (#,derived-stx (clause ...)
                 #,@(apply append (syntax->list #'(break ...)))
                 (λ () body ...)))
-             (define amb-tree (make-amb-tree k alt*))
-             (current-amb-tree amb-tree)
-             (amb-tree))]))
+             (insert-amb-node*! k alt*)
+             (amb))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
