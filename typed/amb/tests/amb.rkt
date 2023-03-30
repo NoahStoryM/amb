@@ -20,14 +20,27 @@
       (amb))))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (let ([b (amb (ann (amb) True)
-                (ann (amb) False)
-                #t #f)])
+  (let ([b (amb #t (ann (amb) True) (ann (amb) False) #f)])
     (displayln (ann b Boolean))))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let ([x : (U Zero One) (amb (ann 0 Zero) (ann 1 One))])
     (displayln x)))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (let-values ([(x y)
+                (amb (ann (amb) (Values Real Real))
+                     (values 9 2)
+                     (values 2 9))])
+    (when (> x y) (amb))
+    (displayln (list x y)))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (let-values ([(x y) (amb (values 2 9))])
+    (when (> x y) (amb))
+    (displayln (list x y)))
+  (newline))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)

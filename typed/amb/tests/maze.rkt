@@ -43,13 +43,14 @@
            (set! ans (cons res ans))
            (amb)]
           [else
-           (let ([dir (amb 'up 'down 'left 'right)])
-             (case dir
-               [(up)    (loop (- x 1) y (cons pos path) (cons dir dir*))]
-               [(down)  (loop (+ x 1) y (cons pos path) (cons dir dir*))]
-               [(left)  (loop x (- y 1) (cons pos path) (cons dir dir*))]
-               [(right) (loop x (+ y 1) (cons pos path) (cons dir dir*))]
-               [else (amb)]))]))))
+           (let-values ([(dir x y)
+                         (amb
+                          (ann (amb) (Values (U 'up 'down 'left 'right) Integer Integer))
+                          (values 'up    (sub1 x) y)
+                          (values 'down  (add1 x) y)
+                          (values 'left  x (sub1 y))
+                          (values 'right x (add1 y)))])
+             (loop x y (cons pos path) (cons dir dir*)))]))))
   ans)
 
 (pretty-print (solve-maze 0 0 '() '()))

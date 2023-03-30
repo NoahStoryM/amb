@@ -40,9 +40,22 @@
     (λ (stx)
       (syntax-parse stx
         #:datum-literals (amb ann :)
-        [(_) #'(((current-amb-dequeue!) (current-amb-queue)))]
+        [(_ (ann (amb) (~optional :) _) ...)
+         #'(((current-amb-dequeue!) (current-amb-queue)))]
         [(_ alt0 ... (amb alt1 ...) alt2 ...)
          #'(amb alt0 ... alt1 ... alt2 ...)]
+        [(_ (ann e (~optional :) t))
+         #'(let/cc k : t
+             (: alt* (Listof (-> t)))
+             (define alt* (list (λ () e)))
+             (insert-amb-node*! k alt*)
+             (amb))]
+        [(_ (ann (amb) (~optional :) t) alt ...+)
+         #'(let/cc k : t
+             (: alt* (Listof (-> t)))
+             (define alt* (list (λ () alt) ...))
+             (insert-amb-node*! k alt*)
+             (amb))]
         [(_ (ann e (~optional :) t) ...+)
          (with-syntax ([t #'(U t ...)]) ; TODO (U (Values ...) ...) is illegal
            #'(let/cc k : t
