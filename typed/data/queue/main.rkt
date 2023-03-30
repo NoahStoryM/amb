@@ -4,9 +4,11 @@
 
 (struct (S T) Queueof ([_ : (Parameter S T)]))
 (define-type (Queue S T) (Queueof S T)) ; avoid printing #(struct:Queueof ...)
+(define-type QueueTop (Queue Nothing Any))
+(define-type QueueBot (Queue Any Nothing))
 ;; TODO (Queue T) -> (Queue T T)
 #;(struct (A ...) _ ([_ : (Parameter A ...)]) #:type-name Queue) ; not work well
-(provide Queue)
+(provide Queue QueueTop QueueBot)
 
 (unsafe-require/typed/provide
  data/queue
@@ -17,11 +19,11 @@
  [dequeue! (All (T) (-> (Queue Nothing T) T))]
 
  [queue->list (All (T) (-> (Queue Nothing T) (Listof T)))]
- [queue-length (-> (Queue Nothing Any) Index)]
+ [queue-length (-> QueueTop Index)]
 
- [queue? (pred (Queue Nothing Any))]
- [queue-empty? (-> (Queue Nothing Any) Boolean)]
+ [queue? (pred QueueTop)]
+ [queue-empty? (-> QueueTop Boolean)]
  [non-empty-queue? (All (S T)
                         (case->
                          (-> (Queue S T) Boolean)
-                         (-> Any Boolean : #:+ (Queue Nothing Any))))])
+                         (-> Any Boolean : #:+ QueueTop)))])
