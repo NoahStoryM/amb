@@ -26,4 +26,6 @@
  [non-empty-queue? (All (S T)
                         (case->
                          (-> (Queue S T) Boolean)
-                         (-> Any Boolean : #:+ QueueTop)))])
+                         (-> Any Boolean : #:+ QueueTop)))]
+
+ [in-queue (All (T) (-> (Queue Nothing T) (Sequenceof T)))])
