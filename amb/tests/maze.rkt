@@ -2,7 +2,6 @@
 
 (require data/queue "../main.rkt")
 
-(current-amb-shuffler shuffle)
 
 (define maze
   '((#t #t #t #t #t #t #t #t #t #t)
@@ -20,25 +19,24 @@
 
 
 (define (solve-maze x y path dir*)
-  (define ans '())
-  (with-handlers ([exn:fail:contract? void])
-    (parameterize ([current-amb-queue (make-queue)])
-      (let loop ([x x] [y y] [path path] [dir* dir*])
-        (unless (valid? x y) (amb))
-        (define pos (cons x y))
-        (when (member pos path) (amb))
-        (cond
-          [(eq? '** (list-ref (list-ref maze x) y))
-           (define res (cons (reverse path) (reverse dir*)))
-           (set! ans (cons res ans))
-           (amb)]
-          [else
-           (let-values ([(dir x y)
-                         (amb (values 'up    (sub1 x) y)
-                              (values 'down  (add1 x) y)
-                              (values 'left  x (sub1 y))
-                              (values 'right x (add1 y)))])
-             (loop x y (cons pos path) (cons dir dir*)))]))))
-  ans)
+  (unless (valid? x y) (amb))
+  (define pos (cons x y))
+  (when (member pos path) (amb))
+  (if (eq? '** (list-ref (list-ref maze x) y))
+      (cons (reverse path) (reverse dir*))
+      (let-values ([(dir x y)
+                    (amb (values 'up    (sub1 x) y)
+                         (values 'down  (add1 x) y)
+                         (values 'left  x (sub1 y))
+                         (values 'right x (add1 y)))])
+        (solve-maze x y (cons pos path) (cons dir dir*)))))
 
-(pretty-print (solve-maze 0 0 '() '()))
+
+(define ans '())
+(with-handlers ([exn:fail:contract? void])
+  (parameterize ([current-amb-queue    (make-queue)]
+                 [current-amb-shuffler shuffle])
+    (define res (solve-maze 0 0 '() '()))
+    (set! ans (cons res ans))
+    (amb)))
+(pretty-print ans)
