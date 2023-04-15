@@ -48,9 +48,9 @@ they allow programmers to explore different possibilities in a non-deterministic
       (displayln (list x y)))))
 }
 
-@defproc[(insert-amb-node*! [k continuation?] [alt* (listof (-> any))]) void?]{
+@defproc[(insert-amb-node*! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
 Inserts new amb nodes for all alternatives in @racket[alt*] into the current amb queue.
-An amb node is a @racket[thunk] that calls the continuation @racket[k] with the values produced by the alternative.
+An amb node is a @racket[thunk] that calls @racket[k] with the values produced by an alternative.
 }
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{

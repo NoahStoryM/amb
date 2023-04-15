@@ -11,7 +11,7 @@
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
           [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
-          [insert-amb-node*! (-> continuation? (listof (-> any)) void?)]))
+          [insert-amb-node*! (-> (-> any/c ... none/c) (listof (-> any)) void?)]))
 
 (define-syntax amb
   (syntax-parser
