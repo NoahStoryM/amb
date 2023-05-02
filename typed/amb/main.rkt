@@ -78,7 +78,7 @@
               : (Listof (-> t1))
               (clause ...)
               : (Listof (-> t2))
-              #,@(apply append (syntax->list #'(break ...)))
+              break ...
               (ann (ann (λ () body ...) (-> t2)) (-> t1)))]
           [(~or* (name (~optional (~seq : t)) (clause ...) break:break-clause ... body ...+)
                  (name (clause ...) (~optional (~seq : t)) break:break-clause ... body ...+))

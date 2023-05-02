@@ -33,10 +33,7 @@
       (syntax-parser
         [(_ (clause ...) break:break-clause ... body ...+)
          #`(let/cc k
-             (define alt*
-               (#,derived-stx (clause ...)
-                #,@(apply append (syntax->list #'(break ...)))
-                (λ () body ...)))
+             (define alt* (#,derived-stx (clause ...) break ... (λ () body ...)))
              (insert-amb-node*! k alt*)
              (amb))]))
     (values (make-for/amb #'for/list)
