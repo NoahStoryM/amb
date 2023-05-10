@@ -31,12 +31,11 @@
   (if (eq? '** (list-ref (list-ref maze x) y))
       (cons (reverse path) (reverse dir*))
       (let-values ([(dir x y)
-                    (amb
-                     (ann (amb) (Values (U 'up 'down 'left 'right) Integer Integer))
-                     (values 'up    (sub1 x) y)
-                     (values 'down  (add1 x) y)
-                     (values 'left  x (sub1 y))
-                     (values 'right x (add1 y)))])
+                    (amb : (Values (U 'up 'down 'left 'right) Integer Integer)
+                         (values 'up    (sub1 x) y)
+                         (values 'down  (add1 x) y)
+                         (values 'left  x (sub1 y))
+                         (values 'right x (add1 y)))])
         (solve-maze x y (cons pos path) (cons dir dir*)))))
 
 

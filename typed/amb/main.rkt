@@ -16,54 +16,21 @@
 
 
 (define-syntax amb
-  (let ()
-    (define-syntax-class literal
-      [pattern (~or* 'e e:boolean e:char e:number e:regexp e:byte-regexp e:str e:bytes)
-               #:with datum #'e])
-    (define alt-parser
-      (syntax-parser
-        #:datum-literals (amb ann : quote values)
-        [(amb alt ...)
-         (let ([alt* (syntax->list #'(alt ...))])
-           #`(amb #,@(map alt-parser alt*)))]
-        [(ann (amb alt ...+) (~optional :) t)
-         (with-syntax ([(alt ...) #'((ann alt t) ...)])
-           (alt-parser #'(amb alt ...)))]
-        [(ann (ann e (~optional :) t1) (~optional :) t2)
-         ;; TODO check t1 <=: t2
-         #'(ann e t2)]
-        [(ann e (~optional :) t) #'(ann e t)]
-        [e:literal #'(ann 'e.datum 'e.datum)]
-        [(values e:literal ...)
-         #'(ann (values 'e.datum ...) (Values 'e.datum ...))]
-        [e #'(ann e Nothing)]))
-    (λ (stx)
-      (syntax-parse stx
-        #:datum-literals (amb ann :)
-        [(_ (ann (amb) (~optional :) _) ...)
-         #'(((current-amb-dequeue!) (current-amb-queue)))]
-        [(_ alt0 ... (amb alt1 ...) alt2 ...)
-         #'(amb alt0 ... alt1 ... alt2 ...)]
-        [(_ (ann e (~optional :) t))
-         #'(let/cc k : t
-             (: alt* (Listof (-> t)))
-             (define alt* (list (λ () e)))
-             (insert-amb-node*! k alt*)
-             (amb))]
-        [(_ (ann (amb) (~optional :) t) alt ...+)
-         #'(let/cc k : t
-             (: alt* (Listof (-> t)))
-             (define alt* (list (λ () alt) ...))
-             (insert-amb-node*! k alt*)
-             (amb))]
-        [(_ (ann e (~optional :) t) ...+)
-         (with-syntax ([t #'(U t ...)]) ; TODO (U (Values ...) ...) is illegal
-           #'(let/cc k : t
-               (: alt* (Listof (-> t)))
-               (define alt* (list (λ () e) ...))
-               (insert-amb-node*! k alt*)
-               (amb)))]
-        [(_ alt ...+) (alt-parser stx)]))))
+  (λ (stx)
+    (syntax-parse stx
+      #:datum-literals (amb :)
+      [(_ (~optional (~seq : t1)))
+       #'(((current-amb-dequeue!) (current-amb-queue)))]
+      [(_ : t0 alt0 ... (amb : t1 alt1 ...) alt2 ...)
+       #'(amb : (U t0 t1) alt0 ... alt1 ... alt2 ...)]
+      [(_ : t alt0 ... (amb alt1 ...) alt2 ...)
+       #'(amb : t alt0 ... alt1 ... alt2 ...)]
+      [(_ : t alt ...+)
+       #'(let/cc k : t
+           (: alt* (Listof (-> t)))
+           (define alt* (list (λ () alt) ...))
+           (insert-amb-node*! k alt*)
+           (amb : t))])))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
@@ -104,6 +71,6 @@
                  #;(: alt* (Listof (-> t)))
                  (define alt* #,((alt*-parser derived-stx) stx))
                  (insert-amb-node*! k alt*)
-                 (amb)))])))
+                 (amb : t)))])))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))

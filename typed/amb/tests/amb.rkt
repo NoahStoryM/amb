@@ -5,8 +5,8 @@
 
 (with-handlers ([exn:fail:contract? void])
   (parameterize ([current-amb-queue (make-queue)])
-    (let ([x (amb 2 9 (ann (amb) : Real))]
-          [y (amb (ann (amb) Real) 9 2)])
+    (let ([x (amb : Real 2 9 (amb))]
+          [y (amb : Real (amb) 9 2)])
       (ann x Real)
       (ann y : Real)
       (when (> x y) (amb))
@@ -15,21 +15,21 @@
 
 (with-handlers ([exn:fail:contract? void])
   (parameterize ([current-amb-queue (make-queue)])
-    (let ([ls (amb '(a b c) '(x y z))])
+    (let ([ls (amb : (U '(a b c) '(x y z)) '(a b c) '(x y z))])
       (displayln ls)
       (amb))))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (let ([b (amb #t (ann (amb) True) (ann (amb) False) #f)])
+  (let ([b (amb : Boolean #t (amb : True) (amb : False) #f)])
     (displayln (ann b Boolean))))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (let ([x : (U Zero One) (amb (ann 0 Zero) (ann 1 One))])
+  (let ([x : (U Zero One) (amb : Nothing (amb : Zero 0) (amb : One 1))])
     (displayln x)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
-                (amb (ann (amb) (Values Real Real))
+                (amb : (Values Real Real)
                      (values 9 2)
                      (values 2 9))])
     (when (> x y) (amb))
@@ -37,7 +37,7 @@
   (newline))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (let-values ([(x y) (amb (values 2 9))])
+  (let-values ([(x y) (amb : (Values 2 9) (values 2 9))])
     (when (> x y) (amb))
     (displayln (list x y)))
   (newline))
