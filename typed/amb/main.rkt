@@ -30,7 +30,9 @@
            (: alt* (Listof (-> t)))
            (define alt* (list (λ () alt) ...))
            (insert-amb-node*! k alt*)
-           (amb : t))])))
+           (amb : t))]
+      [(_ alt ...+)
+       #'(amb : Any alt ...)])))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
