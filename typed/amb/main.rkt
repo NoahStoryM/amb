@@ -32,7 +32,7 @@
            (insert-amb-node*! k alt*)
            (amb : t))]
       [(_ alt ...+)
-       #'(amb : Any alt ...)])))
+       #'(amb : AnyValues alt ...)])))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
