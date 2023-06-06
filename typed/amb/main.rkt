@@ -19,9 +19,8 @@
   (λ (stx)
     (syntax-parse stx
       #:datum-literals (amb :)
-      [(_) #'(amb : Nothing)]
-      [(_ : t)
-       #'(ann (((current-amb-dequeue!) (current-amb-queue))) t)]
+      [(_) #'(((current-amb-dequeue!) (current-amb-queue)))]
+      [(_ : t) #'(ann (amb) t)]
       [(_ : t0 alt0 ... (amb : t1 alt1 ...) alt2 ...)
        #'(amb : (U t0 t1) alt0 ... alt1 ... alt2 ...)]
       [(_ : t alt0 ... (amb alt1 ...) alt2 ...)
