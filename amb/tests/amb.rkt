@@ -40,9 +40,8 @@
   (newline))
 
 (time
- (begin
-   (with-handlers ([exn:fail:contract? void])
-     (parameterize ([current-amb-queue (make-queue)])
-       (let ([i (for/amb ([i (in-range 1 100000)]) i)])
-         (amb))))
-   (newline)))
+ (with-handlers ([exn:fail:contract? void])
+   (parameterize ([current-amb-queue (make-queue)])
+     (let ([i (for/amb ([i (in-range 1 100000)]) i)])
+       (amb))))
+ (newline))
