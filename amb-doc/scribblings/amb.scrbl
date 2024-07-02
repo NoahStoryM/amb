@@ -19,12 +19,15 @@
 @defmodule*[(amb typed/amb)]
 @author[@author+email["Noah Ma" "noahstorym@gmail.com"]]
 
-@defform[(amb expr ...)]{
+@defform*[((amb expr ...)
+           (amb : t expr ...))]{
 The amb operator.
 }
 
-@deftogether[(@defform[(for/amb (for-clause ...) body-or-break ... body)]
-              @defform[(for*/amb (for-clause ...) body-or-break ... body)])]{
+@deftogether[(@defform*[((for/amb (for-clause ...) body-or-break ... body)
+                         (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
+              @defform*[((for*/amb (for-clause ...) body-or-break ... body)
+                         (for*/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))])]{
 Iterate like @racket[for/list] and @racket[for*/list] respectively,
 they allow programmers to explore different possibilities in a non-deterministic way.
 
