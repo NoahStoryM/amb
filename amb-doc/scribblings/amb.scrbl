@@ -51,9 +51,9 @@ that calls @racket[k] with the @racket[values] produced by an @tech{alternative}
 }
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
-A @tech/guide{parameter} that determines how to @racket[shuffle] the
-@tech{alternatives} before inserting new @racket[amb] nodes into the @racket[amb]
-queue. The default value is @racket[reverse].
+A @tech/guide{parameter} that determines how to @racket[shuffle] @racket[alt*]
+before inserting new @racket[amb] nodes into the @racket[amb] queue. The default
+value is @racket[reverse].
 }
 
 @defparam[current-amb-queue amb-queue queue?]{
