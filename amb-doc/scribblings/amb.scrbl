@@ -45,15 +45,15 @@ programmers to explore different possibilities in a non-deterministic way.
 }
 
 @defproc[(insert-amb-node*! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
-Inserts new @racket[amb] nodes for all alternatives in @racket[alt*] into the
-current @racket[amb] queue. An @racket[amb] node is a @racket[thunk] that calls
-@racket[k] with the @racket[values] produced by an alternative.
+Inserts new @racket[amb] nodes for all @deftech{alternatives} in @racket[alt*]
+into the current @racket[amb] queue. An @racket[amb] node is a @racket[thunk]
+that calls @racket[k] with the @racket[values] produced by an @tech{alternative}.
 }
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
-A @tech/guide{parameter} that determines how to @racket[shuffle] the alternatives
-before inserting them into the @racket[amb] queue. The default value is
-@racket[reverse].
+A @tech/guide{parameter} that determines how to @racket[shuffle] the
+@tech{alternatives} before inserting new @racket[amb] nodes into the @racket[amb]
+queue. The default value is @racket[reverse].
 }
 
 @defparam[current-amb-queue amb-queue queue?]{
