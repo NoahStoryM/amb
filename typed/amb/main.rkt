@@ -49,11 +49,12 @@
               : (Listof (-> t2))
               break ...
               (ann (ann (λ () body ...) (-> t2)) (-> t1)))]
-          [(~or* (name : t (clause ...) break:break-clause ... body ...+)
-                 (name (clause ...) : t break:break-clause ... body ...+)
+          [(~or* (name : t0 (clause ...) break:break-clause ... body ...+)
+                 (name (clause ...) : t0 break:break-clause ... body ...+)
                  (name (clause ...) break:break-clause ... body ...+))
-           (with-syntax ([t (if (attribute t) #'t #'AnyValues)])
-             (parser #'(name : t (clause ...) : t break ... body ...)))]))
+           #:with t
+           (if (attribute t0) #'t0 #'AnyValues)
+           (parser #'(name : t (clause ...) : t break ... body ...))]))
       parser)
     (define (make-for/amb derived-stx)
       (λ (stx)
@@ -64,16 +65,16 @@
               (~optional (~seq : t2))
               break:break-clause ...
               body ...+)
-           (with-syntax ([t
-                          (cond
-                            [(and (attribute t1) (attribute t2)) #'(U t1 t2)]
-                            [(attribute t1) #'t1]
-                            [(attribute t2) #'t2]
-                            [else #'AnyValues])])
-             #`(let/cc k : t
-                 #;(: alt* (Listof (-> t)))
-                 (define alt* #,((alt*-parser derived-stx) stx))
-                 (insert-amb-node*! k alt*)
-                 (amb : t)))])))
+           #:with t
+           (cond
+             [(and (attribute t1) (attribute t2)) #'(U t1 t2)]
+             [(attribute t1) #'t1]
+             [(attribute t2) #'t2]
+             [else #'AnyValues])
+           #`(let/cc k : t
+               #;(: alt* (Listof (-> t)))
+               (define alt* #,((alt*-parser derived-stx) stx))
+               (insert-amb-node*! k alt*)
+               (amb : t))])))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
