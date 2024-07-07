@@ -49,8 +49,9 @@
               : (Listof (-> t2))
               break ...
               (ann (ann (λ () body ...) (-> t2)) (-> t1)))]
-          [(~or* (name (~optional (~seq : t)) (clause ...) break:break-clause ... body ...+)
-                 (name (clause ...) (~optional (~seq : t)) break:break-clause ... body ...+))
+          [(~or* (name : t (clause ...) break:break-clause ... body ...+)
+                 (name (clause ...) : t break:break-clause ... body ...+)
+                 (name (clause ...) break:break-clause ... body ...+))
            (with-syntax ([t (if (attribute t) #'t #'AnyValues)])
              (parser #'(name : t (clause ...) : t break ... body ...)))]))
       parser)

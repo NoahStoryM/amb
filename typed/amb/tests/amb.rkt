@@ -51,3 +51,13 @@
     (when (> x y) (amb))
     (displayln (list x y)))
   (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (let-values ([(x y)
+                (for/amb ([v1 : Real (in-list '(2 9))]
+                          [v2 : Real (in-list '(9 2))])
+                  : (Values Real Real)
+                  (values v1 v2))])
+    (when (> x y) (amb))
+    (displayln (list x y)))
+  (newline))
