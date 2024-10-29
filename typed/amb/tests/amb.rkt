@@ -16,7 +16,7 @@
 
 (with-handlers ([exn:fail:contract? void])
   (parameterize ([current-amb-queue (make-queue)])
-    (let ([ls (amb : (U '(a b c) '(x y z)) '(a b c) '(x y z))])
+    (let ([ls (amb : (∪ '(a b c) '(x y z)) '(a b c) '(x y z))])
       (displayln ls)
       (amb* (newline)))))
 
@@ -25,7 +25,7 @@
     (displayln (ann b Boolean))))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (let ([x : (U Zero One) (amb : Nothing (amb : Zero 0) (amb : One 1))])
+  (let ([x : (∪ Zero One) (amb : Nothing (amb : Zero 0) (amb : One 1))])
     (displayln x)))
 
 (parameterize ([current-amb-queue (make-queue)])

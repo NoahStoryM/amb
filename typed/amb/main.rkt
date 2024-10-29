@@ -26,7 +26,7 @@
                            (current-continuation-marks))))]
       [(_ : t) #'(ann (amb) t)]
       [(_ : t0 alt0 ... (amb : t1 alt1 ...) alt2 ...)
-       #'(amb : (U t0 t1) alt0 ... alt1 ... alt2 ...)]
+       #'(amb : (∪ t0 t1) alt0 ... alt1 ... alt2 ...)]
       [(_ : t alt0 ... (amb alt1 ...) alt2 ...)
        #'(amb : t alt0 ... alt1 ... alt2 ...)]
       [(_ : t alt ...+)
@@ -80,7 +80,7 @@
               body ...+)
            #:with t
            (cond
-             [(and (attribute t1) (attribute t2)) #'(U t1 t2)]
+             [(and (attribute t1) (attribute t2)) #'(∪ t1 t2)]
              [(attribute t1) #'t1]
              [(attribute t2) #'t2]
              [else #'AnyValues])

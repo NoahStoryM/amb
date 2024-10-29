@@ -3,7 +3,7 @@
 (require "../../data/queue.rkt" "../main.rkt")
 
 
-(: maze (Listof (Listof (U #t #f '**))))
+(: maze (Listof (Listof (∪ #t #f '**))))
 (define maze
   '((#t #t #t #t #t #t #t #t #t #t)
     (#t #f #f #f #f #f #f #f #f #t)
@@ -21,9 +21,9 @@
 
 (: solve-maze (-> Integer Integer
                   (Listof (Pair Integer Integer))
-                  (Listof (U 'up 'down 'left 'right))
+                  (Listof (∪ 'up 'down 'left 'right))
                   (Pair (Listof (Pair Integer Integer))
-                        (Listof (U 'up 'down 'left 'right)))))
+                        (Listof (∪ 'up 'down 'left 'right)))))
 (define (solve-maze x y path dir*)
   (unless (valid? x y) (amb))
   (define pos (cons x y))
@@ -31,7 +31,7 @@
   (if (eq? '** (list-ref (list-ref maze x) y))
       (cons (reverse path) (reverse dir*))
       (let-values ([(dir x y)
-                    (amb : (Values (U 'up 'down 'left 'right) Integer Integer)
+                    (amb : (Values (∪ 'up 'down 'left 'right) Integer Integer)
                          (values 'up    (sub1 x) y)
                          (values 'down  (add1 x) y)
                          (values 'left  x (sub1 y))
@@ -40,13 +40,13 @@
 
 
 (: ans (Listof (Pair (Listof (Pair Integer Integer))
-                     (Listof (U 'up 'down 'left 'right)))))
+                     (Listof (∪ 'up 'down 'left 'right)))))
 (define ans '())
 (with-handlers ([exn:fail:contract:amb? void])
   (parameterize ([current-amb-queue     (make-queue)]
                  [current-amb-shuffler  shuffle])
     (: res (Pair (Listof (Pair Integer Integer))
-                 (Listof (U 'up 'down 'left 'right))))
+                 (Listof (∪ 'up 'down 'left 'right))))
     (define res (solve-maze 0 0 '() '()))
     (set! ans (cons res ans))
     (amb)))
