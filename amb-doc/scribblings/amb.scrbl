@@ -27,6 +27,7 @@ it simply runs @racket[(amb)].
                          (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
               @defform*[((for*/amb (for-clause ...) body-or-break ... body)
                          (for*/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))])]{
+
 Iterate like @racket[for/list] and @racket[for*/list] respectively, they allow
 programmers to explore different possibilities in a non-deterministic way.
 
@@ -36,12 +37,13 @@ programmers to explore different possibilities in a non-deterministic way.
                (displayln i)
                i)])
       (when (< x 5) (amb))))
-  (with-handlers ([exn:fail:contract? void])
-    (parameterize ([current-amb-queue (make-queue)])
-      (let ([x (for/amb ([i (in-range 10)]) i)])
-        (when (even? x) (amb))
-        (displayln x)
-        (amb))))
+  (parameterize ([current-amb-queue (make-queue)])
+    (let* ([a* '()] [b* '()]
+           [x (for/amb ([i (in-range 10)]) i)])
+      (when (even? x) (amb))
+      (set! a* (cons x a*))
+      (set! b* (cons (+ x 48) b*))
+      (amb* a* (list->bytes b*))))
   (parameterize ([current-amb-queue (make-queue)])
     (let-values ([(x y)
                   (for/amb ([v (in-list '([2 9] [9 2]))])
