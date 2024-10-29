@@ -4,6 +4,10 @@
 (provide (all-defined-out))
 
 
+(struct exn:fail:contract:amb exn:fail:contract ()
+  #:extra-constructor-name make-exn:fail:contract:amb
+  #:transparent)
+
 (define current-amb-shuffler (make-parameter reverse))
 (define current-amb-queue    (make-parameter (make-queue)))
 (define current-amb-enqueue! (make-parameter enqueue-front!))

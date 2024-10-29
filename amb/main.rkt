@@ -7,16 +7,22 @@
 
 (provide amb amb* for/amb for*/amb
          (contract-out
+          (struct exn:fail:contract:amb
+            ([message string?]
+             [continuation-marks continuation-mark-set?]))
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
           [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
           [insert-amb-node*! (-> (-> any/c ... none/c) (listof (-> any)) void?)]))
 
+
 (define-syntax amb
   (syntax-parser
     #:datum-literals (amb)
-    [(_) #'(((current-amb-dequeue!) (current-amb-queue)))]
+    [(_) #'(amb* (raise (exn:fail:contract:amb
+                         "amb: empty amb queue;\n expected at least one amb node\n  in: (amb)"
+                         (current-continuation-marks))))]
     [(_ alt0 ... (amb alt1 ...) alt2 ...)
      #'(amb alt0 ... alt1 ... alt2 ...)]
     [(_ alt ...+)
@@ -31,7 +37,8 @@
     [(_ v ...)
      #'(if (queue-empty? (current-amb-queue))
            (values v ...)
-           (amb))]))
+           (((current-amb-dequeue!)
+             (current-amb-queue))))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()

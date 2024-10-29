@@ -42,9 +42,9 @@
 (: ans (Listof (Pair (Listof (Pair Integer Integer))
                      (Listof (U 'up 'down 'left 'right)))))
 (define ans '())
-(with-handlers ([exn:fail:contract? void])
-  (parameterize ([current-amb-queue    (make-queue)]
-                 [current-amb-shuffler shuffle])
+(with-handlers ([exn:fail:contract:amb? void])
+  (parameterize ([current-amb-queue     (make-queue)]
+                 [current-amb-shuffler  shuffle])
     (: res (Pair (Listof (Pair Integer Integer))
                  (Listof (U 'up 'down 'left 'right))))
     (define res (solve-maze 0 0 '() '()))

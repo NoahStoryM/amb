@@ -3,7 +3,7 @@
 (require "../../data/queue.rkt" "../main.rkt")
 
 (begin
-  (with-handlers ([exn:fail:contract? void])
+  (with-handlers ([exn:fail:contract:amb? void])
     (parameterize ([current-amb-queue (make-queue)])
       (let ([x (amb : Real 2 9 (amb))]
             [y (amb : Real (amb) 9 2)])

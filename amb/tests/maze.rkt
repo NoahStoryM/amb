@@ -33,9 +33,9 @@
 
 
 (define ans '())
-(with-handlers ([exn:fail:contract? void])
-  (parameterize ([current-amb-queue    (make-queue)]
-                 [current-amb-shuffler shuffle])
+(with-handlers ([exn:fail:contract:amb? void])
+  (parameterize ([current-amb-queue     (make-queue)]
+                 [current-amb-shuffler  shuffle])
     (define res (solve-maze 0 0 '() '()))
     (set! ans (cons res ans))
     (amb)))

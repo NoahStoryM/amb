@@ -52,6 +52,11 @@ programmers to explore different possibilities in a non-deterministic way.
       (displayln (list x y)))))
 }
 
+@defstruct[(exn:fail:contract:amb exn:fail:contract) ()
+           #:inspector #f]{
+Raised when evaluating @racket[(amb)] with an empty @racket[amb] queue.
+}
+
 @defproc[(insert-amb-node*! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
 Inserts new @racket[amb] nodes for all @deftech{alternatives} in @racket[alt*]
 into the current @racket[amb] queue. An @racket[amb] node is a @racket[thunk]
