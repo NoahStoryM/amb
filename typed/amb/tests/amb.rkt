@@ -2,22 +2,23 @@
 
 (require "../../data/queue.rkt" "../main.rkt")
 
-
-(with-handlers ([exn:fail:contract? void])
-  (parameterize ([current-amb-queue (make-queue)])
-    (let ([x (amb : Real 2 9 (amb))]
-          [y (amb : Real (amb) 9 2)])
-      (ann x Real)
-      (ann y : Real)
-      (when (> x y) (amb))
-      (displayln (list x y))
-      (amb))))
+(begin
+  (with-handlers ([exn:fail:contract? void])
+    (parameterize ([current-amb-queue (make-queue)])
+      (let ([x (amb : Real 2 9 (amb))]
+            [y (amb : Real (amb) 9 2)])
+        (ann x Real)
+        (ann y : Real)
+        (when (> x y) (amb))
+        (displayln (list x y))
+        (amb))))
+  (newline))
 
 (with-handlers ([exn:fail:contract? void])
   (parameterize ([current-amb-queue (make-queue)])
     (let ([ls (amb : (U '(a b c) '(x y z)) '(a b c) '(x y z))])
       (displayln ls)
-      (amb))))
+      (amb* (newline)))))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let ([b (amb : Boolean #t (amb : True) (amb : False) #f)])

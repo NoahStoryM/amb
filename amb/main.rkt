@@ -5,7 +5,7 @@
          racket/contract
          data/queue)
 
-(provide amb for/amb for*/amb
+(provide amb amb* for/amb for*/amb
          (contract-out
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
@@ -24,6 +24,14 @@
          (define alt* (list (λ () alt) ...))
          (insert-amb-node*! k alt*)
          (amb))]))
+
+(define-syntax amb*
+  (syntax-parser
+    #:datum-literals ()
+    [(_ v ...)
+     #'(if (queue-empty? (current-amb-queue))
+           (values v ...)
+           (amb))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()

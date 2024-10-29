@@ -17,6 +17,12 @@
 The @racket[amb] operator.
 }
 
+@defform[(amb* expr ...)]{
+The @racket[amb*] operator evaluates its argument expressions and returns their
+results as @racket[values] if the current @racket[amb] queue is empty; otherwise,
+it simply runs @racket[(amb)].
+}
+
 @deftogether[(@defform*[((for/amb (for-clause ...) body-or-break ... body)
                          (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
               @defform*[((for*/amb (for-clause ...) body-or-break ... body)

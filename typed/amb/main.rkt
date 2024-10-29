@@ -4,7 +4,7 @@
          "../data/queue.rkt"
          (for-syntax racket/base syntax/parse))
 
-(provide amb for/amb for*/amb)
+(provide amb amb* for/amb for*/amb)
 
 (unsafe-require/typed/provide
  "../../amb/private/utils.rkt"
@@ -33,6 +33,14 @@
            (amb : t))]
       [(_ alt ...+)
        #'(amb : AnyValues alt ...)])))
+
+(define-syntax amb*
+  (syntax-parser
+    #:datum-literals ()
+    [(_ v ...)
+     #'(if (queue-empty? (current-amb-queue))
+           (values v ...)
+           (amb : AnyValues))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
