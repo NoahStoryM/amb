@@ -14,21 +14,21 @@
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
           [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
-          [insert-amb-node*! (-> (-> any/c ... none/c) (listof (-> any)) void?)]))
+          [insert-amb-task*! (-> (-> any/c ... none/c) (listof (-> any)) void?)]))
 
 
 (define-syntax amb
   (syntax-parser
     #:datum-literals (amb)
     [(_) #'(amb* (raise (exn:fail:contract:amb
-                         "amb: empty amb queue;\n expected at least one amb node\n  in: (amb)"
+                         "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
                          (current-continuation-marks))))]
     [(_ alt0 ... (amb alt1 ...) alt2 ...)
      #'(amb alt0 ... alt1 ... alt2 ...)]
     [(_ alt ...+)
      #'(let/cc k
          (define alt* (list (λ () alt) ...))
-         (insert-amb-node*! k alt*)
+         (insert-amb-task*! k alt*)
          (amb))]))
 
 (define-syntax amb*
@@ -49,7 +49,7 @@
         [(_ (clause ...) break:break-clause ... body ...+)
          #`(let/cc k
              (define alt* (#,derived-stx (clause ...) break ... (λ () body ...)))
-             (insert-amb-node*! k alt*)
+             (insert-amb-task*! k alt*)
              (amb))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))

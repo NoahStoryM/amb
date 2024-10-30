@@ -57,31 +57,31 @@ programmers to explore different possibilities in a non-deterministic way.
 Raised when evaluating @racket[(amb)] with an empty @racket[amb] queue.
 }
 
-@defproc[(insert-amb-node*! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
-Inserts new @racket[amb] nodes for all @deftech{alternatives} in @racket[alt*]
-into the current @racket[amb] queue. An @racket[amb] node is a @racket[thunk]
+@defproc[(insert-amb-task*! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
+Inserts new @racket[amb] tasks for all @deftech{alternatives} in @racket[alt*]
+into the current @racket[amb] queue. An @racket[amb] task is a @racket[thunk]
 that calls @racket[k] with the @racket[values] produced by an @tech{alternative}.
 }
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
 A @tech/guide{parameter} that determines how to @racket[shuffle] @racket[alt*]
-before inserting new @racket[amb] nodes into the @racket[amb] queue. The default
+before inserting new @racket[amb] tasks into the @racket[amb] queue. The default
 value is @racket[reverse].
 }
 
 @defparam[current-amb-queue amb-queue queue?]{
-A @tech/guide{parameter} that holds the queue of @racket[amb] nodes to be evaluated.
-The queue is initially empty and is populated by @racket[insert-amb-node*!].
+A @tech/guide{parameter} that holds the queue of @racket[amb] tasks to be evaluated.
+The queue is initially empty and is populated by @racket[insert-amb-task*!].
 }
 
 @defparam[current-amb-dequeue! amb-dequeue! (-> queue? (-> none/c))]{
-A @tech/guide{parameter} that determines how to dequeue an @racket[amb] node from
-the queue. The default value is @racket[dequeue!], which means the node at the
+A @tech/guide{parameter} that determines how to dequeue an @racket[amb] task from
+the queue. The default value is @racket[dequeue!], which means the task at the
 front of the queue is removed and returned.
 }
 
 @defparam[current-amb-enqueue! amb-enqueue! (-> queue? (-> none/c) void?)]{
-A @tech/guide{parameter} that determines how to enqueue an @racket[amb] node into
-the queue. The default value is @racket[enqueue-front!], which means the node is
+A @tech/guide{parameter} that determines how to enqueue an @racket[amb] task into
+the queue. The default value is @racket[enqueue-front!], which means the task is
 added to the front of the queue.
 }
