@@ -35,10 +35,10 @@
   (syntax-parser
     #:datum-literals ()
     [(_ v ...)
-     #'(if (queue-empty? (current-amb-queue))
-           (values v ...)
+     #'(if (non-empty-queue? (current-amb-queue))
            (((current-amb-dequeue!)
-             (current-amb-queue))))]))
+             (current-amb-queue)))
+           (values v ...))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
