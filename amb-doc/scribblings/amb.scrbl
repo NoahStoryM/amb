@@ -36,20 +36,19 @@ This design enables exploration of multiple non-deterministic paths, similar to
 @amb-examples[
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
-                (for/amb ([v (in-list '([2 . 9] [9 . 2]))])
+                (for/amb ([v '([2 . 9] [9 . 2])])
                   (values (car v) (cdr v)))])
     (unless (> x y) (amb))
     (displayln (cons x y))))
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
-                (for*/amb ([i (in-range 3)]
-                           [j (in-range 3)])
+                (for*/amb ([i 3] [j 3])
                   (values i j))])
     (when (> x y) (displayln (cons x y)))
     (amb*)))
 (parameterize ([current-amb-queue (make-queue)])
   (let* ([a* '()] [b* '()]
-         [x (for/amb ([i (in-range 10)]) i)])
+         [x (for/amb ([i 10]) i)])
     (when (even? x)
       (set! a* (cons x a*))
       (set! b* (cons (+ x 48) b*)))
@@ -71,8 +70,7 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 (eval:error
  (parameterize ([current-amb-queue (make-queue)])
    (let-values ([(x y)
-                 (for*/amb ([i (in-range 3)]
-                            [j (in-range 3)])
+                 (for*/amb ([i 3] [j 3])
                    (values i j))])
      (unless (> x y) (amb))
      (displayln (cons x y))
@@ -80,7 +78,7 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 (eval:error
  (parameterize ([current-amb-queue (make-queue)])
    (let* ([a* '()] [b* '()]
-          [x (for/amb ([i (in-range 10)]) i)])
+          [x (for/amb ([i 10]) i)])
      (unless (even? x) (amb))
      (set! a* (cons x a*))
      (set! b* (cons (+ x 48) b*))
