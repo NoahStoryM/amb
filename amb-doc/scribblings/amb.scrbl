@@ -33,33 +33,59 @@ they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
 This design enables exploration of multiple non-deterministic paths, similar to
 @racket[(amb expr ...)].
 
-@(amb-examples
-  (parameterize ([current-amb-queue (make-queue)])
-    (let ([x (for/amb ([i (in-range 10)])
-               (displayln i)
-               i)])
-      (when (< x 5) (amb))))
-  (parameterize ([current-amb-queue (make-queue)])
-    (let* ([a* '()] [b* '()]
-           [x (for/amb ([i (in-range 10)]) i)])
-      (when (even? x) (amb))
+@amb-examples[
+(parameterize ([current-amb-queue (make-queue)])
+  (let-values ([(x y)
+                (for/amb ([v (in-list '([2 . 9] [9 . 2]))])
+                  (values (car v) (cdr v)))])
+    (unless (> x y) (amb))
+    (displayln (cons x y))))
+(parameterize ([current-amb-queue (make-queue)])
+  (let-values ([(x y)
+                (for*/amb ([i (in-range 3)]
+                           [j (in-range 3)])
+                  (values i j))])
+    (when (> x y) (displayln (cons x y)))
+    (amb*)))
+(parameterize ([current-amb-queue (make-queue)])
+  (let* ([a* '()] [b* '()]
+         [x (for/amb ([i (in-range 10)]) i)])
+    (when (even? x)
       (set! a* (cons x a*))
-      (set! b* (cons (+ x 48) b*))
-      (amb* a* (list->bytes b*))))
-  (parameterize ([current-amb-queue (make-queue)])
-    (let-values ([(x y)
-                  (for/amb ([v (in-list '([2 . 9] [9 . 2]))])
-                    (values (car v) (cdr v)))])
-      (when (> x y) (amb))
-      (displayln (cons x y)))))
+      (set! b* (cons (+ x 48) b*)))
+    (amb* a* (list->bytes b*))))
+]
 }
 
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
            #:inspector #f]{
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 
-@(amb-examples
-  (eval:error (parameterize ([current-amb-queue (make-queue)]) (amb))))
+@amb-examples[
+(eval:error (parameterize ([current-amb-queue (make-queue)])
+              (amb)))
+(eval:error (parameterize ([current-amb-queue (make-queue)])
+              (for/amb ([i '()]) i)))
+(eval:error (parameterize ([current-amb-queue (make-queue)])
+              (for*/amb ([i '()]) i)))
+(eval:error
+ (parameterize ([current-amb-queue (make-queue)])
+   (let-values ([(x y)
+                 (for*/amb ([i (in-range 3)]
+                            [j (in-range 3)])
+                   (values i j))])
+     (unless (> x y) (amb))
+     (displayln (cons x y))
+     (amb*))))
+(eval:error
+ (parameterize ([current-amb-queue (make-queue)])
+   (let* ([a* '()] [b* '()]
+          [x (for/amb ([i (in-range 10)]) i)])
+     (unless (even? x) (amb))
+     (set! a* (cons x a*))
+     (set! b* (cons (+ x 48) b*))
+     (amb* a* (list->bytes b*)))))
+]
 }
 
 @defproc[(schedule-amb-tasks! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
