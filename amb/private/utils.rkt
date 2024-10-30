@@ -13,10 +13,10 @@
 (define current-amb-enqueue! (make-parameter enqueue-front!))
 (define current-amb-dequeue! (make-parameter dequeue!))
 
-(define insert-amb-task*!
+(define schedule-amb-tasks!
   (λ (k alt*)
     (define amb-queue    (current-amb-queue))
     (define amb-enqueue! (current-amb-enqueue!))
     (for ([alt (in-list ((current-amb-shuffler) alt*))])
-      (define amb-task (λ () (call-with-values alt k)))
+      (define (amb-task) (call-with-values alt k))
       (amb-enqueue! amb-queue amb-task))))

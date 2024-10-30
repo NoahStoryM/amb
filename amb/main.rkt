@@ -14,7 +14,7 @@
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
           [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
-          [insert-amb-task*! (-> (-> any/c ... none/c) (listof (-> any)) void?)]))
+          [schedule-amb-tasks! (-> (-> any/c ... none/c) (listof (-> any)) void?)]))
 
 
 (define-syntax amb
@@ -28,7 +28,7 @@
     [(_ alt ...+)
      #'(let/cc k
          (define alt* (list (λ () alt) ...))
-         (insert-amb-task*! k alt*)
+         (schedule-amb-tasks! k alt*)
          (amb))]))
 
 (define-syntax amb*
@@ -49,7 +49,7 @@
         [(_ (clause ...) break:break-clause ... body ...+)
          #`(let/cc k
              (define alt* (#,derived-stx (clause ...) break ... (λ () body ...)))
-             (insert-amb-task*! k alt*)
+             (schedule-amb-tasks! k alt*)
              (amb))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
