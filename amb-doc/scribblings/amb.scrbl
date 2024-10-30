@@ -114,5 +114,5 @@ removes and returns the @tech{amb task} at the front of the queue.
 @defparam[current-amb-enqueue! amb-enqueue! (-> queue? (-> none/c) void?)]{
 A @tech/guide{parameter} that defines the method for enqueuing an @tech{amb task}
 into the current @tech{amb queue}. The default value is @racket[enqueue-front!],
-which add the @tech{amb task} to the front of the queue.
+which adds the @tech{amb task} to the front of the queue.
 }
