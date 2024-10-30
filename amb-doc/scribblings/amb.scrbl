@@ -57,6 +57,9 @@ This design enables exploration of multiple non-deterministic paths, similar to
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
            #:inspector #f]{
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
+
+@(amb-examples
+  (eval:error (parameterize ([current-amb-queue (make-queue)]) (amb))))
 }
 
 @defproc[(schedule-amb-tasks! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
