@@ -27,7 +27,7 @@
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
-                (for/amb ([v (in-list '([2 9] [9 2]))])
+                (for/amb ([v '([2 9] [9 2])])
                   (apply values v))])
     (when (> x y) (amb))
     (displayln (list x y)))
@@ -35,5 +35,5 @@
 
 (time
  (parameterize ([current-amb-queue (make-queue)])
-   (let ([i (for/amb ([i (in-range 1 100000)]) i)])
+   (let ([i (for/amb ([i 100000]) i)])
      (amb* (newline)))))

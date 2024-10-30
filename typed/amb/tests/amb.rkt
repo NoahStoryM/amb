@@ -46,8 +46,8 @@
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
                 (for/amb : (Values Real Real)
-                         ([v1 : Real (in-list '(2 9))]
-                          [v2 : Real (in-list '(9 2))])
+                         ([v1 : Real '(2 9)]
+                          [v2 : Real '(9 2)])
                   (values v1 v2))])
     (when (> x y) (amb))
     (displayln (list x y)))
@@ -55,8 +55,8 @@
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
-                (for/amb ([v1 : Real (in-list '(2 9))]
-                          [v2 : Real (in-list '(9 2))])
+                (for/amb ([v1 : Real '(2 9)]
+                          [v2 : Real '(9 2)])
                   : (Values Real Real)
                   (values v1 v2))])
     (when (> x y) (amb))
