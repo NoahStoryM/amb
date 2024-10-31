@@ -2,6 +2,7 @@
 
 (require data/queue "../main.rkt")
 
+
 (parameterize ([current-amb-queue (make-queue)])
   (let ([x (amb 2 1 -2 5  8 18)]
         [y (amb 9 8  2 4 14 20)])
@@ -22,36 +23,37 @@
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y) (amb (values 2 9) (values 9 2))])
     (when (> x y) (amb))
-    (displayln (list x y)))
-  (newline))
+    (displayln (list x y))
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
                 (for/amb ([v '([2 9] [9 2])])
                   (apply values v))])
     (when (> x y) (amb))
-    (displayln (list x y)))
-  (newline))
+    (displayln (list x y))
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let ([a (amb 'x 'y (let ([b (amb 1 2 3)]) (- b)) 'z)])
     (when (symbol? a) (amb))
-    (displayln a))
-  (newline))
+    (displayln a)
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (time
    (let ([i (for/amb ([i 100000]) i)])
-     (amb* (displayln i))))
-  (newline))
+     (amb*)
+     (displayln i)
+     (newline))))
 
 (parameterize ([current-amb-queue (make-queue)])
   (time
    (define m 100000)
    (define n (for/amb ([i (in-inclusive-range 0 m)]) i))
    (when (< n m) (amb))
-   (displayln n))
-  (newline))
+   (displayln n)
+   (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (time
@@ -59,5 +61,5 @@
      (let loop ([i 0])
        (amb i (loop (add1 i)))))
    (when (< n 100000) (amb))
-   (displayln n))
-  (newline))
+   (displayln n)
+   (newline)))

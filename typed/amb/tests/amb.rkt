@@ -2,6 +2,7 @@
 
 (require "../../data/queue.rkt" "../main.rkt")
 
+
 (begin
   (with-handlers ([exn:fail:contract:amb? void])
     (parameterize ([current-amb-queue (make-queue)])
@@ -14,19 +15,21 @@
         (amb))))
   (newline))
 
-(with-handlers ([exn:fail:contract? void])
-  (parameterize ([current-amb-queue (make-queue)])
-    (let ([ls (amb : (∪ '(a b c) '(x y z)) '(a b c) '(x y z))])
-      (displayln ls)
-      (amb* (newline)))))
+(parameterize ([current-amb-queue (make-queue)])
+  (let ([ls (amb : (∪ '(a b c) '(x y z)) '(a b c) '(x y z))])
+    (displayln ls)
+    (amb*)
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let ([b (amb : Boolean #t (amb : True) (amb : False) #f)])
-    (displayln (ann b Boolean))))
+    (displayln (ann b Boolean))
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let ([x (amb : (∪ Zero One) (amb : Zero 0) (amb : One 1))])
-    (displayln x)))
+    (displayln x)
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
@@ -34,14 +37,14 @@
                      (values 9 2)
                      (values 2 9))])
     (when (> x y) (amb))
-    (displayln (list x y)))
-  (newline))
+    (displayln (list x y))
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y) (amb : (Values 2 9) (values 2 9))])
     (when (> x y) (amb))
-    (displayln (list x y)))
-  (newline))
+    (displayln (list x y))
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
@@ -50,8 +53,8 @@
                           [v2 : Real '(9 2)])
                   (values v1 v2))])
     (when (> x y) (amb))
-    (displayln (list x y)))
-  (newline))
+    (displayln (list x y))
+    (newline)))
 
 (parameterize ([current-amb-queue (make-queue)])
   (let-values ([(x y)
@@ -60,5 +63,5 @@
                   : (Values Real Real)
                   (values v1 v2))])
     (when (> x y) (amb))
-    (displayln (list x y)))
-  (newline))
+    (displayln (list x y))
+    (newline)))
