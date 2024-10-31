@@ -39,23 +39,25 @@
     (displayln a))
   (newline))
 
-(time
- (parameterize ([current-amb-queue (make-queue)])
+(parameterize ([current-amb-queue (make-queue)])
+  (time
    (let ([i (for/amb ([i 100000]) i)])
-     (amb*))))
+     (amb* (displayln i))))
+  (newline))
 
-(time
- (parameterize ([current-amb-queue (make-queue)])
-   (define n (for/amb ([i 10002]) i))
-   (when (< n 10000) (amb))
-   (displayln n)
-   (newline)))
+(parameterize ([current-amb-queue (make-queue)])
+  (time
+   (define m 100000)
+   (define n (for/amb ([i (in-inclusive-range 0 m)]) i))
+   (when (< n m) (amb))
+   (displayln n))
+  (newline))
 
-(time
- (parameterize ([current-amb-queue (make-queue)])
+(parameterize ([current-amb-queue (make-queue)])
+  (time
    (define n
      (let loop ([i 0])
        (amb i (loop (add1 i)))))
-   (when (< n 10000) (amb))
-   (displayln n)
-   (newline)))
+   (when (< n 100000) (amb))
+   (displayln n))
+  (newline))
