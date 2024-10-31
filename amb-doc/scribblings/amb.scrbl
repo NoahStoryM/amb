@@ -89,8 +89,8 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 @defproc[(schedule-amb-tasks! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
-@racket[thunk] that, when invoked, calls @racket[k] with the @racket[values]
-produced by an @tech{alternative}.
+@racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call
+@racket[k] with the @racket[values] produced by an @tech{alternative}.
 }
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{

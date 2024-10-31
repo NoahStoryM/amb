@@ -33,7 +33,29 @@
     (displayln (list x y)))
   (newline))
 
+(parameterize ([current-amb-queue (make-queue)])
+  (let ([a (amb 'x 'y (let ([b (amb 1 2 3)]) (- b)) 'z)])
+    (when (symbol? a) (amb))
+    (displayln a))
+  (newline))
+
 (time
  (parameterize ([current-amb-queue (make-queue)])
    (let ([i (for/amb ([i 100000]) i)])
-     (amb* (newline)))))
+     (amb*))))
+
+(time
+ (parameterize ([current-amb-queue (make-queue)])
+   (define n (for/amb ([i 10002]) i))
+   (when (< n 10000) (amb))
+   (displayln n)
+   (newline)))
+
+(time
+ (parameterize ([current-amb-queue (make-queue)])
+   (define n
+     (let loop ([i 0])
+       (amb i (loop (add1 i)))))
+   (when (< n 10000) (amb))
+   (displayln n)
+   (newline)))
