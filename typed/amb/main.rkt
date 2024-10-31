@@ -25,10 +25,6 @@
                            "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
                            (current-continuation-marks))))]
       [(_ : t) #'(ann (amb) t)]
-      [(_ : t0 alt0 ... (amb : t1 alt1 ...) alt2 ...)
-       #'(amb : (∪ t0 t1) alt0 ... alt1 ... alt2 ...)]
-      [(_ : t alt0 ... (amb alt1 ...) alt2 ...)
-       #'(amb : t alt0 ... alt1 ... alt2 ...)]
       [(_ : t alt ...+)
        #'(let/cc k : t
            (: alt* (Listof (-> t)))

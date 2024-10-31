@@ -23,8 +23,6 @@
     [(_) #'(amb* (raise (exn:fail:contract:amb
                          "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
                          (current-continuation-marks))))]
-    [(_ alt0 ... (amb alt1 ...) alt2 ...)
-     #'(amb alt0 ... alt1 ... alt2 ...)]
     [(_ alt ...+)
      #'(let/cc k
          (define alt* (list (λ () alt) ...))

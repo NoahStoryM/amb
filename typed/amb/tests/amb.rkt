@@ -25,7 +25,7 @@
     (displayln (ann b Boolean))))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (let ([x : (∪ Zero One) (amb : Nothing (amb : Zero 0) (amb : One 1))])
+  (let ([x (amb : (∪ Zero One) (amb : Zero 0) (amb : One 1))])
     (displayln x)))
 
 (parameterize ([current-amb-queue (make-queue)])
