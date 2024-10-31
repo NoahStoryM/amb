@@ -34,18 +34,21 @@ This design enables exploration of multiple non-deterministic paths, similar to
 @racket[(amb expr ...)].
 
 @amb-examples[
+(parameterize ([current-amb-shuffler shuffle]
+               [current-amb-queue    (make-queue)]
+               [current-amb-enqueue! enqueue!]
+               [current-amb-dequeue! dequeue!])
+  (define x (let next ([i 0]) (amb (next (add1 i)) i)))
+  (define y (for/amb ([i 3]) i))
+  (unless (< x 2) (amb))
+  (displayln (cons x y))
+  (unless (= (+ x y) 3) (amb)))
 (parameterize ([current-amb-queue (make-queue)])
   (define-values (x y)
     (for/amb ([v '([2 . 9] [9 . 2])])
       (values (car v) (cdr v))))
   (unless (> x y) (amb))
   (displayln (cons x y)))
-(parameterize ([current-amb-queue (make-queue)])
-  (define x (let next ([i 0]) (amb i (next (add1 i)))))
-  (define y (for/amb ([i 3]) i))
-  (unless (< x 2) (amb))
-  (displayln (cons x y))
-  (unless (= (* x y) 2) (amb)))
 (parameterize ([current-amb-queue (make-queue)])
   (define-values (x y)
     (for*/amb ([i 3] [j 3])
