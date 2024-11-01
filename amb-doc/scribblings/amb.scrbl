@@ -111,8 +111,9 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 
 Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
 expression @racket[expr]. In the untyped version, @racket[in-amb] returns a
-@tech/refer{stream}. In the typed version, however, @racket[in-amb] returns a
-@tech/refer{list} that materializes all possible results eagerly.
+@tech/refer{stream}, allowing for lazy evaluation of results. In the typed version,
+@racket[in-amb] returns a @tech/refer{stream} backed by a fully materialized
+@tech/refer{list}, where all possible results are eagerly computed and stored.
 }
 
 @section{Amb Queue Management}

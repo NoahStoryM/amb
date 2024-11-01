@@ -74,5 +74,5 @@
   (time
    (for ([i (in-range 100000)]
          [(j k) (in-amb (next 0 0))])
-     (cons i j)))
+     (list i j k)))
   (newline))

@@ -94,7 +94,8 @@
   (syntax-parser
     #:datum-literals ()
     [(_ expr)
-     #'(parameterize ([current-amb-queue (make-queue)])
-         (define ls '())
-         (set! ls (cons expr ls))
-         (amb* ls))]))
+     #'(in-list
+        (parameterize ([current-amb-queue (make-queue)])
+          (define ls '())
+          (set! ls (cons expr ls))
+          (amb* ls)))]))
