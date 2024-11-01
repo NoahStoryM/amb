@@ -121,8 +121,10 @@ expression @racket[expr]. In the untyped version, @racket[in-amb] returns a
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
-@racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call
-@racket[k] with the @racket[values] produced by an @tech{alternative}.
+procedure that accepts a @tech/refer{continuation} and invokes an
+@tech{alternative} using @racket[call-in-continuation] with the
+@tech/refer{continuation}. By default, the provided @tech/refer{continuation} is
+@racket[k].
 }
 
 @section{Parameter}
