@@ -10,14 +10,14 @@
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()])
 
 (unsafe-require/typed/provide "../../amb/private/utils.rkt"
-  [current-amb-shuffler (Parameter (∀ (A) (→ (Listof A) (Listof A))))]
+  [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
   [current-amb-queue    (Parameter (Queue AMB-Task AMB-Task))]
   [current-amb-enqueue! (Parameter (→ (Queue AMB-Task Any) AMB-Task Void))]
   [current-amb-dequeue! (Parameter (→ (Queue Nothing AMB-Task) AMB-Task))]
-  [schedule-amb-tasks! (∀ (A ...) (→ (→ A ... A Nothing) (Listof (→ (Values A ... A))) Void))])
+  [schedule-amb-tasks! (∀ (a ...) (→ (→ a ... a Nothing) (Listof (→ (Values a ... a))) Void))])
 
 
-(define-type AMB-Task (→* () ((∀ (A ...) (→ A ... A Nothing))) Nothing))
+(define-type AMB-Task (→* () ((∀ (a ...) (→ a ... a Nothing))) Nothing))
 
 (define-syntax amb
   (λ (stx)

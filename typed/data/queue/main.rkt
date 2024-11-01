@@ -2,30 +2,30 @@
 
 (require typed/racket/unsafe)
 
-(struct (S T) Queueof ([_ : (Parameter S T)]))
-(define-type (Queue S T) (Queueof S T)) ; avoid printing #(struct:Queueof ...)
+(struct (s t) Queueof ([_ : (Parameter s t)]))
+(define-type (Queue s t) (Queueof s t)) ; avoid printing #(struct:Queueof ...)
 (define-type QueueTop (Queue Nothing Any))
 (define-type QueueBot (Queue Any Nothing))
-;; TODO (Queue T) → (Queue T T)
-#;(struct (A ...) _ ([_ : (Parameter A ...)]) #:type-name Queue) ; not work well
+;; TODO (Queue t) → (Queue t t)
+#;(struct (a ...) _ ([_ : (Parameter a ...)]) #:type-name Queue) ; not work well
 (provide Queue QueueTop QueueBot)
 
 (unsafe-require/typed/provide
  data/queue
- [make-queue (∀ (S T) (→ (Queue S T)))]
+ [make-queue (∀ (s t) (→ (Queue s t)))]
 
- [enqueue! (∀ (S) (→ (Queue S Any) S Void))]
- [enqueue-front! (∀ (S) (→ (Queue S Any) S Void))]
- [dequeue! (∀ (T) (→ (Queue Nothing T) T))]
+ [enqueue! (∀ (s) (→ (Queue s Any) s Void))]
+ [enqueue-front! (∀ (s) (→ (Queue s Any) s Void))]
+ [dequeue! (∀ (t) (→ (Queue Nothing t) t))]
 
- [queue->list (∀ (T) (→ (Queue Nothing T) (Listof T)))]
+ [queue->list (∀ (t) (→ (Queue Nothing t) (Listof t)))]
  [queue-length (→ QueueTop Index)]
 
  [queue? (pred QueueTop)]
  [queue-empty? (→ QueueTop Boolean)]
- [non-empty-queue? (∀ (S T)
+ [non-empty-queue? (∀ (s t)
                       (case→
-                       (→ (Queue S T) Boolean)
+                       (→ (Queue s t) Boolean)
                        (→ Any Boolean : #:+ QueueTop)))]
 
- [in-queue (∀ (T) (→ (Queue Nothing T) (Sequenceof T)))])
+ [in-queue (∀ (t) (→ (Queue Nothing t) (Sequenceof t)))])
