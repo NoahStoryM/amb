@@ -16,10 +16,12 @@
 
 @defform*[((amb expr ...)
            (amb : t expr ...))]{
+
 The @racket[amb] operator.
 }
 
 @defform[(amb* expr ...)]{
+
 The @racket[amb*] operator evaluates its argument expressions and returns their
 results as @racket[values] if the current @tech{amb queue} is empty; otherwise,
 it simply runs @racket[(amb)].
@@ -29,6 +31,7 @@ it simply runs @racket[(amb)].
                          (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
               @defform*[((for*/amb (for-clause ...) body-or-break ... body)
                          (for*/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))])]{
+
 The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
 @racket[for/list] and @racket[for*/list], but instead of evaluating the loop body,
 they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
@@ -72,6 +75,7 @@ This design enables exploration of multiple non-deterministic paths, similar to
 
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
            #:inspector #f]{
+
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 
 @amb-examples[
@@ -104,6 +108,7 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 @section{Sequence Constructor}
 
 @defform[(in-amb expr)]{
+
 Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
 expression @racket[expr]. In the untyped version, @racket[in-amb] returns a
 @tech/refer{stream}. In the typed version, however, @racket[in-amb] returns a
@@ -113,6 +118,7 @@ expression @racket[expr]. In the untyped version, @racket[in-amb] returns a
 @section{Amb Queue Management}
 
 @defproc[(schedule-amb-tasks! [k continuation?] [alt* (listof (-> any))]) void?]{
+
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
 @racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call
@@ -122,24 +128,28 @@ adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
 @section{Parameter}
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
+
 A @tech/refer{parameter} that specifies how to @racket[shuffle] @racket[alt*]
 before scheduling new @tech{amb tasks} into the current @tech{amb queue}. The
 default value is @racket[reverse].
 }
 
 @defparam[current-amb-queue amb-queue queue?]{
+
 A @tech/refer{parameter} that holds the queue of @tech{amb tasks} to be evaluated,
 which is populated as needed by @racket[schedule-amb-tasks!]. The default value
 is an empty @deftech{amb queue}.
 }
 
 @defparam[current-amb-dequeue! amb-dequeue! (-> queue? (->* () (continuation?) none/c))]{
+
 A @tech/refer{parameter} that defines the method for dequeuing an @tech{amb task}
 from the current @tech{amb queue}. The default value is @racket[dequeue!], which
 removes and returns the @tech{amb task} at the front of the queue.
 }
 
 @defparam[current-amb-enqueue! amb-enqueue! (-> queue? (->* () (continuation?) none/c) void?)]{
+
 A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task}
 into the current @tech{amb queue}. The default value is @racket[enqueue-front!],
 which adds the @tech{amb task} to the front of the queue.
