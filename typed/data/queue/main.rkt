@@ -12,20 +12,20 @@
 
 (unsafe-require/typed/provide
  data/queue
- [make-queue (All (S T) (-> (Queue S T)))]
+ [make-queue (∀ (S T) (-> (Queue S T)))]
 
- [enqueue! (All (S) (-> (Queue S Any) S Void))]
- [enqueue-front! (All (S) (-> (Queue S Any) S Void))]
- [dequeue! (All (T) (-> (Queue Nothing T) T))]
+ [enqueue! (∀ (S) (-> (Queue S Any) S Void))]
+ [enqueue-front! (∀ (S) (-> (Queue S Any) S Void))]
+ [dequeue! (∀ (T) (-> (Queue Nothing T) T))]
 
- [queue->list (All (T) (-> (Queue Nothing T) (Listof T)))]
+ [queue->list (∀ (T) (-> (Queue Nothing T) (Listof T)))]
  [queue-length (-> QueueTop Index)]
 
  [queue? (pred QueueTop)]
  [queue-empty? (-> QueueTop Boolean)]
- [non-empty-queue? (All (S T)
-                        (case->
-                         (-> (Queue S T) Boolean)
-                         (-> Any Boolean : #:+ QueueTop)))]
+ [non-empty-queue? (∀ (S T)
+                      (case->
+                       (-> (Queue S T) Boolean)
+                       (-> Any Boolean : #:+ QueueTop)))]
 
- [in-queue (All (T) (-> (Queue Nothing T) (Sequenceof T)))])
+ [in-queue (∀ (T) (-> (Queue Nothing T) (Sequenceof T)))])
