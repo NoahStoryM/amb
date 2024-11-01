@@ -65,3 +65,8 @@
     (when (> x y) (amb))
     (displayln (list x y))
     (newline)))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (for ([i (in-amb (amb : Any 1 2 (amb : Any 3 'x) 'y))])
+    (displayln i))
+  (newline))

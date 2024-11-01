@@ -3,9 +3,10 @@
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
          racket/contract
+         racket/stream
          data/queue)
 
-(provide amb amb* for/amb for*/amb
+(provide amb amb* for/amb for*/amb in-amb
          (contract-out
           (struct exn:fail:contract:amb
             ([message string?]
@@ -51,3 +52,23 @@
              (amb))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
+
+(define-syntax in-amb
+  (syntax-parser
+    #:datum-literals ()
+    [(_ expr)
+     #'(in-stream
+        (let ()
+          (define amb-queue (make-queue))
+          (define first-pass? #t)
+          (let gen-stream ()
+            (if (or first-pass? (non-empty-queue? amb-queue))
+                (stream-cons
+                 (parameterize ([current-amb-queue amb-queue])
+                   (let/cc k
+                     (when (non-empty-queue? amb-queue)
+                       (((current-amb-dequeue!) amb-queue) k))
+                     (set! first-pass? #f)
+                     expr))
+                 (gen-stream))
+                empty-stream))))]))

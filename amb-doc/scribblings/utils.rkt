@@ -30,6 +30,7 @@
                 pre-content*)))]))
 
 (define-tech tech/guide '(lib "scribblings/guide/guide.scrbl"))
+(define-tech tech/refer '(lib "scribblings/reference/reference.scrbl"))
 
 (define main (λ ([argv (current-command-line-arguments)]) (values)))
 (module+ main (call-with-values main exit))

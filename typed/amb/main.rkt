@@ -4,7 +4,7 @@
          typed/racket/unsafe
          (for-syntax racket/base syntax/parse))
 
-(provide amb amb* for/amb for*/amb)
+(provide amb amb* for/amb for*/amb in-amb)
 
 (require/typed/provide "../../amb/private/utils.rkt"
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()])
@@ -89,3 +89,12 @@
                (amb : t))])))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
+
+(define-syntax in-amb
+  (syntax-parser
+    #:datum-literals ()
+    [(_ expr)
+     #'(parameterize ([current-amb-queue (make-queue)])
+         (define ls '())
+         (set! ls (cons expr ls))
+         (amb* ls))]))

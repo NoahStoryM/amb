@@ -101,6 +101,15 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 ]
 }
 
+@section{Sequence Constructor}
+
+@defform[(in-amb expr)]{
+Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
+expression @racket[expr]. In the untyped version, @racket[in-amb] returns a
+@tech/refer{stream}. In the typed version, however, @racket[in-amb] returns a
+@tech/refer{list} that materializes all possible results eagerly.
+}
+
 @section{Amb Queue Management}
 
 @defproc[(schedule-amb-tasks! [k continuation?] [alt* (listof (-> any))]) void?]{
@@ -113,25 +122,25 @@ adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
 @section{Parameter}
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
-A @tech/guide{parameter} that specifies how to @racket[shuffle] @racket[alt*]
+A @tech/refer{parameter} that specifies how to @racket[shuffle] @racket[alt*]
 before scheduling new @tech{amb tasks} into the current @tech{amb queue}. The
 default value is @racket[reverse].
 }
 
 @defparam[current-amb-queue amb-queue queue?]{
-A @tech/guide{parameter} that holds the queue of @tech{amb tasks} to be evaluated,
+A @tech/refer{parameter} that holds the queue of @tech{amb tasks} to be evaluated,
 which is populated as needed by @racket[schedule-amb-tasks!]. The default value
 is an empty @deftech{amb queue}.
 }
 
 @defparam[current-amb-dequeue! amb-dequeue! (-> queue? (->* () (continuation?) none/c))]{
-A @tech/guide{parameter} that defines the method for dequeuing an @tech{amb task}
+A @tech/refer{parameter} that defines the method for dequeuing an @tech{amb task}
 from the current @tech{amb queue}. The default value is @racket[dequeue!], which
 removes and returns the @tech{amb task} at the front of the queue.
 }
 
 @defparam[current-amb-enqueue! amb-enqueue! (-> queue? (->* () (continuation?) none/c) void?)]{
-A @tech/guide{parameter} that defines the method for enqueuing an @tech{amb task}
+A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task}
 into the current @tech{amb queue}. The default value is @racket[enqueue-front!],
 which adds the @tech{amb task} to the front of the queue.
 }
