@@ -12,9 +12,9 @@
              [continuation-marks continuation-mark-set?]))
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
-          [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
-          [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
-          [schedule-amb-tasks! (-> (-> any/c ... none/c) (listof (-> any)) void?)]))
+          [current-amb-enqueue! (parameter/c (-> queue? (->* () (continuation?) none/c) void?))]
+          [current-amb-dequeue! (parameter/c (-> queue? (->* () (continuation?) none/c)))]
+          [schedule-amb-tasks! (-> continuation? (listof (-> any)) void?)]))
 
 
 (define-syntax amb

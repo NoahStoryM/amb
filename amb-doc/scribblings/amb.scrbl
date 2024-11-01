@@ -103,7 +103,7 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 
 @section{Amb Queue Management}
 
-@defproc[(schedule-amb-tasks! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
+@defproc[(schedule-amb-tasks! [k continuation?] [alt* (listof (-> any))]) void?]{
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
 @racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call
@@ -124,13 +124,13 @@ which is populated as needed by @racket[schedule-amb-tasks!]. The default value
 is an empty @deftech{amb queue}.
 }
 
-@defparam[current-amb-dequeue! amb-dequeue! (-> queue? (-> none/c))]{
+@defparam[current-amb-dequeue! amb-dequeue! (-> queue? (->* () (continuation?) none/c))]{
 A @tech/guide{parameter} that defines the method for dequeuing an @tech{amb task}
 from the current @tech{amb queue}. The default value is @racket[dequeue!], which
 removes and returns the @tech{amb task} at the front of the queue.
 }
 
-@defparam[current-amb-enqueue! amb-enqueue! (-> queue? (-> none/c) void?)]{
+@defparam[current-amb-enqueue! amb-enqueue! (-> queue? (->* () (continuation?) none/c) void?)]{
 A @tech/guide{parameter} that defines the method for enqueuing an @tech{amb task}
 into the current @tech{amb queue}. The default value is @racket[enqueue-front!],
 which adds the @tech{amb task} to the front of the queue.
