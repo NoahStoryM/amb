@@ -12,6 +12,8 @@
 @defmodule*[(amb typed/amb)]
 @author[@author+email["Noah Ma" "noahstorym@gmail.com"]]
 
+@section{Ambiguous Operator}
+
 @defform*[((amb expr ...)
            (amb : t expr ...))]{
 The @racket[amb] operator.
@@ -66,6 +68,8 @@ This design enables exploration of multiple non-deterministic paths, similar to
 ]
 }
 
+@section{Exception Type}
+
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
            #:inspector #f]{
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
@@ -97,12 +101,16 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 ]
 }
 
+@section{Amb Queue Management}
+
 @defproc[(schedule-amb-tasks! [k (-> any/c ... none/c)] [alt* (listof (-> any))]) void?]{
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
 @racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call
 @racket[k] with the @racket[values] produced by an @tech{alternative}.
 }
+
+@section{Parameter}
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
 A @tech/guide{parameter} that specifies how to @racket[shuffle] @racket[alt*]
