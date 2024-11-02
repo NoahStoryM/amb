@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(require "../data/queue.rkt"
+(require typed/data/queue
          typed/racket/unsafe
          (for-syntax racket/base syntax/parse))
 

@@ -1,6 +1,6 @@
 #lang typed/racket
 
-(require "../../data/queue.rkt" "../main.rkt")
+(require typed/data/queue "../main.rkt")
 
 
 (: maze (Listof (Listof (∪ #t #f '**))))

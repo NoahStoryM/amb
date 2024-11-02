@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(require "../../data/queue.rkt" "../main.rkt")
+(require typed/data/queue "../main.rkt")
 
 
 (begin
