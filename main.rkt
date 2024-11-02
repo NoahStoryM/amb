@@ -20,7 +20,7 @@
 
 (define-syntax amb
   (syntax-parser
-    #:datum-literals (amb)
+    #:datum-literals ()
     [(_) #'(amb* (raise (exn:fail:contract:amb
                          "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
                          (current-continuation-marks))))]
