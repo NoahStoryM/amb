@@ -9,13 +9,12 @@
           "utils.rkt")
 
 @title{amb: Ambiguous Operator}
-@defmodule*[(amb typed/amb)]
+@defmodule[amb]
 @author[@author+email["Noah Ma" "noahstorym@gmail.com"]]
 
 @section{Ambiguous Operator}
 
-@defform*[((amb expr ...)
-           (amb : t expr ...))]{
+@defform[(amb expr ...)]{
 
 The @racket[amb] operator.
 }
@@ -27,10 +26,8 @@ results as @racket[values] if the current @tech{amb queue} is empty; otherwise,
 it simply runs @racket[(amb)].
 }
 
-@deftogether[(@defform*[((for/amb (for-clause ...) body-or-break ... body)
-                         (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
-              @defform*[((for*/amb (for-clause ...) body-or-break ... body)
-                         (for*/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))])]{
+@deftogether[(@defform[(for/amb (for-clause ...) body-or-break ... body)]
+              @defform[(for*/amb (for-clause ...) body-or-break ... body)])]{
 
 The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
 @racket[for/list] and @racket[for*/list], but instead of evaluating the loop body,
@@ -110,10 +107,7 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 @defform[(in-amb expr)]{
 
 Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
-expression @racket[expr]. In the untyped version, @racket[in-amb] returns a
-@tech/refer{stream}, allowing for lazy evaluation of results. In the typed version,
-@racket[in-amb] returns a @tech/refer{stream} backed by a fully materialized
-@tech/refer{list}, where all possible results are eagerly computed and stored.
+expression @racket[expr], allowing for lazy evaluation of results.
 }
 
 @section{Amb Queue Management}

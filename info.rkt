@@ -6,7 +6,7 @@
 
 (define pkg-desc "Ambiguous Operator")
 
-(define deps '("base" "typed-racket-lib" "typed-data-queue"))
+(define deps '("base"))
 (define build-deps '("scribble-lib" "racket-doc" "data-doc"))
 
 (define clean '("compiled" "private/compiled"))
