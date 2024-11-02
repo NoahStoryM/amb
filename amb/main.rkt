@@ -65,10 +65,11 @@
             (if (or first-pass? (non-empty-queue? amb-queue))
                 (stream-cons
                  (parameterize ([current-amb-queue amb-queue])
-                   (let/cc k
-                     (when (non-empty-queue? amb-queue)
-                       (((current-amb-dequeue!) amb-queue) k))
-                     (set! first-pass? #f)
-                     expr))
+                   (cond
+                     [(non-empty-queue? amb-queue)
+                      (call/cc ((current-amb-dequeue!) amb-queue))]
+                     [else
+                      (set! first-pass? #f)
+                      expr]))
                  (gen-stream))
                 empty-stream))))]))
