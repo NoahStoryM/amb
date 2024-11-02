@@ -1,4 +1,6 @@
 #+TITLE: amb
+#+AUTHOR: Noah Ma
+#+EMAIL: noahstorym@gmail.com
 
 * Table of Contents                                       :TOC_5_gh:noexport:
 - [[#amb][amb]]
