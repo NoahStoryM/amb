@@ -58,8 +58,9 @@
     #:datum-literals ()
     [(_ expr)
      #'(in-stream
-        (let ([amb-queue   (make-queue)]
-              [first-pass? #t])
+        (let ([amb-queue (make-queue)]
+              [first-pass? #t]
+              [thk (λ () expr)])
           (let gen-stream ()
             (if (or first-pass? (non-empty-queue? amb-queue))
                 (stream-cons
@@ -69,6 +70,6 @@
                       (call/cc ((current-amb-dequeue!) amb-queue))]
                      [else
                       (set! first-pass? #f)
-                      expr]))
+                      (thk)]))
                  (gen-stream))
                 empty-stream))))]))
