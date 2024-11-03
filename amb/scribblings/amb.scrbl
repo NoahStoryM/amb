@@ -27,8 +27,10 @@ results as @racket[values] if the current @tech{amb queue} is empty; otherwise,
 it simply runs @racket[(amb)].
 }
 
-@deftogether[(@defform[(for/amb (for-clause ...) body-or-break ... body)]
-              @defform[(for*/amb (for-clause ...) body-or-break ... body)])]{
+@deftogether[(@defform*[((for/amb (for-clause ...) body-or-break ... body)
+                         (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
+              @defform*[((for*/amb (for-clause ...) body-or-break ... body)
+                         (for*/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))])]{
 
 The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
 @racket[for/list] and @racket[for*/list], but instead of evaluating the loop body,
