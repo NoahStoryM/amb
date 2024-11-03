@@ -18,7 +18,7 @@
 (unsafe-require/typed racket/base
   [(call/cc unsafe-call/cc) (∀ (a) (→ (→ (∩ Procedure a) Nothing) Nothing))])
 
-(unsafe-require/typed/provide typed/racket/stream/stream-cons-thunk-untyped
+(unsafe-require/typed typed/racket/stream/stream-cons-thunk-untyped
   [stream-cons/thunk (All (a ...) (→ (→ (Values a ... a)) (→ (Sequenceof a ... a)) (Sequenceof a ... a)))]
   [empty-stream (All (a ...) (Sequenceof a ... a))])
 
