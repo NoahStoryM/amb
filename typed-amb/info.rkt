@@ -8,6 +8,7 @@
 
 (define deps '("base" "amb" "typed-racket-lib" "typed-racket-stream" "typed-data-queue"))
 #;(define build-deps '("scribble-lib" "racket-doc" "data-doc"))
+(define implies '("amb"))
 
 #;(define scribblings '(("scribblings/amb.scrbl")))
 
