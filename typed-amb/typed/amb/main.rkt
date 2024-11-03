@@ -100,16 +100,17 @@
         (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
               [first-pass? : Boolean #t])
           (let #:∀ (a ooo)
-               ([thk : (→ (Values a ooo a)) (λ () expr)]) : (Sequenceof a ooo a)
-               (let gen-stream : (Sequenceof a ooo a) ()
-                 (if (or first-pass? (non-empty-queue? amb-queue))
-                     (stream-cons
-                      (parameterize ([current-amb-queue amb-queue])
-                        (cond
-                          [(non-empty-queue? amb-queue)
-                           (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
-                          [else
-                           (set! first-pass? #f)
-                           (thk)]))
-                      (gen-stream))
-                     empty-stream)))))]))
+               ([thk : (→ (Values a ooo a)) (λ () expr)])
+               : (Sequenceof a ooo a)
+            (let gen-stream : (Sequenceof a ooo a) ()
+              (if (or first-pass? (non-empty-queue? amb-queue))
+                  (stream-cons
+                   (parameterize ([current-amb-queue amb-queue])
+                     (cond
+                       [(non-empty-queue? amb-queue)
+                        (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
+                       [else
+                        (set! first-pass? #f)
+                        (thk)]))
+                   (gen-stream))
+                  empty-stream)))))]))
