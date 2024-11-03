@@ -18,46 +18,53 @@
           [schedule-amb-tasks! (-> continuation? (listof (-> any)) void?)]))
 
 
-(define-syntax amb
-  (syntax-parser
+(define-syntax (amb stx)
+  (syntax-parse stx
     #:datum-literals ()
-    [(_) #'(amb* (raise (exn:fail:contract:amb
-                         "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
-                         (current-continuation-marks))))]
+    [(_)
+     (syntax/loc stx
+       (amb*
+        (raise (exn:fail:contract:amb
+                "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
+                (current-continuation-marks)))))]
     [(_ alt ...+)
-     #'(let/cc k
+     (syntax/loc stx
+       (let/cc k
          (define alt* (list (λ () alt) ...))
          (schedule-amb-tasks! k alt*)
-         (amb))]))
+         (amb)))]))
 
-(define-syntax amb*
-  (syntax-parser
+(define-syntax (amb* stx)
+  (syntax-parse stx
     #:datum-literals ()
     [(_ v ...)
-     #'(if (non-empty-queue? (current-amb-queue))
+     (syntax/loc stx
+       (if (non-empty-queue? (current-amb-queue))
            (((current-amb-dequeue!)
              (current-amb-queue)))
-           (values v ...))]))
+           (values v ...)))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define (make-for/amb derived-stx)
-      (syntax-parser
+    (define ((make-for/amb derived-stx) stx)
+      (syntax-parse stx
         [(_ (clause ...) break:break-clause ... body ...+)
-         #`(let/cc k
+         (quasisyntax/loc stx
+           (let/cc k
              (define alt* (#,derived-stx (clause ...) break ... (λ () body ...)))
              (schedule-amb-tasks! k alt*)
-             (amb))]))
+             (amb)))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
-(define-syntax in-amb
-  (syntax-parser
+(define-syntax (in-amb stx)
+  (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
-     #'(in-stream
+     (syntax/loc stx
+       (in-stream
         (let ([thk (λ () expr)]
               [amb-queue (make-queue)]
               [first-pass? #t])
@@ -72,4 +79,4 @@
                       (set! first-pass? #f)
                       (thk)]))
                  (gen-stream))
-                empty-stream))))]))
+                empty-stream)))))]))

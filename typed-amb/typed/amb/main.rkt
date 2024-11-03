@@ -21,30 +21,34 @@
 
 (define-type AMB-Task (→* () ((→ Any * Nothing)) Nothing))
 
-(define-syntax amb
-  (λ (stx)
-    (syntax-parse stx
-      #:datum-literals ()
-      [(_) #'(amb* (raise (exn:fail:contract:amb
-                           "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
-                           (current-continuation-marks))))]
-      [(_ alt ...+)
-       #:with ooo (datum->syntax #f '...)
-       #'(let ()
-           (: s&i! (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) (Values a ooo a)))))
-           (define ((s&i! alt*) k)
-             (schedule-amb-tasks! k alt*)
-             (amb))
-           (call/cc (s&i! (list (λ () alt) ...))))])))
+(define-syntax (amb stx)
+  (syntax-parse stx
+    #:datum-literals ()
+    [(_)
+     (syntax/loc stx
+       (amb*
+        (raise (exn:fail:contract:amb
+                "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
+                (current-continuation-marks)))))]
+    [(_ alt ...+)
+     #:with ooo (datum->syntax #f '...)
+     (syntax/loc stx
+       (let ()
+         (: s&i! (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) (Values a ooo a)))))
+         (define ((s&i! alt*) k)
+           (schedule-amb-tasks! k alt*)
+           (amb))
+         (call/cc (s&i! (list (λ () alt) ...)))))]))
 
-(define-syntax amb*
-  (syntax-parser
+(define-syntax (amb* stx)
+  (syntax-parse stx
     #:datum-literals ()
     [(_ v ...)
-     #'(if (non-empty-queue? (current-amb-queue))
+     (syntax/loc stx
+       (if (non-empty-queue? (current-amb-queue))
            (((current-amb-dequeue!)
              (current-amb-queue)))
-           (values v ...))]))
+           (values v ...)))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
@@ -68,35 +72,36 @@
            (if (attribute t0) #'t0 #'AnyValues)
            (parser #'(name : t (clause ...) : t break ... body ...))]))
       parser)
-    (define (make-for/amb derived-stx)
-      (λ (stx)
-        (syntax-parse stx
-          #:datum-literals (:)
-          [(_ (~optional (~seq : t1))
-              (clause ...)
-              (~optional (~seq : t2))
-              break:break-clause ...
-              body ...+)
-           #:with t
-           (cond
-             [(and (attribute t1) (attribute t2)) #'(∪ t1 t2)]
-             [(attribute t1) #'t1]
-             [(attribute t2) #'t2]
-             [else #'AnyValues])
-           #`(let/cc k : t
-               #;(: alt* (Listof (→ t)))
-               (define alt* #,((alt*-parser derived-stx) stx))
-               (schedule-amb-tasks! k alt*)
-               (amb))])))
+    (define ((make-for/amb derived-stx) stx)
+      (syntax-parse stx
+        #:datum-literals (:)
+        [(_ (~optional (~seq : t1))
+            (clause ...)
+            (~optional (~seq : t2))
+            break:break-clause ...
+            body ...+)
+         #:with t
+         (cond
+           [(and (attribute t1) (attribute t2)) #'(∪ t1 t2)]
+           [(attribute t1) #'t1]
+           [(attribute t2) #'t2]
+           [else #'AnyValues])
+         (quasisyntax/loc stx
+           (let/cc k : t
+             #;(: alt* (Listof (→ t)))
+             (define alt* #,((alt*-parser derived-stx) stx))
+             (schedule-amb-tasks! k alt*)
+             (amb)))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
-(define-syntax in-amb
-  (syntax-parser
+(define-syntax (in-amb stx)
+  (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
      #:with ooo (datum->syntax #f '...)
-     #'(in-stream
+     (syntax/loc stx
+       (in-stream
         (let #:∀ (a)
              ([thk : (→ a) (λ () expr)])
           (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
@@ -112,4 +117,4 @@
                         (set! first-pass? #f)
                         (thk)]))
                    (gen-stream))
-                  empty-stream)))))]))
+                  empty-stream))))))]))
