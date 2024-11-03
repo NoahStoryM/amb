@@ -70,6 +70,14 @@
   (newline))
 
 (parameterize ([current-amb-queue (make-queue)])
+  (define (next j) (amb (values j) (next (add1 j))))
+  (time
+   (for ([i (in-range 100000)]
+         [j (in-amb (next 0))])
+     (list i j)))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
   (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
   (time
    (for ([i (in-range 100000)]

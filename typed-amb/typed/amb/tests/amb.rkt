@@ -67,5 +67,20 @@
 
 (parameterize ([current-amb-queue (make-queue)])
   (for ([i (in-amb (amb 1 2 (amb 3 'x) 'y))])
-    (displayln i))
+    (display i) (display #" "))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (for ([(i) (in-amb (amb 1 2 (amb 3 'x) 'y))])
+    (display i) (display #" "))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (for ([i : (∪ Symbol Number) (in-amb (amb 1 2 (amb 3 'x) 'y))])
+    (display i) (display #" "))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (for ([([i : (∪ Symbol Number)]) (in-amb (amb 1 2 (amb 3 'x) 'y))])
+    (display i) (display #" "))
   (newline))

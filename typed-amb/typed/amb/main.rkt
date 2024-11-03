@@ -1,11 +1,11 @@
 #lang typed/racket/base
 
-(require #;typed/racket/stream
-         typed/racket/unsafe
+(require typed/racket/unsafe
          typed/data/queue
          (for-syntax racket/base syntax/parse))
 
-(provide amb amb* for/amb for*/amb in-amb)
+(provide amb amb* for/amb for*/amb
+         (rename-out [in-amb-clause in-amb]))
 
 (unsafe-require/typed/provide amb
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
@@ -104,7 +104,6 @@
     [(_ expr)
      #:with ooo (datum->syntax #f '...)
      (syntax/loc stx
-       ;; TODO in-stream
        (let #:∀ (a ooo)
             ([thk : (→ (Values a ooo a)) (λ () expr)])
          (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
@@ -122,3 +121,12 @@
                          (thk)])))
                   gen-stream)
                  empty-stream)))))]))
+
+(define-sequence-syntax in-amb-clause
+  (λ () #'in-amb)
+  (λ (stx)
+    (syntax-parse stx
+      #:datum-literals ()
+      [[id:id : t:id  (_ expr)] (syntax/loc stx [id : t        (in-amb expr)])]
+      [[(binding ...) (_ expr)] (syntax/loc stx [(binding ...) (in-amb expr)])]
+      [[id:id         (_ expr)] (syntax/loc stx [id            (in-amb expr)])])))
