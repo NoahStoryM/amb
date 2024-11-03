@@ -30,12 +30,12 @@
                            (current-continuation-marks))))]
       [(_ alt ...+)
        #:with ooo (datum->syntax #f '...)
-       #'(let ([alt* (list (λ () alt) ...)])
+       #'(let ()
            (: s&i! (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) (Values a ooo a)))))
            (define ((s&i! alt*) k)
              (schedule-amb-tasks! k alt*)
              (amb))
-           (call/cc (s&i! alt*)))])))
+           (call/cc (s&i! (list (λ () alt) ...))))])))
 
 (define-syntax amb*
   (syntax-parser
