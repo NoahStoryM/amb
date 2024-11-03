@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(require typed/racket/stream
+(require (except-in typed/racket/stream empty-stream)
          typed/racket/unsafe
          typed/data/queue
          (for-syntax racket/base syntax/parse))
@@ -18,6 +18,9 @@
 (unsafe-require/typed racket/base
   [(call/cc unsafe-call/cc) (∀ (a) (→ (→ (∩ Procedure a) Nothing) Nothing))])
 
+(unsafe-require/typed/provide typed/racket/stream/stream-cons-thunk-untyped
+  [stream-cons/thunk (All (a ...) (→ (→ (Values a ... a)) (→ (Sequenceof a ... a)) (Sequenceof a ... a)))]
+  [empty-stream (All (a ...) (Sequenceof a ... a))])
 
 (define-type AMB-Task (→* () ((→ Any * Nothing)) Nothing))
 
@@ -102,19 +105,20 @@
      #:with ooo (datum->syntax #f '...)
      (syntax/loc stx
        (in-stream
-        (let #:∀ (a)
-             ([thk : (→ a) (λ () expr)])
+        (let #:∀ (a ooo)
+             ([thk : (→ (Values a ooo a)) (λ () expr)])
           (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
                 [first-pass? : Boolean #t])
-            (let gen-stream : (Sequenceof a) ()
+            (let gen-stream : (Sequenceof a ooo a) ()
               (if (or first-pass? (non-empty-queue? amb-queue))
-                  (stream-cons
-                   (parameterize ([current-amb-queue amb-queue])
-                     (cond
-                       [(non-empty-queue? amb-queue)
-                        (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
-                       [else
-                        (set! first-pass? #f)
-                        (thk)]))
-                   (gen-stream))
+                  (stream-cons/thunk
+                   (λ ()
+                     (parameterize ([current-amb-queue amb-queue])
+                       (cond
+                         [(non-empty-queue? amb-queue)
+                          (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
+                         [else
+                          (set! first-pass? #f)
+                          (thk)])))
+                   gen-stream)
                   empty-stream))))))]))
