@@ -1,11 +1,17 @@
-#+TITLE: amb
+#+TITLE: amb: Ambiguous Operator
 #+AUTHOR: Noah Ma
 #+EMAIL: noahstorym@gmail.com
 
 * Table of Contents                                       :TOC_5_gh:noexport:
 - [[#amb][amb]]
+- [[#typed-amb][typed-amb]]
 
 * amb
 #+begin_src racket
 (require amb)
+#+end_src
+
+* typed-amb
+#+begin_src racket
+(require typed/amb)
 #+end_src
