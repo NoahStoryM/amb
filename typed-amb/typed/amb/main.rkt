@@ -99,7 +99,6 @@
      #'(in-stream
         (let #:∀ (a ooo)
              ([thk : (→ (Values a ooo a)) (λ () expr)])
-             : (Sequenceof a ooo a)
           (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
                 [first-pass? : Boolean #t])
             (let gen-stream : (Sequenceof a ooo a) ()
