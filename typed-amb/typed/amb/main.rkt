@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(require (except-in typed/racket/stream empty-stream)
+(require #;typed/racket/stream
          typed/racket/unsafe
          typed/data/queue
          (for-syntax racket/base syntax/parse))
@@ -104,21 +104,21 @@
     [(_ expr)
      #:with ooo (datum->syntax #f '...)
      (syntax/loc stx
-       (in-stream
-        (let #:∀ (a ooo)
-             ([thk : (→ (Values a ooo a)) (λ () expr)])
-          (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
-                [first-pass? : Boolean #t])
-            (let gen-stream : (Sequenceof a ooo a) ()
-              (if (or first-pass? (non-empty-queue? amb-queue))
-                  (stream-cons/thunk
-                   (λ ()
-                     (parameterize ([current-amb-queue amb-queue])
-                       (cond
-                         [(non-empty-queue? amb-queue)
-                          (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
-                         [else
-                          (set! first-pass? #f)
-                          (thk)])))
-                   gen-stream)
-                  empty-stream))))))]))
+       ;; TODO in-stream
+       (let #:∀ (a ooo)
+            ([thk : (→ (Values a ooo a)) (λ () expr)])
+         (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
+               [first-pass? : Boolean #t])
+           (let gen-stream : (Sequenceof a ooo a) ()
+             (if (or first-pass? (non-empty-queue? amb-queue))
+                 (stream-cons/thunk
+                  (λ ()
+                    (parameterize ([current-amb-queue amb-queue])
+                      (cond
+                        [(non-empty-queue? amb-queue)
+                         (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
+                        [else
+                         (set! first-pass? #f)
+                         (thk)])))
+                  gen-stream)
+                 empty-stream)))))]))
