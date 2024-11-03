@@ -97,11 +97,11 @@
     [(_ expr)
      #:with ooo (datum->syntax #f '...)
      #'(in-stream
-        (let #:∀ (a ooo)
-             ([thk : (→ (Values a ooo a)) (λ () expr)])
+        (let #:∀ (a)
+             ([thk : (→ a) (λ () expr)])
           (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
                 [first-pass? : Boolean #t])
-            (let gen-stream : (Sequenceof a ooo a) ()
+            (let gen-stream : (Sequenceof a) ()
               (if (or first-pass? (non-empty-queue? amb-queue))
                   (stream-cons
                    (parameterize ([current-amb-queue amb-queue])
