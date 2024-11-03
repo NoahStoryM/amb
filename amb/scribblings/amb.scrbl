@@ -9,7 +9,8 @@
           "utils.rkt")
 
 @title{amb: Ambiguous Operator}
-@defmodule[amb]
+@defmodule[amb       #:packages ("amb")]
+@defmodule[typed/amb #:packages ("typed-amb") #:no-declare]
 @author[@author+email["Noah Ma" "noahstorym@gmail.com"]]
 
 @section{Ambiguous Operator}
