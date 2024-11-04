@@ -173,3 +173,9 @@ A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task
 into the current @tech{amb queue}. The default value is @racket[enqueue-front!],
 which adds the @tech{amb task} to the front of the queue.
 }
+
+@defparam[current-amb-call amb-call (-> (->* () (continuation?) none/c) none/c)]{
+
+A @tech/refer{parameter} that defines the method for calling an @tech{amb task}.
+The default value is @racket[(λ (f) (f))].
+}

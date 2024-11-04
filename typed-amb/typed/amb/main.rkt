@@ -16,6 +16,7 @@
   [current-amb-queue    (Parameter (Queue AMB-Task AMB-Task))]
   [current-amb-enqueue! (Parameter (→ (Queue AMB-Task Any) AMB-Task Void))]
   [current-amb-dequeue! (Parameter (→ (Queue Nothing AMB-Task) AMB-Task))]
+  [current-amb-call     (Parameter (→ AMB-Task Nothing))]
   [schedule-amb-tasks! (∀ (a ...) (→ (→ a ... a Nothing) (Listof (→ (Values a ... a))) Void))])
 
 
@@ -38,7 +39,8 @@
          (: s&i! (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) Nothing))))
          (define ((s&i! alt*) k)
            (schedule-amb-tasks! k alt*)
-           (((current-amb-dequeue!)
+           ((current-amb-call)
+            ((current-amb-dequeue!)
              (current-amb-queue))))
          (call/cc (s&i! (list (λ () alt) ...)))))]))
 
@@ -48,7 +50,8 @@
     [(_ expr ...)
      (syntax/loc stx
        (if (non-empty-queue? (current-amb-queue))
-           (((current-amb-dequeue!)
+           ((current-amb-call)
+            ((current-amb-dequeue!)
              (current-amb-queue)))
            (values expr ...)))]))
 

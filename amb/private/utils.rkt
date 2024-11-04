@@ -12,6 +12,7 @@
 (define current-amb-queue    (make-parameter (make-queue)))
 (define current-amb-enqueue! (make-parameter enqueue-front!))
 (define current-amb-dequeue! (make-parameter dequeue!))
+(define current-amb-call     (make-parameter (λ (f) (f))))
 
 (define schedule-amb-tasks!
   (λ (k alt*)
