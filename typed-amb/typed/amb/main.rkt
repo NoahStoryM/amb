@@ -71,8 +71,7 @@
           [(~or* (name : t0 (clause ...) break:break-clause ... body ...+)
                  (name (clause ...) : t0 break:break-clause ... body ...+)
                  (name (clause ...) break:break-clause ... body ...+))
-           #:with t
-           (if (attribute t0) #'t0 #'AnyValues)
+           #:with t (if (attribute t0) #'t0 #'AnyValues)
            (parser #'(name : t (clause ...) : t break ... body ...))]))
       parser)
     (define ((make-for/amb derived-stx) stx)
@@ -127,6 +126,24 @@
   (λ (stx)
     (syntax-parse stx
       #:datum-literals ()
-      [[id:id : t:id  (_ expr)] (syntax/loc stx [id : t        (in-amb expr)])]
-      [[(binding ...) (_ expr)] (syntax/loc stx [(binding ...) (in-amb expr)])]
-      [[id:id         (_ expr)] (syntax/loc stx [id            (in-amb expr)])])))
+      [[(id ...) (_ expr)]
+       (syntax/loc stx
+         [(id ...)
+          (:do-in
+           ([(thk) (λ () expr)]
+            [(amb-queue) ((inst make-queue AMB-Task AMB-Task))]
+            [(first-pass?) #t])
+           (begin)
+           ()
+           (or first-pass? (non-empty-queue? amb-queue))
+           ([(id ...)
+             (parameterize ([current-amb-queue amb-queue])
+               (cond
+                 [(non-empty-queue? amb-queue)
+                  (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
+                 [else
+                  (set! first-pass? #f)
+                  (thk)]))])
+           #t
+           #t
+           ())])])))
