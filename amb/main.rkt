@@ -33,7 +33,8 @@
        (let/cc k
          (define alt* (list (λ () alt) ...))
          (schedule-amb-tasks! k alt*)
-         (amb)))]))
+         (((current-amb-dequeue!)
+           (current-amb-queue)))))]))
 
 (define-syntax (amb* stx)
   (syntax-parse stx
