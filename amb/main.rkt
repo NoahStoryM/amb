@@ -75,7 +75,7 @@
   (define (next-pos _) #f)
   (define init-pos #t)
   (define (continue-with-pos? pos)
-    (or pos (non-empty-queue? amb-queue)))
+    (or (non-empty-queue? amb-queue) pos))
   (make-do-sequence
    (λ ()
      (initiate-sequence
