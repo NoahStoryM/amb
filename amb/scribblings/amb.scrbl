@@ -111,6 +111,19 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 
 Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
 expression @racket[expr], allowing for lazy evaluation of results.
+
+@amb-examples[
+(parameterize ([current-amb-queue (make-queue)])
+  (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
+  (amb 1 2 3)
+  (displayln (= 2 (queue-length (current-amb-queue))))
+  (time
+   (for ([i (in-range 100000)]
+         [(j k) (in-amb (next 0 0))])
+     (list i j k)))
+  (displayln (= 2 (queue-length (current-amb-queue))))
+  )
+]
 }
 
 @section{Amb Queue Management}
