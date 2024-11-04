@@ -18,9 +18,6 @@
   [current-amb-dequeue! (Parameter (→ (Queue Nothing AMB-Task) AMB-Task))]
   [schedule-amb-tasks! (∀ (a ...) (→ (→ a ... a Nothing) (Listof (→ (Values a ... a))) Void))])
 
-(unsafe-require/typed racket/base
-  [(call/cc unsafe-call/cc) (∀ (a) (→ (→ (∩ Procedure a) Nothing) Nothing))])
-
 
 (define-type AMB-Task (→* () ((→ Any * Nothing)) Nothing))
 
