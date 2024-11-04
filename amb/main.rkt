@@ -94,7 +94,7 @@
          ([(amb-queue) (make-queue)])
          (begin)
          ([pos #t])
-         (or pos (non-empty-queue? amb-queue))
+         (or (non-empty-queue? amb-queue) pos)
          ([(id ...)
            (parameterize ([current-amb-queue amb-queue])
              (if (non-empty-queue? amb-queue)
