@@ -68,19 +68,70 @@
 (parameterize ([current-amb-queue (make-queue)])
   (for ([i (in-amb (amb 1 2 (amb 3 'x) 'y))])
     (display i) (display #" "))
+  (newline)
   (newline))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (for ([(i) (in-amb (amb 1 2 (amb 3 'x) 'y))])
+  (for ([(i) (in-amb/thunk (λ () (amb 1 2 (amb 3 'x) 'y)))])
     (display i) (display #" "))
+  (newline)
   (newline))
 
 (parameterize ([current-amb-queue (make-queue)])
   (for ([i : (∪ Symbol Number) (in-amb (amb 1 2 (amb 3 'x) 'y))])
     (display i) (display #" "))
+  (newline)
   (newline))
 
 (parameterize ([current-amb-queue (make-queue)])
-  (for ([([i : (∪ Symbol Number)]) (in-amb (amb 1 2 (amb 3 'x) 'y))])
+  (for ([([i : (∪ Symbol Number)]) (in-amb/thunk (λ () (amb 1 2 (amb 3 'x) 'y)))])
     (display i) (display #" "))
+  (newline)
+  (newline))
+
+(let ()
+  (time
+   (for ([i : Natural (in-range 100000)]
+         [j : Natural (in-naturals)])
+     (cons i j)))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (: next (→ Integer Integer (Values Integer Integer)))
+  (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
+  (time
+   (for ([i : Natural (in-range 100000)]
+         [([j : Integer] [k : Integer]) (in-amb/thunk (λ () (next 0 0)))])
+     (list i j k)))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (: next (→ Integer Integer (Values Integer Integer)))
+  (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
+  (: s (Sequenceof Integer Integer))
+  (define s (in-amb/thunk (λ () (next 0 0))))
+  (time
+   (for ([i : Natural (in-range 100000)]
+         [([j : Integer] [k : Integer]) s])
+     (list i j k)))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (: next (→ Integer Integer))
+  (define (next j) (amb j (next (add1 j))))
+  (time
+   (for ([i : Natural (in-range 100000)]
+         [j : Integer (in-amb (next 0))])
+     (list i j)))
+  (newline))
+
+(parameterize ([current-amb-queue (make-queue)])
+  (: next (→ Integer Integer))
+  (define (next j) (amb j (next (add1 j))))
+  (: s (Sequenceof Integer))
+  (define s (in-amb (next 0)))
+  (time
+   (for ([i : Natural (in-range 100000)]
+         [j : Integer s])
+     (list i j)))
   (newline))

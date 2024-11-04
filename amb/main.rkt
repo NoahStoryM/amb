@@ -7,12 +7,13 @@
          data/queue)
 
 (provide amb amb* for/amb for*/amb
-         (rename-out [in-amb-clause in-amb])
+         (rename-out [in-amb-clause       in-amb]
+                     [in-amb/thunk-clause in-amb/thunk])
          (contract-out
           (struct exn:fail:contract:amb
             ([message string?]
              [continuation-marks continuation-mark-set?]))
-          [in-amb/thunk (-> (-> any) sequence?)]
+          #;[in-amb/thunk (-> (-> any) sequence?)]
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (->* () (continuation?) none/c) void?))]
@@ -47,6 +48,7 @@
              (current-amb-queue)))
            (values expr ...)))]))
 
+
 (define-syntaxes (for/amb for*/amb)
   (let ()
     (define-splicing-syntax-class break-clause
@@ -61,6 +63,7 @@
              (amb)))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
+
 
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
@@ -81,30 +84,39 @@
       #:init-pos           init-pos
       #:continue-with-pos? continue-with-pos?))))
 
-(define-syntax (in-amb stx)
+(define-for-syntax (in-amb/thunk-parser stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ expr) (syntax/loc stx (in-amb/thunk (λ () expr)))]))
+    [[(id:id ...) (_ thk)]
+     (syntax/loc stx
+       [(id ...)
+        (:do-in
+         ([(amb-queue) (make-queue)])
+         (begin)
+         ([pos #t])
+         (or pos (non-empty-queue? amb-queue))
+         ([(id ...)
+           (parameterize ([current-amb-queue amb-queue])
+             (if (non-empty-queue? amb-queue)
+                 (call/cc ((current-amb-dequeue!) amb-queue))
+                 (thk)))])
+         #t
+         #t
+         (#f))])]))
 
-(define-sequence-syntax in-amb-clause
-  (λ () #'in-amb)
-  (λ (stx)
-    (syntax-parse stx
-      #:datum-literals ()
-      [[(id:id ...) (_ expr)]
-       (syntax/loc stx
-         [(id ...)
-          (:do-in
-           ([(thk) (λ () expr)]
-            [(amb-queue) (make-queue)])
-           (begin)
-           ([pos #t])
-           (or pos (non-empty-queue? amb-queue))
-           ([(id ...)
-             (parameterize ([current-amb-queue amb-queue])
-               (if (non-empty-queue? amb-queue)
-                   (call/cc ((current-amb-dequeue!) amb-queue))
-                   (thk)))])
-           #t
-           #t
-           (#f))])])))
+(define-sequence-syntax in-amb/thunk-clause (λ () #'in-amb/thunk) in-amb/thunk-parser)
+
+
+(define-for-syntax (in-amb stx)
+  (syntax-parse stx
+    #:datum-literals ()
+    [(_ expr)
+     (syntax/loc stx (in-amb/thunk (λ () expr)))]))
+
+(define-for-syntax (in-amb-parser stx)
+  (syntax-parse stx
+    #:datum-literals ()
+    [[(id:id ...) (_ expr)]
+     (in-amb/thunk-parser (syntax/loc stx [(id ...) (_ (λ () expr))]))]))
+
+(define-sequence-syntax in-amb-clause in-amb in-amb-parser)

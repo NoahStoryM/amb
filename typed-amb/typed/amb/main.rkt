@@ -4,12 +4,14 @@
          typed/data/queue
          (for-syntax racket/base syntax/parse))
 
-(provide amb amb* for/amb for*/amb AMB-Task
-         (rename-out [in-amb-clause in-amb]))
+(provide amb amb* for/amb for*/amb in-amb
+         AMB-Task)
 
 (unsafe-require/typed/provide amb
+  [in-amb/thunk (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))])
+
+(unsafe-require/typed/provide amb/private/utils
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
-  [in-amb/thunk (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
   [current-amb-queue    (Parameter (Queue AMB-Task AMB-Task))]
   [current-amb-enqueue! (Parameter (→ (Queue AMB-Task Any) AMB-Task Void))]
@@ -19,7 +21,9 @@
 (unsafe-require/typed racket/base
   [(call/cc unsafe-call/cc) (∀ (a) (→ (→ (∩ Procedure a) Nothing) Nothing))])
 
+
 (define-type AMB-Task (→* () ((→ Any * Nothing)) Nothing))
+
 
 (define-syntax (amb stx)
   (syntax-parse stx
@@ -50,6 +54,7 @@
            (((current-amb-dequeue!)
              (current-amb-queue)))
            (values expr ...)))]))
+
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
@@ -95,30 +100,8 @@
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
+
 (define-syntax (in-amb stx)
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr) (syntax/loc stx (in-amb/thunk (λ () expr)))]))
-
-(define-sequence-syntax in-amb-clause
-  (λ () #'in-amb)
-  (λ (stx)
-    (syntax-parse stx
-      #:datum-literals ()
-      [[(id:id ...) (_ expr)]
-       (syntax/loc stx
-         [(id ...)
-          (:do-in
-           ([(thk) (λ () expr)]
-            [(amb-queue) ((inst make-queue AMB-Task AMB-Task))])
-           (begin)
-           ([pos #t])
-           (or pos (non-empty-queue? amb-queue))
-           ([(id ...)
-             (parameterize ([current-amb-queue amb-queue])
-               (if (non-empty-queue? amb-queue)
-                   (unsafe-call/cc ((current-amb-dequeue!) amb-queue))
-                   (thk)))])
-           #t
-           #t
-           (#f))])])))
