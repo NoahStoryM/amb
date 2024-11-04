@@ -3,7 +3,7 @@
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
          racket/contract
-         racket/stream
+         racket/sequence
          data/queue)
 
 (provide amb amb* for/amb for*/amb
@@ -61,26 +61,29 @@
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
+(define (in-amb/thunk thk)
+  (define amb-queue (make-queue))
+  (define (pos->element _)
+    (parameterize ([current-amb-queue amb-queue])
+      (if (non-empty-queue? amb-queue)
+          (call/cc ((current-amb-dequeue!) amb-queue))
+          (thk))))
+  (define (next-pos _) #f)
+  (define init-pos #t)
+  (define (continue-with-pos? pos)
+    (or pos (non-empty-queue? amb-queue)))
+  (make-do-sequence
+   (λ ()
+     (initiate-sequence
+      #:pos->element       pos->element
+      #:next-pos           next-pos
+      #:init-pos           init-pos
+      #:continue-with-pos? continue-with-pos?))))
+
 (define-syntax (in-amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ expr)
-     (syntax/loc stx
-       (let ([thk (λ () expr)]
-             [amb-queue (make-queue)]
-             [first-pass? #t])
-         (let gen-stream ()
-           (if (or first-pass? (non-empty-queue? amb-queue))
-               (stream-cons
-                (parameterize ([current-amb-queue amb-queue])
-                  (cond
-                    [(non-empty-queue? amb-queue)
-                     (call/cc ((current-amb-dequeue!) amb-queue))]
-                    [else
-                     (set! first-pass? #f)
-                     (thk)]))
-                (gen-stream))
-               empty-stream))))]))
+    [(_ expr) (syntax/loc stx (in-amb/thunk (λ () expr)))]))
 
 (define-sequence-syntax in-amb-clause
   (λ () #'in-amb)
@@ -92,19 +95,15 @@
          [(id ...)
           (:do-in
            ([(thk) (λ () expr)]
-            [(amb-queue) (make-queue)]
-            [(first-pass?) #t])
+            [(amb-queue) (make-queue)])
            (begin)
-           ()
-           (or first-pass? (non-empty-queue? amb-queue))
+           ([pos #t])
+           (or pos (non-empty-queue? amb-queue))
            ([(id ...)
              (parameterize ([current-amb-queue amb-queue])
-               (cond
-                 [(non-empty-queue? amb-queue)
-                  (call/cc ((current-amb-dequeue!) amb-queue))]
-                 [else
-                  (set! first-pass? #f)
-                  (thk)]))])
+               (if (non-empty-queue? amb-queue)
+                   (call/cc ((current-amb-dequeue!) amb-queue))
+                   (thk)))])
            #t
            #t
-           ())])])))
+           (#f))])])))
