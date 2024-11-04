@@ -4,7 +4,7 @@
          typed/data/queue
          (for-syntax racket/base syntax/parse))
 
-(provide amb amb* for/amb for*/amb
+(provide amb amb* for/amb for*/amb AMB-Task
          (rename-out [in-amb-clause in-amb]))
 
 (unsafe-require/typed/provide amb
