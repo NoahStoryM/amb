@@ -38,12 +38,12 @@
 (define-syntax (amb* stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ v ...)
+    [(_ expr ...)
      (syntax/loc stx
        (if (non-empty-queue? (current-amb-queue))
            (((current-amb-dequeue!)
              (current-amb-queue)))
-           (values v ...)))]))
+           (values expr ...)))]))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
