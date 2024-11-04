@@ -12,6 +12,7 @@
           (struct exn:fail:contract:amb
             ([message string?]
              [continuation-marks continuation-mark-set?]))
+          [in-amb/thunk (-> (-> any) sequence?)]
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (->* () (continuation?) none/c) void?))]

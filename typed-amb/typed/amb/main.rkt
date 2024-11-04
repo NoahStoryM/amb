@@ -9,6 +9,7 @@
 
 (unsafe-require/typed/provide amb
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
+  [in-amb/thunk (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
   [current-amb-queue    (Parameter (Queue AMB-Task AMB-Task))]
   [current-amb-enqueue! (Parameter (→ (Queue AMB-Task Any) AMB-Task Void))]
@@ -17,10 +18,6 @@
 
 (unsafe-require/typed racket/base
   [(call/cc unsafe-call/cc) (∀ (a) (→ (→ (∩ Procedure a) Nothing) Nothing))])
-
-(unsafe-require/typed typed/racket/stream/stream-cons-thunk-untyped
-  [stream-cons/thunk (All (a ...) (→ (→ (Values a ... a)) (→ (Sequenceof a ... a)) (Sequenceof a ... a)))]
-  [empty-stream (All (a ...) (Sequenceof a ... a))])
 
 (define-type AMB-Task (→* () ((→ Any * Nothing)) Nothing))
 
@@ -101,26 +98,7 @@
 (define-syntax (in-amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ expr)
-     #:with ooo (datum->syntax #f '...)
-     (syntax/loc stx
-       (let #:∀ (a ooo)
-            ([thk : (→ (Values a ooo a)) (λ () expr)])
-         (let ([amb-queue   : (Queue AMB-Task AMB-Task) (make-queue)]
-               [first-pass? : Boolean #t])
-           (let gen-stream : (Sequenceof a ooo a) ()
-             (if (or first-pass? (non-empty-queue? amb-queue))
-                 (stream-cons/thunk
-                  (λ ()
-                    (parameterize ([current-amb-queue amb-queue])
-                      (cond
-                        [(non-empty-queue? amb-queue)
-                         (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
-                        [else
-                         (set! first-pass? #f)
-                         (thk)])))
-                  gen-stream)
-                 empty-stream)))))]))
+    [(_ expr) (syntax/loc stx (in-amb/thunk (λ () expr)))]))
 
 (define-sequence-syntax in-amb-clause
   (λ () #'in-amb)
@@ -132,19 +110,15 @@
          [(id ...)
           (:do-in
            ([(thk) (λ () expr)]
-            [(amb-queue) ((inst make-queue AMB-Task AMB-Task))]
-            [(first-pass?) #t])
+            [(amb-queue) ((inst make-queue AMB-Task AMB-Task))])
            (begin)
-           ()
-           (or first-pass? (non-empty-queue? amb-queue))
+           ([pos #t])
+           (or pos (non-empty-queue? amb-queue))
            ([(id ...)
              (parameterize ([current-amb-queue amb-queue])
-               (cond
-                 [(non-empty-queue? amb-queue)
-                  (unsafe-call/cc ((current-amb-dequeue!) amb-queue))]
-                 [else
-                  (set! first-pass? #f)
-                  (thk)]))])
+               (if (non-empty-queue? amb-queue)
+                   (unsafe-call/cc ((current-amb-dequeue!) amb-queue))
+                   (thk)))])
            #t
            #t
-           ())])])))
+           (#f))])])))

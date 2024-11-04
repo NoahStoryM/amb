@@ -126,6 +126,12 @@ expression @racket[expr], allowing for lazy evaluation of results.
 ]
 }
 
+@defproc[(in-amb/thunk [thk (-> any)]) sequence?]{
+
+A helper function used by @racket[in-amb]. The form @racket[(in-amb expr)]
+expands to @racket[(in-amb/thunk (λ () expr))].
+}
+
 @section{Amb Queue Management}
 
 @defproc[(schedule-amb-tasks! [k continuation?] [alt* (listof (-> any))]) void?]{
