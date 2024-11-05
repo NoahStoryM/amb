@@ -69,15 +69,14 @@
 
 
 (define (in-amb/thunk thk)
-  (define amb-queue (make-queue))
-  (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
-  (define (pos->element _)
-    (parameterize ([current-amb-queue amb-queue]
+  (define (pos->element pos)
+    (parameterize ([current-amb-queue pos]
                    [current-amb-call  call/cc])
-      (call/cc ((current-amb-dequeue!) amb-queue))))
+      (call/cc ((current-amb-dequeue!) pos))))
+  (define init-pos (make-queue))
   (define next-pos values)
-  (define init-pos amb-queue)
-  (define (continue-with-pos? _) (non-empty-queue? amb-queue))
+  (define continue-with-pos? non-empty-queue?)
+  (enqueue! init-pos (λ (k) (call-in-continuation k thk)))
   (make-do-sequence
    (λ ()
      (initiate-sequence
