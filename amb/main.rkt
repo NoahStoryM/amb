@@ -19,7 +19,8 @@
           [current-amb-enqueue! (parameter/c (-> queue? (->* () (continuation?) none/c) void?))]
           [current-amb-dequeue! (parameter/c (-> queue? (->* () (continuation?) none/c)))]
           [current-amb-call     (parameter/c (-> (->* () (continuation?) none/c) none/c))]
-          [schedule-amb-tasks! (-> continuation? (listof (-> any)) void?)]))
+          [schedule-amb-tasks!  (-> continuation? (listof (-> any)) void?)]
+          [run-next-amb-task!   (-> none/c)]))
 
 
 (define-syntax (amb stx)
@@ -36,9 +37,7 @@
        (let/cc k
          (define alt* (list (λ () alt) ...))
          (schedule-amb-tasks! k alt*)
-         ((current-amb-call)
-          ((current-amb-dequeue!)
-           (current-amb-queue)))))]))
+         (run-next-amb-task!)))]))
 
 (define-syntax (amb* stx)
   (syntax-parse stx
@@ -46,9 +45,7 @@
     [(_ expr ...)
      (syntax/loc stx
        (if (non-empty-queue? (current-amb-queue))
-           ((current-amb-call)
-            ((current-amb-dequeue!)
-             (current-amb-queue)))
+           (run-next-amb-task!)
            (values expr ...)))]))
 
 
@@ -74,7 +71,7 @@
   (define (pos->element _)
     (parameterize ([current-amb-queue amb-queue]
                    [current-amb-call  call/cc])
-      (call/cc ((current-amb-dequeue!) amb-queue))))
+      (run-next-amb-task!)))
   (make-do-sequence
    (λ ()
      (initiate-sequence
@@ -97,7 +94,7 @@
          ([(id ...)
            (parameterize ([current-amb-queue amb-queue]
                           [current-amb-call  call/cc])
-             (call/cc ((current-amb-dequeue!) amb-queue)))])
+             (run-next-amb-task!))])
          #t
          #t
          ())])]))

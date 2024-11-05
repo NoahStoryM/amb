@@ -24,3 +24,8 @@
     (for ([alt (in-list ((current-amb-shuffler) alt*))])
       (define (amb-task [k k]) (call-in-continuation k alt))
       (amb-enqueue! amb-queue amb-task))))
+
+(define (run-next-amb-task!)
+  ((current-amb-call)
+   ((current-amb-dequeue!)
+    (current-amb-queue))))
