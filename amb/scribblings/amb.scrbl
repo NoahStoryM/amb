@@ -145,7 +145,10 @@ procedure that accepts a @tech/refer{continuation} and invokes an
 }
 
 @defproc[(run-next-amb-task!) none/c]{
-When called, this procedure dequeues and runs an @tech{amb task}.
+When called, this procedure dequeues and runs the next @tech{amb task} in the
+current @tech{amb queue}. Note that it does not check if the queue is empty
+before dequeuing. For consistent error handling, consider using @racket[(amb)],
+which throws an @racket[exn:fail:contract:amb] if the queue is empty.
 }
 
 @section{Parameter}
