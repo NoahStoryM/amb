@@ -70,16 +70,14 @@
 
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
+  (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
   (define (pos->element _)
     (parameterize ([current-amb-queue amb-queue]
                    [current-amb-call  call/cc])
-      (if (non-empty-queue? amb-queue)
-          (call/cc ((current-amb-dequeue!) amb-queue))
-          (thk))))
-  (define (next-pos _) #f)
-  (define init-pos #t)
-  (define (continue-with-pos? pos)
-    (or (non-empty-queue? amb-queue) pos))
+      (call/cc ((current-amb-dequeue!) amb-queue))))
+  (define next-pos values)
+  (define init-pos amb-queue)
+  (define (continue-with-pos? _) (non-empty-queue? amb-queue))
   (make-do-sequence
    (λ ()
      (initiate-sequence
@@ -96,18 +94,16 @@
        [(id ...)
         (:do-in
          ([(amb-queue) (make-queue)])
-         (begin)
-         ([pos #t])
-         (or (non-empty-queue? amb-queue) pos)
+         (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
+         ()
+         (non-empty-queue? amb-queue)
          ([(id ...)
            (parameterize ([current-amb-queue amb-queue]
                           [current-amb-call  call/cc])
-             (if (non-empty-queue? amb-queue)
-                 (call/cc ((current-amb-dequeue!) amb-queue))
-                 (thk)))])
+             (call/cc ((current-amb-dequeue!) amb-queue)))])
          #t
          #t
-         (#f))])]))
+         ())])]))
 
 (define-sequence-syntax in-amb/thunk-clause (λ () #'in-amb/thunk) in-amb/thunk-parser)
 
