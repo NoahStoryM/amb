@@ -81,7 +81,8 @@
         (let/cc k
           (set! return k)
           (with-handlers ([exn:fail:contract:amb? ->false])
-            (parameterize ([current-amb-queue amb-queue])
+            (parameterize ([current-amb-queue amb-queue]
+                           [current-amb-call  call/nc])
               (if pos
                   (call-with-values thk (λ v* (set! element v*) (return #t)))
                   (amb))))))))
@@ -108,7 +109,8 @@
          (let/cc k
            (set! return k)
            (with-handlers ([exn:fail:contract:amb? ->false])
-             (parameterize ([current-amb-queue amb-queue])
+             (parameterize ([current-amb-queue amb-queue]
+                            [current-amb-call  call/nc])
                (if pos
                    (call-with-values thk (λ v* (set! element v*) (return #t)))
                    (amb)))))
