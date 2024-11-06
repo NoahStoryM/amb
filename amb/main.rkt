@@ -5,6 +5,7 @@
          racket/contract
          racket/promise
          racket/sequence
+         racket/undefined
          data/queue)
 
 (provide amb amb* for/amb for*/amb
@@ -69,25 +70,27 @@
             (make-for/amb #'for*/list))))
 
 
-(define (empty-handler _) #f)
+(define (->false _) #f)
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
-  (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
-  (define (next-pos . _)
-    (delay
-      (parameterize ([current-amb-queue amb-queue]
-                     [current-amb-call  call/cc])
-        (amb))))
-  (define (continue-with-pos? pos)
-    (with-handlers ([exn:fail:contract:amb? empty-handler])
-      (force pos)
-      #t))
+  (define element undefined)
+  (define (pos->element _) (apply values element))
+  (define continue-with-pos?
+    (let ([return undefined])
+      (λ (pos)
+        (let/cc k
+          (set! return k)
+          (with-handlers ([exn:fail:contract:amb? ->false])
+            (parameterize ([current-amb-queue amb-queue])
+              (if pos
+                  (call-with-values thk (λ v* (set! element v*) (return #t)))
+                  (amb))))))))
   (make-do-sequence
    (λ ()
      (initiate-sequence
-      #:pos->element       force
-      #:next-pos           next-pos
-      #:init-pos           (next-pos)
+      #:pos->element       pos->element
+      #:next-pos           ->false
+      #:init-pos           #t
       #:continue-with-pos? continue-with-pos?))))
 
 (define-for-syntax (in-amb/thunk-parser stx)
@@ -97,22 +100,22 @@
      (syntax/loc stx
        [(id ...)
         (:do-in
-         ([(amb-queue) (make-queue)])
-         (begin
-           (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
-           (define (next-pos)
-             (delay
-               (parameterize ([current-amb-queue amb-queue]
-                              [current-amb-call  call/cc])
-                 (amb)))))
-         ([pos (next-pos)])
-         (with-handlers ([exn:fail:contract:amb? empty-handler])
-           (force pos)
-           #t)
-         ([(id ...) (force pos)])
+         ([(amb-queue) (make-queue)]
+          [(element) undefined]
+          [(return)  undefined])
+         (begin)
+         ([pos #t])
+         (let/cc k
+           (set! return k)
+           (with-handlers ([exn:fail:contract:amb? ->false])
+             (parameterize ([current-amb-queue amb-queue])
+               (if pos
+                   (call-with-values thk (λ v* (set! element v*) (return #t)))
+                   (amb)))))
+         ([(id ...) (apply values element)])
          #t
          #t
-         ((next-pos)))])]))
+         (#f))])]))
 
 (define-sequence-syntax in-amb/thunk-clause (λ () #'in-amb/thunk) in-amb/thunk-parser)
 
