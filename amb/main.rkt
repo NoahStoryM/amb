@@ -65,20 +65,36 @@
             (make-for/amb #'for*/list))))
 
 
-(define (in-amb/thunk thk)
+(define (make-amb-sequence thk)
   (define amb-queue (make-queue))
   (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
   (define (pos->element _)
     (parameterize ([current-amb-queue amb-queue]
                    [current-amb-call  call/cc])
-      (run-next-amb-task!)))
+      (amb)))
   (make-do-sequence
    (λ ()
      (initiate-sequence
-      #:pos->element       pos->element
+      #:pos->element pos->element
+      #:next-pos     values
+      #:init-pos     amb-queue))))
+
+(define (empty-handler _) #f)
+(define (amb-sequence->sequence amb-s)
+  (define-values (more? get) (sequence-generate amb-s))
+  (define (continue-with-pos? _)
+    (with-handlers ([exn:fail:contract:amb? empty-handler])
+      (more?)))
+  (make-do-sequence
+   (λ ()
+     (initiate-sequence
+      #:init-pos           get
+      #:pos->element       call/nc
       #:next-pos           values
-      #:init-pos           amb-queue
-      #:continue-with-pos? non-empty-queue?))))
+      #:continue-with-pos? continue-with-pos?))))
+
+
+(define in-amb/thunk (compose amb-sequence->sequence make-amb-sequence))
 
 (define-for-syntax (in-amb/thunk-parser stx)
   (syntax-parse stx
@@ -87,14 +103,13 @@
      (syntax/loc stx
        [(id ...)
         (:do-in
-         ([(amb-queue) (make-queue)])
-         (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
+         ([(more? get)
+           (sequence-generate (make-amb-sequence thk))])
+         (begin)
          ()
-         (non-empty-queue? amb-queue)
-         ([(id ...)
-           (parameterize ([current-amb-queue amb-queue]
-                          [current-amb-call  call/cc])
-             (run-next-amb-task!))])
+         (with-handlers ([exn:fail:contract:amb? empty-handler])
+           (more?))
+         ([(id ...) (get)])
          #t
          #t
          ())])]))
