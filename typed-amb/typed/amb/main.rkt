@@ -17,8 +17,7 @@
   [current-amb-enqueue! (Parameter (→ (Queue AMB-Task Any) AMB-Task Void))]
   [current-amb-dequeue! (Parameter (→ (Queue Nothing AMB-Task) AMB-Task))]
   [current-amb-call     (Parameter (→ AMB-Task Nothing))]
-  [schedule-amb-tasks!  (∀ (a ...) (→ (→ a ... a Nothing) (Listof (→ (Values a ... a))) Void))]
-  [run-next-amb-task!   (→ Nothing)])
+  [schedule-amb-tasks!  (∀ (a ...) (→ (→ a ... a Nothing) (Listof (→ (Values a ... a))) Void))])
 
 
 (define-type AMB-Task (→* () ((→ Any * Nothing)) Nothing))
@@ -40,7 +39,9 @@
          (: s&i! (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) Nothing))))
          (define ((s&i! alt*) k)
            (schedule-amb-tasks! k alt*)
-           (run-next-amb-task!))
+           ((current-amb-call)
+            ((current-amb-dequeue!)
+             (current-amb-queue))))
          (call/cc (s&i! (list (λ () alt) ...)))))]))
 
 (define-syntax (amb* stx)
@@ -49,7 +50,9 @@
     [(_ expr ...)
      (syntax/loc stx
        (if (non-empty-queue? (current-amb-queue))
-           (run-next-amb-task!)
+           ((current-amb-call)
+            ((current-amb-dequeue!)
+             (current-amb-queue)))
            (values expr ...)))]))
 
 

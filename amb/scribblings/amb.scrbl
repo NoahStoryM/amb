@@ -24,7 +24,7 @@ The @racket[amb] operator.
 
 The @racket[amb*] operator evaluates its argument expressions and returns their
 results as @racket[values] if the current @tech{amb queue} is empty; otherwise,
-it calls @racket[(run-next-amb-task!)].
+it calls @racket[(amb)].
 }
 
 @deftogether[(@defform*[((for/amb (for-clause ...) body-or-break ... body)
@@ -142,13 +142,6 @@ procedure that accepts a @tech/refer{continuation} and invokes an
 @tech{alternative} using @racket[call-in-continuation] with the
 @tech/refer{continuation}. By default, the provided @tech/refer{continuation} is
 @racket[k].
-}
-
-@defproc[(run-next-amb-task!) none/c]{
-When called, this procedure dequeues and runs the next @tech{amb task} in the
-current @tech{amb queue}. Note that it does not check if the queue is empty
-before dequeuing. For consistent error handling, consider using @racket[(amb)],
-which throws an @racket[exn:fail:contract:amb] if the queue is empty.
 }
 
 @section{Parameter}
