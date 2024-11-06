@@ -74,25 +74,23 @@
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
   (define element undefined)
-  (define (pos->element _) (apply values element))
-  (define continue-with-pos?
-    (let ([return undefined])
-      (λ (pos)
-        (let/cc k
-          (set! return k)
-          (with-handlers ([exn:fail:contract:amb? ->false])
-            (parameterize ([current-amb-queue amb-queue]
-                           [current-amb-call  call/nc])
-              (if pos
-                  (call-with-values thk (λ v* (set! element v*) (return #t)))
-                  (amb))))))))
   (make-do-sequence
    (λ ()
      (initiate-sequence
-      #:pos->element       pos->element
-      #:next-pos           ->false
-      #:init-pos           #t
-      #:continue-with-pos? continue-with-pos?))))
+      #:pos->element (λ (_) (apply values element))
+      #:next-pos ->false
+      #:init-pos #t
+      #:continue-with-pos?
+      (let ([return undefined])
+        (λ (pos)
+          (let/cc k
+            (set! return k)
+            (with-handlers ([exn:fail:contract:amb? ->false])
+              (parameterize ([current-amb-queue amb-queue]
+                             [current-amb-call  call/nc])
+                (if pos
+                    (call-with-values thk (λ v* (set! element v*) (return #t)))
+                    (amb* #f)))))))))))
 
 (define-for-syntax (in-amb/thunk-parser stx)
   (syntax-parse stx
@@ -113,7 +111,7 @@
                             [current-amb-call  call/nc])
                (if pos
                    (call-with-values thk (λ v* (set! element v*) (return #t)))
-                   (amb)))))
+                   (amb* #f)))))
          ([(id ...) (apply values element)])
          #t
          #t
