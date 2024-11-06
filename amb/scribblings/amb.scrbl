@@ -138,10 +138,8 @@ expands to @racket[(in-amb/thunk (λ () expr))].
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
-procedure that accepts a @tech/refer{continuation} and invokes an
-@tech{alternative} using @racket[call-in-continuation] with the
-@tech/refer{continuation}. By default, the provided @tech/refer{continuation} is
-@racket[k].
+@racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call
+@racket[k] with the @racket[values] produced by an @tech{alternative}.
 }
 
 @section{Parameter}
@@ -160,22 +158,16 @@ which is populated as needed by @racket[schedule-amb-tasks!]. The default value
 is an empty @deftech{amb queue}.
 }
 
-@defparam[current-amb-dequeue! amb-dequeue! (-> queue? (->* () (continuation?) none/c))]{
+@defparam[current-amb-dequeue! amb-dequeue! (-> queue? (-> none/c))]{
 
 A @tech/refer{parameter} that defines the method for dequeuing an @tech{amb task}
 from the current @tech{amb queue}. The default value is @racket[dequeue!], which
 removes and returns the @tech{amb task} at the front of the queue.
 }
 
-@defparam[current-amb-enqueue! amb-enqueue! (-> queue? (->* () (continuation?) none/c) void?)]{
+@defparam[current-amb-enqueue! amb-enqueue! (-> queue? (-> none/c) void?)]{
 
 A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task}
 into the current @tech{amb queue}. The default value is @racket[enqueue-front!],
 which adds the @tech{amb task} to the front of the queue.
-}
-
-@defparam[current-amb-call amb-call (-> (->* () (continuation?) none/c) none/c)]{
-
-A @tech/refer{parameter} that defines the method for calling an @tech{amb task}.
-The default value is @racket[(λ (f) (f))].
 }

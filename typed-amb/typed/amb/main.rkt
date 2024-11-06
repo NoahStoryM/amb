@@ -4,8 +4,7 @@
          typed/data/queue
          (for-syntax racket/base syntax/parse))
 
-(provide amb amb* for/amb for*/amb in-amb
-         AMB-Task)
+(provide amb amb* for/amb for*/amb in-amb)
 
 (unsafe-require/typed/provide amb
   [in-amb/thunk (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))])
@@ -13,14 +12,10 @@
 (unsafe-require/typed/provide amb/private/utils
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
-  [current-amb-queue    (Parameter (Queue AMB-Task AMB-Task))]
-  [current-amb-enqueue! (Parameter (→ (Queue AMB-Task Any) AMB-Task Void))]
-  [current-amb-dequeue! (Parameter (→ (Queue Nothing AMB-Task) AMB-Task))]
-  [current-amb-call     (Parameter (→ AMB-Task Nothing))]
+  [current-amb-queue    (Parameter (Queue (-> Nothing) (-> Nothing)))]
+  [current-amb-enqueue! (Parameter (→ (Queue (-> Nothing) Any) (-> Nothing) Void))]
+  [current-amb-dequeue! (Parameter (→ (Queue Nothing (-> Nothing)) (-> Nothing)))]
   [schedule-amb-tasks!  (∀ (a ...) (→ (→ a ... a Nothing) (Listof (→ (Values a ... a))) Void))])
-
-
-(define-type AMB-Task (→* () ((→ Any * Nothing)) Nothing))
 
 
 (define-syntax (amb stx)
@@ -39,8 +34,7 @@
          (: s&i! (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) Nothing))))
          (define ((s&i! alt*) k)
            (schedule-amb-tasks! k alt*)
-           ((current-amb-call)
-            ((current-amb-dequeue!)
+           (((current-amb-dequeue!)
              (current-amb-queue))))
          (call/cc (s&i! (list (λ () alt) ...)))))]))
 
@@ -50,8 +44,7 @@
     [(_ expr ...)
      (syntax/loc stx
        (if (non-empty-queue? (current-amb-queue))
-           ((current-amb-call)
-            ((current-amb-dequeue!)
+           (((current-amb-dequeue!)
              (current-amb-queue)))
            (values expr ...)))]))
 

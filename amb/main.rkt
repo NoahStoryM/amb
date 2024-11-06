@@ -18,9 +18,8 @@
           #;[in-amb/thunk (-> (-> any) sequence?)]
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
-          [current-amb-enqueue! (parameter/c (-> queue? (->* () (continuation?) none/c) void?))]
-          [current-amb-dequeue! (parameter/c (-> queue? (->* () (continuation?) none/c)))]
-          [current-amb-call     (parameter/c (-> (->* () (continuation?) none/c) none/c))]
+          [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
+          [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
           [schedule-amb-tasks!  (-> continuation? (listof (-> any)) void?)]))
 
 
@@ -38,8 +37,7 @@
        (let/cc k
          (define alt* (list (λ () alt) ...))
          (schedule-amb-tasks! k alt*)
-         ((current-amb-call)
-          ((current-amb-dequeue!)
+         (((current-amb-dequeue!)
            (current-amb-queue)))))]))
 
 (define-syntax (amb* stx)
@@ -48,8 +46,7 @@
     [(_ expr ...)
      (syntax/loc stx
        (if (non-empty-queue? (current-amb-queue))
-           ((current-amb-call)
-            ((current-amb-dequeue!)
+           (((current-amb-dequeue!)
              (current-amb-queue)))
            (values expr ...)))]))
 
@@ -86,8 +83,7 @@
           (let/cc k
             (set! return k)
             (with-handlers ([exn:fail:contract:amb? ->false])
-              (parameterize ([current-amb-queue amb-queue]
-                             [current-amb-call  call/nc])
+              (parameterize ([current-amb-queue amb-queue])
                 (if pos
                     (call-with-values thk (λ v* (set! element v*) (return #t)))
                     (amb* #f)))))))))))
@@ -107,8 +103,7 @@
          (let/cc k
            (set! return k)
            (with-handlers ([exn:fail:contract:amb? ->false])
-             (parameterize ([current-amb-queue amb-queue]
-                            [current-amb-call  call/nc])
+             (parameterize ([current-amb-queue amb-queue])
                (if pos
                    (call-with-values thk (λ v* (set! element v*) (return #t)))
                    (amb* #f)))))
