@@ -3,6 +3,7 @@
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
          racket/contract
+         racket/promise
          racket/sequence
          data/queue)
 
@@ -65,36 +66,26 @@
             (make-for/amb #'for*/list))))
 
 
-(define (make-amb-sequence thk)
+(define (empty-handler _) #f)
+(define (in-amb/thunk thk)
   (define amb-queue (make-queue))
   (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
-  (define (pos->element _)
-    (parameterize ([current-amb-queue amb-queue]
-                   [current-amb-call  call/cc])
-      (amb)))
-  (make-do-sequence
-   (λ ()
-     (initiate-sequence
-      #:pos->element pos->element
-      #:next-pos     values
-      #:init-pos     amb-queue))))
-
-(define (empty-handler _) #f)
-(define (amb-sequence->sequence amb-s)
-  (define-values (more? get) (sequence-generate amb-s))
-  (define (continue-with-pos? _)
+  (define (next-pos . _)
+    (delay
+      (parameterize ([current-amb-queue amb-queue]
+                     [current-amb-call  call/cc])
+        (amb))))
+  (define (continue-with-pos? pos)
     (with-handlers ([exn:fail:contract:amb? empty-handler])
-      (more?)))
+      (force pos)
+      #t))
   (make-do-sequence
    (λ ()
      (initiate-sequence
-      #:init-pos           get
-      #:pos->element       call/nc
-      #:next-pos           values
+      #:pos->element       force
+      #:next-pos           next-pos
+      #:init-pos           (next-pos)
       #:continue-with-pos? continue-with-pos?))))
-
-
-(define in-amb/thunk (compose amb-sequence->sequence make-amb-sequence))
 
 (define-for-syntax (in-amb/thunk-parser stx)
   (syntax-parse stx
@@ -103,16 +94,22 @@
      (syntax/loc stx
        [(id ...)
         (:do-in
-         ([(more? get)
-           (sequence-generate (make-amb-sequence thk))])
-         (begin)
-         ()
+         ([(amb-queue) (make-queue)])
+         (begin
+           (enqueue! amb-queue (λ (k) (call-in-continuation k thk)))
+           (define (next-pos)
+             (delay
+               (parameterize ([current-amb-queue amb-queue]
+                              [current-amb-call  call/cc])
+                 (amb)))))
+         ([pos (next-pos)])
          (with-handlers ([exn:fail:contract:amb? empty-handler])
-           (more?))
-         ([(id ...) (get)])
+           (force pos)
+           #t)
+         ([(id ...) (force pos)])
          #t
          #t
-         ())])]))
+         ((next-pos)))])]))
 
 (define-sequence-syntax in-amb/thunk-clause (λ () #'in-amb/thunk) in-amb/thunk-parser)
 
