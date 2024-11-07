@@ -16,6 +16,8 @@
             ([message string?]
              [continuation-marks continuation-mark-set?]))
           #;[in-amb/thunk (-> (-> any) sequence?)]
+          [raise-amb-error (-> any/c ... none/c)]
+          [current-amb-empty-handler (parameter/c (-> any/c ... none/c))]
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
@@ -26,12 +28,7 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_)
-     (syntax/loc stx
-       (amb*
-        (raise (exn:fail:contract:amb
-                "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
-                (current-continuation-marks)))))]
+    [(_) (syntax/loc stx (amb* ((current-amb-empty-handler))))]
     [(_ alt ...+)
      (syntax/loc stx
        (let/cc k
@@ -84,11 +81,9 @@
       (λ (pos)
         (let/cc k
           (set! return k)
-          (with-handlers ([exn:fail:contract:amb? break])
-            (parameterize ([current-amb-queue amb-queue])
-              (if pos
-                  (call-with-values thk call)
-                  (amb* (break)))))))
+          (parameterize ([current-amb-queue amb-queue]
+                         [current-amb-empty-handler break])
+            (if pos (call-with-values thk call) (amb)))))
       #:next-pos ->false))))
 
 (define-for-syntax (in-amb/thunk-parser stx)
@@ -109,11 +104,9 @@
          ([(id ...)
            (let/cc k
              (set! return k)
-             (with-handlers ([exn:fail:contract:amb? break])
-               (parameterize ([current-amb-queue amb-queue])
-                 (if pos
-                     (call-with-values thk call)
-                     (amb* (break))))))])
+             (parameterize ([current-amb-queue amb-queue]
+                            [current-amb-empty-handler break])
+               (if pos (call-with-values thk call) (amb))))])
          #t
          #t
          (#f))])]))

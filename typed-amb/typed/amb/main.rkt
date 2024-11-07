@@ -11,6 +11,8 @@
 
 (unsafe-require/typed/provide amb/private/utils
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
+  [raise-amb-error (→ Any * Nothing)]
+  [current-amb-empty-handler (Parameter (→ Any * Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
   [current-amb-queue    (Parameter (Queue (-> Nothing) (-> Nothing)))]
   [current-amb-enqueue! (Parameter (→ (Queue (-> Nothing) Any) (-> Nothing) Void))]
@@ -21,12 +23,7 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_)
-     (syntax/loc stx
-       (amb*
-        (raise (exn:fail:contract:amb
-                "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
-                (current-continuation-marks)))))]
+    [(_) (syntax/loc stx (amb* ((current-amb-empty-handler))))]
     [(_ alt ...+)
      #:with ooo (datum->syntax #f '...)
      (syntax/loc stx

@@ -8,6 +8,12 @@
   #:extra-constructor-name make-exn:fail:contract:amb
   #:transparent)
 
+(define (raise-amb-error . _)
+  (raise (exn:fail:contract:amb
+          "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
+          (current-continuation-marks))))
+
+(define current-amb-empty-handler (make-parameter raise-amb-error))
 (define current-amb-shuffler (make-parameter reverse))
 (define current-amb-queue    (make-parameter (make-queue)))
 (define current-amb-enqueue! (make-parameter enqueue-front!))

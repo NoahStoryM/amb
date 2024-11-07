@@ -39,7 +39,8 @@ This design enables exploration of multiple non-deterministic paths, similar to
 @racket[(amb expr ...)].
 
 @amb-examples[
-(parameterize ([current-amb-shuffler shuffle]
+(parameterize ([current-amb-empty-handler raise-amb-error]
+               [current-amb-shuffler shuffle]
                [current-amb-queue    (make-queue)]
                [current-amb-enqueue! enqueue!]
                [current-amb-dequeue! dequeue!])
@@ -77,6 +78,11 @@ This design enables exploration of multiple non-deterministic paths, similar to
            #:inspector #f]{
 
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
+}
+
+@defproc[(raise-amb-error ...) none/c]{
+Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
+@tech/guide{exception}.
 
 @amb-examples[
 (eval:error (parameterize ([current-amb-queue (make-queue)])
@@ -143,6 +149,13 @@ adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
 }
 
 @section{Parameter}
+
+@defparam[current-amb-empty-handler amb-empty-handler (-> any/c ... none/c)]{
+
+A @tech/refer{parameter} that specifies the procedure to be called when the
+@tech{amb queue} is empty and @racket[(amb)] is evaluated. The default value is
+@racket[raise-amb-error].
+}
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
 
