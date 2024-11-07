@@ -39,11 +39,9 @@ This design enables exploration of multiple non-deterministic paths, similar to
 @racket[(amb expr ...)].
 
 @amb-examples[
-(parameterize ([current-amb-empty-handler raise-amb-error]
-               [current-amb-shuffler shuffle]
+(parameterize ([current-amb-shuffler shuffle]
                [current-amb-queue    (make-queue)]
-               [current-amb-enqueue! enqueue!]
-               [current-amb-dequeue! dequeue!])
+               [current-amb-enqueue! enqueue!])
   (define x (let next ([i 0]) (amb (next (add1 i)) i)))
   (define y (for/amb ([i 3]) i))
   (unless (< x 2) (amb))
@@ -55,6 +53,15 @@ This design enables exploration of multiple non-deterministic paths, similar to
       (values (car v) (cdr v))))
   (unless (> x y) (amb))
   (displayln (cons x y)))
+(let/cc break
+  (parameterize ([current-amb-queue (make-queue)]
+                 [current-amb-empty-handler break])
+    (define-values (x y)
+      (for*/amb ([i 3] [j 3])
+        (values i j)))
+    (unless (> x y) (amb))
+    (displayln (cons x y))
+    (amb)))
 (parameterize ([current-amb-queue (make-queue)])
   (define-values (x y)
     (for*/amb ([i 3] [j 3])
@@ -69,6 +76,12 @@ This design enables exploration of multiple non-deterministic paths, similar to
     (set! a* (cons x a*))
     (set! b* (cons (+ x 48) b*)))
   (amb* a* (list->bytes b*)))
+(let ()
+  (define (thk)
+    (define x (for/amb ([i 10]) i))
+    (unless (even? x) (amb))
+    x)
+  (for/list ([x (in-amb/thunk thk)]) x))
 ]
 }
 
