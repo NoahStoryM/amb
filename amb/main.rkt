@@ -74,8 +74,6 @@
   (make-do-sequence
    (λ ()
      (initiate-sequence
-      #:pos->element (λ (_) (apply values element))
-      #:next-pos ->false
       #:init-pos #t
       #:continue-with-pos?
       (let ([return unsafe-undefined])
@@ -86,7 +84,9 @@
               (parameterize ([current-amb-queue amb-queue])
                 (if pos
                     (call-with-values thk (λ v* (set! element v*) (return #t)))
-                    (amb* #f)))))))))))
+                    (amb* #f)))))))
+      #:pos->element (λ (_) (apply values element))
+      #:next-pos ->false))))
 
 (define-for-syntax (in-amb/thunk-parser stx)
   (syntax-parse stx
