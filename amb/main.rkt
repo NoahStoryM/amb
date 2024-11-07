@@ -5,7 +5,7 @@
          racket/contract
          racket/promise
          racket/sequence
-         racket/undefined
+         racket/unsafe/undefined
          data/queue)
 
 (provide amb amb* for/amb for*/amb
@@ -70,7 +70,7 @@
 (define (->false _) #f)
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
-  (define element undefined)
+  (define element unsafe-undefined)
   (make-do-sequence
    (λ ()
      (initiate-sequence
@@ -78,7 +78,7 @@
       #:next-pos ->false
       #:init-pos #t
       #:continue-with-pos?
-      (let ([return undefined])
+      (let ([return unsafe-undefined])
         (λ (pos)
           (let/cc k
             (set! return k)
@@ -96,8 +96,8 @@
        [(id ...)
         (:do-in
          ([(amb-queue) (make-queue)]
-          [(element) undefined]
-          [(return)  undefined])
+          [(element) unsafe-undefined]
+          [(return)  unsafe-undefined])
          (begin)
          ([pos #t])
          (let/cc k
