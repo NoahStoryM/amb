@@ -91,11 +91,6 @@ This design enables exploration of multiple non-deterministic paths, similar to
            #:inspector #f]{
 
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
-}
-
-@defproc[(raise-amb-error) none/c]{
-Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
-@tech/guide{exception}.
 
 @amb-examples[
 (eval:error (parameterize ([current-amb-queue (make-queue)])
@@ -121,6 +116,15 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
    (set! a* (cons x a*))
    (set! b* (cons (+ x 48) b*))
    (amb* a* (list->bytes b*))))
+]
+}
+
+@defproc[(raise-amb-error) none/c]{
+Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
+@tech/guide{exception}.
+
+@amb-examples[
+(eval:error (raise-amb-error))
 ]
 }
 
