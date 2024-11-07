@@ -75,6 +75,7 @@
      (define (init-task) (call-with-values thk call))
      (initiate-sequence
       #:init-pos (enqueue! amb-queue init-task)
+      #:next-pos values
       #:continue-with-pos?
       (λ (_) (let/cc k (set! continue k) #t))
       #:pos->element
@@ -83,8 +84,7 @@
           (set! return k)
           (parameterize ([current-amb-queue amb-queue]
                          [current-amb-empty-handler break])
-            (amb))))
-      #:next-pos values))))
+            (amb))))))))
 
 (define-for-syntax (in-amb/thunk-parser stx)
   (syntax-parse stx
