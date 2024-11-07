@@ -64,27 +64,27 @@
             (make-for/amb #'for*/list))))
 
 
-(define (->false _) #f)
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
   (define return   unsafe-undefined)
   (define continue unsafe-undefined)
-  (define (break) (continue #f))
-  (define (call . v*) (apply return v*))
   (make-do-sequence
    (λ ()
+     (define (break) (continue #f))
+     (define (call . v*) (apply return v*))
+     (define (init-task) (call-with-values thk call))
      (initiate-sequence
-      #:init-pos #t
+      #:init-pos (enqueue! amb-queue init-task)
       #:continue-with-pos?
       (λ (_) (let/cc k (set! continue k) #t))
       #:pos->element
-      (λ (pos)
+      (λ (_)
         (let/cc k
           (set! return k)
           (parameterize ([current-amb-queue amb-queue]
                          [current-amb-empty-handler break])
-            (if pos (call-with-values thk call) (amb)))))
-      #:next-pos ->false))))
+            (amb))))
+      #:next-pos values))))
 
 (define-for-syntax (in-amb/thunk-parser stx)
   (syntax-parse stx
@@ -98,18 +98,20 @@
           [(continue) unsafe-undefined])
          (begin
            (define (break) (continue #f))
-           (define (call . v*) (apply return v*)))
-         ([pos #t])
+           (define (call . v*) (apply return v*))
+           (define (init-task) (call-with-values thk call))
+           (enqueue! amb-queue init-task))
+         ()
          (let/cc k (set! continue k) #t)
          ([(id ...)
            (let/cc k
              (set! return k)
              (parameterize ([current-amb-queue amb-queue]
                             [current-amb-empty-handler break])
-               (if pos (call-with-values thk call) (amb))))])
+               (amb)))])
          #t
          #t
-         (#f))])]))
+         ())])]))
 
 (define-sequence-syntax in-amb/thunk-clause (λ () #'in-amb/thunk) in-amb/thunk-parser)
 
