@@ -80,7 +80,7 @@ This design enables exploration of multiple non-deterministic paths, similar to
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 }
 
-@defproc[(raise-amb-error ...) none/c]{
+@defproc[(raise-amb-error) none/c]{
 Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 @tech/guide{exception}.
 
@@ -150,7 +150,7 @@ adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
 
 @section{Parameter}
 
-@defparam[current-amb-empty-handler amb-empty-handler (-> any/c ... none/c)]{
+@defparam[current-amb-empty-handler amb-empty-handler (-> none/c)]{
 
 A @tech/refer{parameter} that specifies the procedure to be called when the
 @tech{amb queue} is empty and @racket[(amb)] is evaluated. The default value is

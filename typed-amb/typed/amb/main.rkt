@@ -11,8 +11,8 @@
 
 (unsafe-require/typed/provide amb/private/utils
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
-  [raise-amb-error (→ Any * Nothing)]
-  [current-amb-empty-handler (Parameter (→ Any * Nothing))]
+  [raise-amb-error (→ Nothing)]
+  [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
   [current-amb-queue    (Parameter (Queue (-> Nothing) (-> Nothing)))]
   [current-amb-enqueue! (Parameter (→ (Queue (-> Nothing) Any) (-> Nothing) Void))]

@@ -8,7 +8,7 @@
   #:extra-constructor-name make-exn:fail:contract:amb
   #:transparent)
 
-(define (raise-amb-error . _)
+(define (raise-amb-error)
   (raise (exn:fail:contract:amb
           "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
           (current-continuation-marks))))

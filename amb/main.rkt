@@ -16,8 +16,8 @@
             ([message string?]
              [continuation-marks continuation-mark-set?]))
           #;[in-amb/thunk (-> (-> any) sequence?)]
-          [raise-amb-error (-> any/c ... none/c)]
-          [current-amb-empty-handler (parameter/c (-> any/c ... none/c))]
+          [raise-amb-error (-> none/c)]
+          [current-amb-empty-handler (parameter/c (-> none/c))]
           [current-amb-shuffler (parameter/c (-> list? list?))]
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
@@ -69,8 +69,8 @@
   (define amb-queue (make-queue))
   (define return   unsafe-undefined)
   (define continue unsafe-undefined)
+  (define (break) (continue #f))
   (define (call . v*) (apply return v*))
-  (define (break . _) (continue #f))
   (make-do-sequence
    (λ ()
      (initiate-sequence
@@ -97,8 +97,8 @@
           [(return)   unsafe-undefined]
           [(continue) unsafe-undefined])
          (begin
-           (define (call . v*) (apply return v*))
-           (define (break . _) (continue #f)))
+           (define (break) (continue #f))
+           (define (call . v*) (apply return v*)))
          ([pos #t])
          (let/cc k (set! continue k) #t)
          ([(id ...)
