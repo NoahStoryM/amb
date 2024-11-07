@@ -66,8 +66,8 @@
 
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
-  (define return   unsafe-undefined)
-  (define continue unsafe-undefined)
+  (define continue  unsafe-undefined)
+  (define return    unsafe-undefined)
   (make-do-sequence
    (λ ()
      (define (break) (continue #f))
@@ -94,8 +94,8 @@
        [(id ...)
         (:do-in
          ([(amb-queue) (make-queue)]
-          [(return)   unsafe-undefined]
-          [(continue) unsafe-undefined])
+          [(continue)  unsafe-undefined]
+          [(return)    unsafe-undefined])
          (begin
            (define (break) (continue #f))
            (define (call . v*) (apply return v*))
