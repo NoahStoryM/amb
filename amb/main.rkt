@@ -70,22 +70,25 @@
 (define (->false _) #f)
 (define (in-amb/thunk thk)
   (define amb-queue (make-queue))
-  (define element unsafe-undefined)
+  (define return   unsafe-undefined)
+  (define continue unsafe-undefined)
+  (define (call . v*) (apply return v*))
+  (define (break . _) (continue #f))
   (make-do-sequence
    (λ ()
      (initiate-sequence
       #:init-pos #t
       #:continue-with-pos?
-      (let ([return unsafe-undefined])
-        (λ (pos)
-          (let/cc k
-            (set! return k)
-            (with-handlers ([exn:fail:contract:amb? ->false])
-              (parameterize ([current-amb-queue amb-queue])
-                (if pos
-                    (call-with-values thk (λ v* (set! element v*) (return #t)))
-                    (amb* #f)))))))
-      #:pos->element (λ (_) (apply values element))
+      (λ (_) (let/cc k (set! continue k) #t))
+      #:pos->element
+      (λ (pos)
+        (let/cc k
+          (set! return k)
+          (with-handlers ([exn:fail:contract:amb? break])
+            (parameterize ([current-amb-queue amb-queue])
+              (if pos
+                  (call-with-values thk call)
+                  (amb* (break)))))))
       #:next-pos ->false))))
 
 (define-for-syntax (in-amb/thunk-parser stx)
@@ -96,18 +99,21 @@
        [(id ...)
         (:do-in
          ([(amb-queue) (make-queue)]
-          [(element) unsafe-undefined]
-          [(return)  unsafe-undefined])
-         (begin)
+          [(return)   unsafe-undefined]
+          [(continue) unsafe-undefined])
+         (begin
+           (define (call . v*) (apply return v*))
+           (define (break . _) (continue #f)))
          ([pos #t])
-         (let/cc k
-           (set! return k)
-           (with-handlers ([exn:fail:contract:amb? ->false])
-             (parameterize ([current-amb-queue amb-queue])
-               (if pos
-                   (call-with-values thk (λ v* (set! element v*) (return #t)))
-                   (amb* #f)))))
-         ([(id ...) (apply values element)])
+         (let/cc k (set! continue k) #t)
+         ([(id ...)
+           (let/cc k
+             (set! return k)
+             (with-handlers ([exn:fail:contract:amb? break])
+               (parameterize ([current-amb-queue amb-queue])
+                 (if pos
+                     (call-with-values thk call)
+                     (amb* (break))))))])
          #t
          #t
          (#f))])]))
