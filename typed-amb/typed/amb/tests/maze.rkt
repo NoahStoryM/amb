@@ -38,15 +38,6 @@
         (solve-maze x y (cons pos path) (cons dir dir*)))))
 
 
-(: ans (Listof (Pair (Listof (Pair Integer Integer))
-                     (Listof (∪ 'up 'down 'left 'right)))))
-(define ans '())
-(with-handlers ([exn:fail:contract:amb? void])
-  (parameterize ([current-amb-queue     (make-queue)]
-                 [current-amb-shuffler  shuffle])
-    (: res (Pair (Listof (Pair Integer Integer))
-                 (Listof (∪ 'up 'down 'left 'right))))
-    (define res (solve-maze 0 0 '() '()))
-    (set! ans (cons res ans))
-    (amb)))
-(pretty-print ans)
+(parameterize ([current-amb-shuffler shuffle])
+  (for ([ans (in-amb (solve-maze 0 0 '() '()))])
+    (pretty-print ans)))
