@@ -7,9 +7,7 @@
          racket/unsafe/undefined
          data/queue)
 
-(provide amb amb* for/amb for*/amb
-         (rename-out [in-amb-clause       in-amb]
-                     [in-amb/thunk-clause in-amb/thunk])
+(provide amb amb* for/amb for*/amb in-amb in-amb/thunk
          (contract-out
           (struct exn:fail:contract:amb
             ([message string?]
@@ -63,7 +61,7 @@
             (make-for/amb #'for*/list))))
 
 
-(define (in-amb/thunk thk)
+(define (amb/thunk->sequence thk)
   (define amb-queue (make-queue))
   (define continue  unsafe-undefined)
   (define return    unsafe-undefined)
@@ -112,10 +110,10 @@
          #t
          ())])]))
 
-(define-sequence-syntax in-amb/thunk-clause (λ () #'in-amb/thunk) in-amb/thunk-parser)
+(define-sequence-syntax in-amb/thunk (λ () #'amb/thunk->sequence) in-amb/thunk-parser)
 
 
-(define-for-syntax (in-amb stx)
+(define-for-syntax (amb->sequence stx)
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
@@ -127,4 +125,4 @@
     [[(id:id ...) (_ expr)]
      (in-amb/thunk-parser (syntax/loc stx [(id ...) (_ (λ () expr))]))]))
 
-(define-sequence-syntax in-amb-clause in-amb in-amb-parser)
+(define-sequence-syntax in-amb amb->sequence in-amb-parser)
