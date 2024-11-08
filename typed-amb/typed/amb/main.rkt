@@ -28,12 +28,12 @@
      #:with ooo (datum->syntax #f '...)
      (syntax/loc stx
        (let ()
-         (: s&i! (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) Nothing))))
-         (define ((s&i! alt*) k)
+         (: s&c (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) Nothing))))
+         (define ((s&c alt*) k)
            (schedule-amb-tasks! k alt*)
            (((current-amb-dequeue!)
              (current-amb-queue))))
-         (call/cc (s&i! (list (λ () alt) ...)))))]))
+         (call/cc (s&c (list (λ () alt) ...)))))]))
 
 (define-syntax (amb* stx)
   (syntax-parse stx
