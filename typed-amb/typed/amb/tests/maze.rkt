@@ -12,14 +12,14 @@
     (#t #f #t #t #t #t #t #t #t #t)
     (#t #f #f #f #f #f ** #f #f #f)))
 
-(: valid? (-> Integer Integer Boolean))
+(: valid? (→ Integer Integer Boolean))
 (define (valid? x y)
   (and (index? x) (< x (length maze))
        (index? y) (< y (length (car maze)))
        (list-ref (assert (list-ref maze x)) y)
        #t))
 
-(: solve-maze (-> Integer Integer
+(: solve-maze (→ Integer Integer
                   (Listof (Pair Integer Integer))
                   (Listof (∪ 'up 'down 'left 'right))
                   (Pair (Listof (Pair Integer Integer))
