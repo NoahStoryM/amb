@@ -17,7 +17,32 @@
 
 @defform[(amb expr ...)]{
 
-The @racket[amb] operator.
+John McCarthy's ambiguous operator.
+
+@amb-examples[
+(eval:error
+ (parameterize ([current-amb-shuffler reverse]
+                [current-amb-queue    (make-queue)]
+                [current-amb-enqueue! enqueue-front!])
+   (let ([x (amb 1 2)])
+     (displayln (list x))
+     (let ([y (amb 3 4)])
+       (displayln (list x y))
+       (let ([z (amb 5 6)])
+         (displayln (list x y z))
+         (amb))))))
+(eval:error
+ (parameterize ([current-amb-shuffler values]
+                [current-amb-queue    (make-queue)]
+                [current-amb-enqueue! enqueue!])
+   (let ([x (amb 1 2)])
+     (displayln (list x))
+     (let ([y (amb 3 4)])
+       (displayln (list x y))
+       (let ([z (amb 5 6)])
+         (displayln (list x y z))
+         (amb))))))
+]
 }
 
 @defform[(amb* expr ...)]{
