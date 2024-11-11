@@ -19,11 +19,14 @@
 
 John McCarthy's ambiguous operator.
 
+Wrapping @racket[amb] expressions with a new @tech{amb queue} is recommended.
+This ensures that each instance of non-deterministic computation starts with a
+fresh queue, avoiding unintended interactions between different @racket[amb]
+expressions.
+
 @amb-examples[
 (eval:error
- (parameterize ([current-amb-shuffler reverse]
-                [current-amb-queue    (make-queue)]
-                [current-amb-enqueue! enqueue-front!])
+ (parameterize ([current-amb-queue (make-queue)])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -110,6 +113,49 @@ This design enables exploration of multiple non-deterministic paths, similar to
 ]
 }
 
+@section{Sequence Constructor}
+
+@defform[(in-amb expr)]{
+
+Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
+expression @racket[expr], allowing for lazy evaluation of results. The
+@racket[in-amb] form automatically creates a new @tech{amb queue}, so there is no
+need to worry about affecting calls to other @racket[amb] expressions.
+
+@amb-examples[
+(parameterize ([current-amb-queue (make-queue)])
+  (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
+  (amb 1 2 3)
+  (displayln (= 2 (queue-length (current-amb-queue))))
+  (time
+   (for ([i (in-range 100000)]
+         [(j k) (in-amb (next 0 0))])
+     (list i j k)))
+  (displayln (= 2 (queue-length (current-amb-queue))))
+  )
+]
+}
+
+A good practice is to wrap @racket[amb] expressions in a procedure, then use
+@racket[in-amb] or @racket[in-amb/thunk] to create a lazy @tech/refer{sequence}
+that produces as many results as needed.
+
+@amb-examples[
+(let ()
+  (define (f n)
+    (define m (amb 0 1 2 3 4))
+    (unless (> m n) (amb))
+    m)
+  (for ([p (in-amb (f 2))])
+    (displayln p)))
+]
+
+@defproc[(in-amb/thunk [thk (-> any)]) sequence?]{
+
+A helper function used by @racket[in-amb]. The form @racket[(in-amb expr)]
+expands to @racket[(in-amb/thunk (λ () expr))].
+}
+
 @section{Exception Type}
 
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
@@ -151,33 +197,6 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 @amb-examples[
 (eval:error (raise-amb-error))
 ]
-}
-
-@section{Sequence Constructor}
-
-@defform[(in-amb expr)]{
-
-Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
-expression @racket[expr], allowing for lazy evaluation of results.
-
-@amb-examples[
-(parameterize ([current-amb-queue (make-queue)])
-  (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
-  (amb 1 2 3)
-  (displayln (= 2 (queue-length (current-amb-queue))))
-  (time
-   (for ([i (in-range 100000)]
-         [(j k) (in-amb (next 0 0))])
-     (list i j k)))
-  (displayln (= 2 (queue-length (current-amb-queue))))
-  )
-]
-}
-
-@defproc[(in-amb/thunk [thk (-> any)]) sequence?]{
-
-A helper function used by @racket[in-amb]. The form @racket[(in-amb expr)]
-expands to @racket[(in-amb/thunk (λ () expr))].
 }
 
 @section{Amb Queue Management}
