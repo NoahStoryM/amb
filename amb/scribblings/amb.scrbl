@@ -104,12 +104,6 @@ This design enables exploration of multiple non-deterministic paths, similar to
     (set! a* (cons x a*))
     (set! b* (cons (+ x 48) b*)))
   (amb* a* (list->bytes b*)))
-(let ()
-  (define (thk)
-    (define x (for/amb ([i 10]) i))
-    (unless (even? x) (amb))
-    x)
-  (for/list ([x (in-amb/thunk thk)]) x))
 ]
 }
 
@@ -146,8 +140,8 @@ that produces as many results as needed.
     (define m (amb 0 1 2 3 4))
     (unless (> m n) (amb))
     m)
-  (for ([p (in-amb (f 2))])
-    (displayln p)))
+  (for ([m (in-amb (f 2))])
+    (displayln m)))
 ]
 
 @defproc[(in-amb/thunk [thk (-> any)]) sequence?]{
@@ -155,6 +149,15 @@ that produces as many results as needed.
 A helper function used by @racket[in-amb]. The form @racket[(in-amb expr)]
 expands to @racket[(in-amb/thunk (λ () expr))].
 }
+
+@amb-examples[
+(let ()
+  (define (thk)
+    (define x (for/amb ([i 10]) i))
+    (unless (even? x) (amb))
+    x)
+  (for/list ([x (in-amb/thunk thk)]) x))
+]
 
 @section{Exception Type}
 
