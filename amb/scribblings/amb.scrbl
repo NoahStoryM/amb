@@ -146,7 +146,7 @@ that produces as many results as needed.
 
 @defproc[(in-amb/thunk [thk (-> any)]) sequence?]{
 
-A helper function used by @racket[in-amb]. The form @racket[(in-amb expr)]
+A helper procedure used by @racket[in-amb]. The form @racket[(in-amb expr)]
 expands to @racket[(in-amb/thunk (λ () expr))].
 }
 
