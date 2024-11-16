@@ -122,9 +122,10 @@ need to worry about affecting calls to other @racket[amb] expressions.
   (amb 1 2 3)
   (displayln (= 2 (queue-length (current-amb-queue))))
   (time
-   (for ([i (in-range 100000)]
-         [(j k) (in-amb (next 0 0))])
-     (list i j k)))
+   (displayln
+    (for/and ([i (in-range 100000)]
+              [(j k) (in-amb (next 0 0))])
+      (= i j (- k)))))
   (displayln (= 2 (queue-length (current-amb-queue))))
   )
 ]
