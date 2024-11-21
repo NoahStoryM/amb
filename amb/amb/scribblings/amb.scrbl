@@ -4,6 +4,7 @@
                      racket/list
                      racket/function
                      racket/contract
+                     syntax/parse
                      data/queue
                      amb)
           "utils.rkt")
@@ -18,6 +19,8 @@
 @defform[(amb expr ...)]{
 
 John McCarthy's ambiguous operator.
+
+The form @racket[(amb expr ...)] expands to @racket[(amb* (list (λ () expr) ...))].
 
 Wrapping @racket[amb] expressions with a new @tech{amb queue} is recommended.
 This ensures that each instance of non-deterministic computation starts with a
@@ -50,20 +53,20 @@ expressions.
 
 @defproc[(amb* [alt* (listof (-> any))]) any]{
 
-A helper procedure used by @racket[amb]. The form @racket[(amb expr ...)]
-expands to @racket[(amb* (list (λ () expr) ...))].
+A helper procedure used by @racket[amb].
 }
 
-@deftogether[(@defform*[((for/amb (for-clause ...) body-or-break ... body)
+@deftogether[(@defform*[((for/amb (for-clause ...) break-clause ... body ...+)
                          (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
-              @defform*[((for*/amb (for-clause ...) body-or-break ... body)
+              @defform*[((for*/amb (for-clause ...) break-clause ... body ...+)
                          (for*/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))])]{
 
 The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
 @racket[for/list] and @racket[for*/list], but instead of evaluating the loop body,
 they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
-This design enables exploration of multiple non-deterministic paths, similar to
-@racket[(amb expr ...)].
+
+The form @racket[(for/amb (for-clause ...) break-clause ... body ...+)] expands
+to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))].
 
 @amb-examples[
 (parameterize ([current-amb-shuffler shuffle]
@@ -112,6 +115,8 @@ expression @racket[expr], allowing for lazy evaluation of results. The
 @racket[in-amb] form automatically creates a new @tech{amb queue}, so there is no
 need to worry about affecting calls to other @racket[amb] expressions.
 
+The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
+
 @amb-examples[
 (parameterize ([current-amb-queue (make-queue)])
   (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
@@ -142,8 +147,7 @@ that produces as many results as needed.
 
 @defproc[(in-amb* [thk (-> any)]) sequence?]{
 
-A helper procedure used by @racket[in-amb]. The form @racket[(in-amb expr)]
-expands to @racket[(in-amb* (λ () expr))].
+A helper procedure used by @racket[in-amb].
 }
 
 @amb-examples[
