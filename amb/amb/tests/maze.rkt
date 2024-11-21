@@ -1,6 +1,6 @@
 #lang racket
 
-(require data/queue "../../amb.rkt")
+(require "../../amb.rkt")
 
 
 (define maze
