@@ -21,8 +21,9 @@
 
 (define schedule-amb-tasks!
   (λ (alt* k)
-    (define amb-queue    (current-amb-queue))
-    (define amb-enqueue! (current-amb-enqueue!))
-    (for ([alt (in-list ((current-amb-shuffler) alt*))])
-      (define (amb-task) (call-in-continuation k alt))
-      (amb-enqueue! amb-queue amb-task))))
+    (unless (null? alt*)
+      (define amb-queue    (current-amb-queue))
+      (define amb-enqueue! (current-amb-enqueue!))
+      (for ([alt (in-list ((current-amb-shuffler) alt*))])
+        (define (amb-task) (call-in-continuation k alt))
+        (amb-enqueue! amb-queue amb-task)))))

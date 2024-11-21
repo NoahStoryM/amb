@@ -21,14 +21,12 @@
 
 
 (define (amb* alt*)
-  (if (null? alt*)
-      (if (non-empty-queue? (current-amb-queue))
-          (((current-amb-dequeue!)
-            (current-amb-queue)))
-          ((current-amb-empty-handler)))
-      (let/cc k
-        (schedule-amb-tasks! alt* k)
-        (amb))))
+  (let/cc k
+    (schedule-amb-tasks! alt* k)
+    (if (non-empty-queue? (current-amb-queue))
+        (((current-amb-dequeue!)
+          (current-amb-queue)))
+        ((current-amb-empty-handler)))))
 
 (define-syntax (amb stx)
   (syntax-parse stx
