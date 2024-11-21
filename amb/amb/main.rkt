@@ -2,7 +2,6 @@
 
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
-         racket/contract
          racket/sequence
          racket/unsafe/undefined
          data/queue)
