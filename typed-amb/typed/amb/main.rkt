@@ -16,7 +16,7 @@
   [current-amb-queue    (Parameter (Queue (→ Nothing) (→ Nothing)))]
   [current-amb-enqueue! (Parameter (→ (Queue (→ Nothing) Any) (→ Nothing) Void))]
   [current-amb-dequeue! (Parameter (→ (Queue Nothing (→ Nothing)) (→ Nothing)))]
-  [schedule-amb-tasks!  (∀ (a ...) (→ (Listof (→ (Values a ... a))) (→ a ... a Nothing) Void))])
+  [schedule-amb-tasks!  (∀ (a ...) (→* ((→ a ... a Nothing) (Listof (→ (Values a ... a)))) ((Queue (→ Nothing) Any)) Void))])
 
 
 (define-syntax (amb stx)

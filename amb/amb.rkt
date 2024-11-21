@@ -19,4 +19,4 @@
           [current-amb-queue    (parameter/c queue?)]
           [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
           [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
-          [schedule-amb-tasks!  (-> (listof (-> any)) continuation? void?)]))
+          [schedule-amb-tasks!  (->* (continuation? (listof (-> any))) (queue?) void?)]))

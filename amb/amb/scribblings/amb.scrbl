@@ -193,11 +193,15 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 
 @section{Amb Queue Management}
 
-@defproc[(schedule-amb-tasks! [alt* (listof (-> any))] [k continuation?]) void?]{
+@defproc[(schedule-amb-tasks!
+          [k continuation?]
+          [alt* (listof (-> any))]
+          [amb-queue (current-amb-queue) queue?])
+         void?]{
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
-adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
-@racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call an
+adding them to @racket[amb-queue]. Each @deftech{amb task} is a @racket[thunk]
+that, when invoked, uses @racket[call-in-continuation] to call an
 @tech{alternative} in @racket[k].
 }
 

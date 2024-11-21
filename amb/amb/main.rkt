@@ -21,11 +21,11 @@
 
 
 (define (amb* alt*)
+  (define amb-queue (current-amb-queue))
   (let/cc k
-    (schedule-amb-tasks! alt* k)
-    (if (non-empty-queue? (current-amb-queue))
-        (((current-amb-dequeue!)
-          (current-amb-queue)))
+    (schedule-amb-tasks! k alt* amb-queue)
+    (if (non-empty-queue? amb-queue)
+        (((current-amb-dequeue!) amb-queue))
         ((current-amb-empty-handler)))))
 
 (define-syntax (amb stx)
@@ -56,9 +56,9 @@
    (λ ()
      (define (break) (continue #f))
      (define (call . v*) (apply return v*))
-     (define (init-task) (call-with-values thk call))
+     (define (amb-task) (call-with-values thk call))
      (initiate-sequence
-      #:init-pos (enqueue! amb-queue init-task)
+      #:init-pos (enqueue! amb-queue amb-task)
       #:next-pos values
       #:continue-with-pos?
       (λ (_) (let/cc k (set! continue k) #t))
@@ -83,8 +83,8 @@
          (begin
            (define (break) (continue #f))
            (define (call . v*) (apply return v*))
-           (define (init-task) (call-with-values thk call))
-           (enqueue! amb-queue init-task))
+           (define (amb-task) (call-with-values thk call))
+           (enqueue! amb-queue amb-task))
          ()
          (let/cc k (set! continue k) #t)
          ([(id ...)
