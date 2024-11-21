@@ -22,7 +22,8 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ expr ...) (syntax/loc stx (amb* (list (λ () expr) ...)))]))
+    [(_ expr ...)
+     (syntax/loc stx (amb* (list (λ () expr) ...)))]))
 
 
 (define-syntaxes (for/amb for*/amb)
@@ -56,4 +57,5 @@
 (define-syntax (in-amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ expr) (syntax/loc stx (in-amb* (λ () expr)))]))
+    [(_ expr)
+     (syntax/loc stx (in-amb* (λ () expr)))]))
