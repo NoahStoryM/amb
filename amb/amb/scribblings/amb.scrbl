@@ -193,8 +193,8 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a
-@racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call
-@racket[k] with the @racket[values] produced by an @tech{alternative}.
+@racket[thunk] that, when invoked, uses @racket[call-in-continuation] to call an
+@tech{alternative} in @racket[k].
 }
 
 @section{Parameter}
