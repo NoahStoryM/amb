@@ -9,7 +9,7 @@
 
 (provide amb amb*
          for/amb for*/amb
-         in-amb in-amb*
+         (rename-out [-in-amb in-amb] [-in-amb* in-amb*])
          (struct-out exn:fail:contract:amb)
          raise-amb-error
          current-amb-empty-handler
@@ -31,7 +31,8 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ expr ...) (syntax/loc stx (amb* (list (λ () expr) ...)))]))
+    [(_ expr ...)
+     (syntax/loc stx (amb* (list (λ () expr) ...)))]))
 
 
 (define-syntaxes (for/amb for*/amb)
@@ -47,7 +48,7 @@
             (make-for/amb #'for*/list))))
 
 
-(define (amb*->sequence thk)
+(define (in-amb* thk)
   (define amb-queue (make-queue))
   (define continue  unsafe-undefined)
   (define return    unsafe-undefined)
@@ -96,10 +97,10 @@
          #t
          ())])]))
 
-(define-sequence-syntax in-amb* (λ () #'amb*->sequence) in-amb*-parser)
+(define-sequence-syntax -in-amb* (λ () #'in-amb*) in-amb*-parser)
 
 
-(define-for-syntax (amb->sequence stx)
+(define-for-syntax (in-amb stx)
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
@@ -111,4 +112,4 @@
     [[(id:id ...) (_ expr)]
      (in-amb*-parser (syntax/loc stx [(id ...) (_ (λ () expr))]))]))
 
-(define-sequence-syntax in-amb amb->sequence in-amb-parser)
+(define-sequence-syntax -in-amb in-amb in-amb-parser)
