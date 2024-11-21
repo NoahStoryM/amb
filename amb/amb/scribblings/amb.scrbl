@@ -200,9 +200,9 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
          void?]{
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
-adding them to @racket[amb-queue]. Each @deftech{amb task} is a @racket[thunk]
-that, when invoked, uses @racket[call-in-continuation] to call an
-@tech{alternative} in @racket[k].
+adding them to @racket[amb-queue]. Each @tech{amb task} is a @racket[thunk] that,
+when invoked, uses @racket[call-in-continuation] to call an @tech{alternative}
+in @racket[k].
 }
 
 @section{Parameter}
@@ -223,9 +223,9 @@ default value is @racket[reverse].
 
 @defparam[current-amb-queue amb-queue queue?]{
 
-A @tech/refer{parameter} that holds the queue of @tech{amb tasks} to be evaluated,
-which is populated as needed by @racket[schedule-amb-tasks!]. The default value
-is an empty @deftech{amb queue}.
+A @tech/refer{parameter} that holds the queue of @deftech{amb task}s to be
+evaluated, which is populated as needed by @racket[schedule-amb-tasks!]. The
+default value is an empty @deftech{amb queue}.
 }
 
 @defparam[current-amb-dequeue! amb-dequeue! (-> queue? (-> none/c))]{
