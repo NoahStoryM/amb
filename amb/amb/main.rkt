@@ -8,7 +8,7 @@
 
 (provide amb amb*
          for/amb for*/amb
-         (rename-out [-in-amb in-amb] [-in-amb* in-amb*])
+         (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          (struct-out exn:fail:contract:amb)
          raise-amb-error
          current-amb-empty-handler
@@ -96,7 +96,7 @@
          #t
          ())])]))
 
-(define-sequence-syntax -in-amb* (λ () #'in-amb*) in-amb*-parser)
+(define-sequence-syntax *in-amb* (λ () #'in-amb*) in-amb*-parser)
 
 
 (define-for-syntax (in-amb stx)
@@ -111,4 +111,4 @@
     [[(id:id ...) (_ expr)]
      (in-amb*-parser (syntax/loc stx [(id ...) (_ (λ () expr))]))]))
 
-(define-sequence-syntax -in-amb in-amb in-amb-parser)
+(define-sequence-syntax *in-amb in-amb in-amb-parser)

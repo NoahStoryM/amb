@@ -1,8 +1,8 @@
 #lang typed/racket/base
 
-(require typed/racket/unsafe
-         typed/data/queue
-         (for-syntax racket/base syntax/parse))
+(require (for-syntax racket/base syntax/parse)
+         typed/racket/unsafe
+         typed/data/queue)
 
 (provide amb amb* for/amb for*/amb in-amb)
 
