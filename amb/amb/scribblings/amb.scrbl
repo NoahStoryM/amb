@@ -167,6 +167,9 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
    (amb)))
 (eval:error
  (parameterize ([current-amb-queue (make-queue)])
+   (amb* '())))
+(eval:error
+ (parameterize ([current-amb-queue (make-queue)])
    (for/amb ([i '()]) i)))
 (eval:error
  (parameterize ([current-amb-queue (make-queue)])
