@@ -59,7 +59,7 @@
      (define (amb-task) (call-with-values thk call))
      (initiate-sequence
       #:init-pos (enqueue! amb-queue amb-task)
-      #:next-pos values
+      #:next-pos void
       #:continue-with-pos?
       (λ (_) (let/cc k (set! continue k) #t))
       #:pos->element
