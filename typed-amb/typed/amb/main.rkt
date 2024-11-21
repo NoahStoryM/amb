@@ -47,21 +47,8 @@
            (parser #'(name : t (clause ...) : t break ... body ...))]))
       parser)
     (define ((make-for/amb derived-stx) stx)
-      (syntax-parse stx
-        #:datum-literals (:)
-        [(_ (~optional (~seq : t1))
-            (clause ...)
-            (~optional (~seq : t2))
-            break:break-clause ...
-            body ...+)
-         #:with t
-         (cond
-           [(and (attribute t1) (attribute t2)) #'(∪ t1 t2)]
-           [(attribute t1) #'t1]
-           [(attribute t2) #'t2]
-           [else #'AnyValues])
-         (quasisyntax/loc stx
-           (amb* #,((alt*-parser derived-stx) stx)))]))
+      (quasisyntax/loc stx
+        (amb* #,((alt*-parser derived-stx) stx))))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
