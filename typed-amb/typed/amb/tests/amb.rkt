@@ -7,7 +7,7 @@
 (test-case "Test amb operator"
   (parameterize ([current-amb-queue (make-queue)])
     (let ([ls (amb '(a b c) '(x y z))])
-      (check-equal? (amb* ls) '(x y z))))
+      (check-equal? ls '(a b c))))
   (parameterize ([current-amb-queue (make-queue)])
     (let ([b (amb #t (amb) (amb) #f)])
       (check-true (ann b Boolean))))
@@ -56,14 +56,14 @@
       (when (> x y) (amb))
       (check-equal? (list x y) '(2 9)))))
 
-(test-case "Test in-amb[/thunk]"
+(test-case "Test in-amb[*]"
   (parameterize ([current-amb-queue (make-queue)])
     (check-equal?
      (for/list : (Listof Any) ([i (in-amb (amb 1 2 (amb 3 'x) 'y))]) i)
      '(1 2 3 x y)))
   (parameterize ([current-amb-queue (make-queue)])
     (check-equal?
-     (for/list ([(i) (in-amb/thunk (λ () (amb 1 2 (amb 3 'x) 'y)))]) : (Listof Any) i)
+     (for/list ([(i) (in-amb* (λ () (amb 1 2 (amb 3 'x) 'y)))]) : (Listof Any) i)
      '(1 2 3 x y)))
   (parameterize ([current-amb-queue (make-queue)])
     (check-equal?
@@ -72,7 +72,7 @@
   (parameterize ([current-amb-queue (make-queue)])
     (define (thk) (amb 1 2 (amb 3 'x) 'y))
     (check-equal?
-     (for/list ([([i : (∪ Symbol Number)]) (in-amb/thunk thk)]) : (Listof Any) i)
+     (for/list ([([i : (∪ Symbol Number)]) (in-amb* thk)]) : (Listof Any) i)
      '(1 2 3 x y))))
 
 (test-case "Test efficiency"
@@ -80,7 +80,7 @@
    (: next (→ Integer Integer (Values Integer Integer)))
    (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
    (for ([i : Natural (in-range 100000)]
-         [([j : Integer] [k : Integer]) (in-amb/thunk (λ () (next 0 0)))])
+         [([j : Integer] [k : Integer]) (in-amb* (λ () (next 0 0)))])
      (list i j k)))
   (time
    (: next (→ Integer Integer))

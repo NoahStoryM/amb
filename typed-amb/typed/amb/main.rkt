@@ -6,44 +6,23 @@
 
 (provide amb amb* for/amb for*/amb in-amb)
 
-(unsafe-require/typed/provide amb
-  [in-amb/thunk (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))])
-
-(unsafe-require/typed/provide amb/private/utils
+(unsafe-require/typed/provide amb/main
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
+  [amb* (∀ (a ...) (case→ (→ Null Nothing) (→ (Listof (→ (Values a ... a))) (Values a ... a))))]
+  [in-amb* (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
   [current-amb-queue    (Parameter (Queue (→ Nothing) (→ Nothing)))]
   [current-amb-enqueue! (Parameter (→ (Queue (→ Nothing) Any) (→ Nothing) Void))]
   [current-amb-dequeue! (Parameter (→ (Queue Nothing (→ Nothing)) (→ Nothing)))]
-  [schedule-amb-tasks!  (∀ (a ...) (→ (→ a ... a Nothing) (Listof (→ (Values a ... a))) Void))])
+  [schedule-amb-tasks!  (∀ (a ...) (→ (Listof (→ (Values a ... a))) (→ a ... a Nothing) Void))])
 
 
 (define-syntax (amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_) (syntax/loc stx (amb* ((current-amb-empty-handler))))]
-    [(_ alt ...+)
-     #:with ooo (datum->syntax #f '...)
-     (syntax/loc stx
-       (let ()
-         (: s&c (∀ (a ooo) (→ (Listof (→ (Values a ooo a))) (→ (→ a ooo a Nothing) Nothing))))
-         (define ((s&c alt*) k)
-           (schedule-amb-tasks! k alt*)
-           (((current-amb-dequeue!)
-             (current-amb-queue))))
-         (call/cc (s&c (list (λ () alt) ...)))))]))
-
-(define-syntax (amb* stx)
-  (syntax-parse stx
-    #:datum-literals ()
-    [(_ expr ...)
-     (syntax/loc stx
-       (if (non-empty-queue? (current-amb-queue))
-           (((current-amb-dequeue!)
-             (current-amb-queue)))
-           (values expr ...)))]))
+    [(_ expr ...) (syntax/loc stx (amb* (list (λ () expr) ...)))]))
 
 
 (define-syntaxes (for/amb for*/amb)
@@ -82,11 +61,7 @@
            [(attribute t2) #'t2]
            [else #'AnyValues])
          (quasisyntax/loc stx
-           (let/cc k : t
-             #;(: alt* (Listof (→ t)))
-             (define alt* #,((alt*-parser derived-stx) stx))
-             (schedule-amb-tasks! k alt*)
-             (amb)))]))
+           (amb* #,((alt*-parser derived-stx) stx)))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
@@ -94,4 +69,4 @@
 (define-syntax (in-amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_ expr) (syntax/loc stx (in-amb/thunk (λ () expr)))]))
+    [(_ expr) (syntax/loc stx (in-amb* (λ () expr)))]))

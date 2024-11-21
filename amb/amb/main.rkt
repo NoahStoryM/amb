@@ -7,42 +7,33 @@
          racket/unsafe/undefined
          data/queue)
 
-(provide amb amb* for/amb for*/amb in-amb in-amb/thunk
-         (contract-out
-          (struct exn:fail:contract:amb
-            ([message string?]
-             [continuation-marks continuation-mark-set?]))
-          #;[in-amb/thunk (-> (-> any) sequence?)]
-          [raise-amb-error (-> none/c)]
-          [current-amb-empty-handler (parameter/c (-> none/c))]
-          [current-amb-shuffler (parameter/c (-> list? list?))]
-          [current-amb-queue    (parameter/c queue?)]
-          [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
-          [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
-          [schedule-amb-tasks!  (-> continuation? (listof (-> any)) void?)]))
+(provide amb amb*
+         for/amb for*/amb
+         in-amb in-amb*
+         (struct-out exn:fail:contract:amb)
+         raise-amb-error
+         current-amb-empty-handler
+         current-amb-shuffler
+         current-amb-queue
+         current-amb-enqueue!
+         current-amb-dequeue!
+         schedule-amb-tasks!)
 
 
 (define-syntax (amb stx)
   (syntax-parse stx
     #:datum-literals ()
-    [(_) (syntax/loc stx (amb* ((current-amb-empty-handler))))]
-    [(_ alt ...+)
-     (syntax/loc stx
-       (let/cc k
-         (define alt* (list (λ () alt) ...))
-         (schedule-amb-tasks! k alt*)
-         (((current-amb-dequeue!)
-           (current-amb-queue)))))]))
+    [(_ expr ...) (syntax/loc stx (amb* (list (λ () expr) ...)))]))
 
-(define-syntax (amb* stx)
-  (syntax-parse stx
-    #:datum-literals ()
-    [(_ expr ...)
-     (syntax/loc stx
-       (if (non-empty-queue? (current-amb-queue))
-           (((current-amb-dequeue!)
-             (current-amb-queue)))
-           (values expr ...)))]))
+(define (amb* alt*)
+  (if (null? alt*)
+      (if (non-empty-queue? (current-amb-queue))
+          (((current-amb-dequeue!)
+            (current-amb-queue)))
+          ((current-amb-empty-handler)))
+      (let/cc k
+        (schedule-amb-tasks! alt* k)
+        (amb))))
 
 
 (define-syntaxes (for/amb for*/amb)
@@ -53,15 +44,12 @@
       (syntax-parse stx
         [(_ (clause ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (let/cc k
-             (define alt* (#,derived-stx (clause ...) break ... (λ () body ...)))
-             (schedule-amb-tasks! k alt*)
-             (amb)))]))
+           (amb* (#,derived-stx (clause ...) break ... (λ () body ...))))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
 
-(define (amb/thunk->sequence thk)
+(define (amb*->sequence thk)
   (define amb-queue (make-queue))
   (define continue  unsafe-undefined)
   (define return    unsafe-undefined)
@@ -83,7 +71,7 @@
                          [current-amb-empty-handler break])
             (amb))))))))
 
-(define-for-syntax (in-amb/thunk-parser stx)
+(define-for-syntax (in-amb*-parser stx)
   (syntax-parse stx
     #:datum-literals ()
     [[(id:id ...) (_ thk)]
@@ -110,19 +98,19 @@
          #t
          ())])]))
 
-(define-sequence-syntax in-amb/thunk (λ () #'amb/thunk->sequence) in-amb/thunk-parser)
+(define-sequence-syntax in-amb* (λ () #'amb*->sequence) in-amb*-parser)
 
 
 (define-for-syntax (amb->sequence stx)
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
-     (syntax/loc stx (in-amb/thunk (λ () expr)))]))
+     (syntax/loc stx (in-amb* (λ () expr)))]))
 
 (define-for-syntax (in-amb-parser stx)
   (syntax-parse stx
     #:datum-literals ()
     [[(id:id ...) (_ expr)]
-     (in-amb/thunk-parser (syntax/loc stx [(id ...) (_ (λ () expr))]))]))
+     (in-amb*-parser (syntax/loc stx [(id ...) (_ (λ () expr))]))]))
 
 (define-sequence-syntax in-amb amb->sequence in-amb-parser)

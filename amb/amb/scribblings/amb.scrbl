@@ -48,11 +48,10 @@ expressions.
 ]
 }
 
-@defform[(amb* expr ...)]{
+@defproc[(amb* [alt* (listof (-> any))]) any]{
 
-The @racket[amb*] operator evaluates its argument expressions and returns their
-results as @racket[values] if the current @tech{amb queue} is empty; otherwise,
-it calls @racket[(amb)].
+A helper procedure used by @racket[amb]. The form @racket[(amb expr ...)]
+expands to @racket[(amb* (list (λ () expr) ...))].
 }
 
 @deftogether[(@defform*[((for/amb (for-clause ...) body-or-break ... body)
@@ -90,20 +89,17 @@ This design enables exploration of multiple non-deterministic paths, similar to
     (unless (> x y) (amb))
     (displayln (cons x y))
     (amb)))
-(parameterize ([current-amb-queue (make-queue)])
-  (define-values (x y)
-    (for*/amb ([i 3] [j 3])
-      (values i j)))
-  (when (> x y) (displayln (cons x y)))
-  (amb*))
-(parameterize ([current-amb-queue (make-queue)])
+(let/cc k
   (define a* '())
   (define b* '())
-  (define x (for/amb ([i 10]) i))
-  (when (even? x)
-    (set! a* (cons x a*))
-    (set! b* (cons (+ x 48) b*)))
-  (amb* a* (list->bytes b*)))
+  (define (return) (k a* (list->bytes b*)))
+  (parameterize ([current-amb-queue (make-queue)]
+                 [current-amb-empty-handler return])
+    (define x (for/amb ([i 10]) i))
+    (when (even? x)
+      (set! a* (cons x a*))
+      (set! b* (cons (+ x 48) b*)))
+    (amb)))
 ]
 }
 
@@ -132,32 +128,30 @@ need to worry about affecting calls to other @racket[amb] expressions.
 }
 
 A good practice is to wrap @racket[amb] expressions in a procedure, then use
-@racket[in-amb] or @racket[in-amb/thunk] to create a lazy @tech/refer{sequence}
+@racket[in-amb] or @racket[in-amb*] to create a lazy @tech/refer{sequence}
 that produces as many results as needed.
 
 @amb-examples[
-(let ()
-  (define (f n)
-    (define m (amb 0 1 2 3 4))
-    (unless (> m n) (amb))
-    m)
-  (for ([m (in-amb (f 2))])
-    (displayln m)))
+(define (f n)
+  (define m (amb 0 1 2 3 4))
+  (unless (> m n) (amb))
+  m)
+(for ([m (in-amb (f 2))])
+  (displayln m))
 ]
 
-@defproc[(in-amb/thunk [thk (-> any)]) sequence?]{
+@defproc[(in-amb* [thk (-> any)]) sequence?]{
 
 A helper procedure used by @racket[in-amb]. The form @racket[(in-amb expr)]
-expands to @racket[(in-amb/thunk (λ () expr))].
+expands to @racket[(in-amb* (λ () expr))].
 }
 
 @amb-examples[
-(let ()
-  (define (thk)
-    (define x (for/amb ([i 10]) i))
-    (unless (even? x) (amb))
-    x)
-  (for/list ([x (in-amb/thunk thk)]) x))
+(define (thk)
+  (define x (for/amb ([i 10]) i))
+  (unless (even? x) (amb))
+  x)
+(for/list ([x (in-amb* thk)]) x)
 ]
 
 @section{Exception Type}
@@ -168,29 +162,15 @@ expands to @racket[(in-amb/thunk (λ () expr))].
 Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 
 @amb-examples[
-(eval:error (parameterize ([current-amb-queue (make-queue)])
-              (amb)))
-(eval:error (parameterize ([current-amb-queue (make-queue)])
-              (for/amb ([i '()]) i)))
-(eval:error (parameterize ([current-amb-queue (make-queue)])
-              (for*/amb ([i '()]) i)))
 (eval:error
  (parameterize ([current-amb-queue (make-queue)])
-   (define-values (x y)
-     (for*/amb ([i 3] [j 3])
-       (values i j)))
-   (unless (> x y) (amb))
-   (displayln (cons x y))
-   (amb*)))
+   (amb)))
 (eval:error
  (parameterize ([current-amb-queue (make-queue)])
-   (define a* '())
-   (define b* '())
-   (define x (for/amb ([i 10]) i))
-   (unless (even? x) (amb))
-   (set! a* (cons x a*))
-   (set! b* (cons (+ x 48) b*))
-   (amb* a* (list->bytes b*))))
+   (for/amb ([i '()]) i)))
+(eval:error
+ (parameterize ([current-amb-queue (make-queue)])
+   (for*/amb ([i '()]) i)))
 ]
 }
 
@@ -199,13 +179,14 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 @tech/guide{exception}.
 
 @amb-examples[
-(eval:error (raise-amb-error))
+(eval:error
+ (raise-amb-error))
 ]
 }
 
 @section{Amb Queue Management}
 
-@defproc[(schedule-amb-tasks! [k continuation?] [alt* (listof (-> any))]) void?]{
+@defproc[(schedule-amb-tasks! [alt* (listof (-> any))] [k continuation?]) void?]{
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
 adding them to the current @tech{amb queue}. Each @deftech{amb task} is a

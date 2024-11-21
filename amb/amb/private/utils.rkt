@@ -20,7 +20,7 @@
 (define current-amb-dequeue! (make-parameter dequeue!))
 
 (define schedule-amb-tasks!
-  (λ (k alt*)
+  (λ (alt* k)
     (define amb-queue    (current-amb-queue))
     (define amb-enqueue! (current-amb-enqueue!))
     (for ([alt (in-list ((current-amb-shuffler) alt*))])
