@@ -4,8 +4,7 @@
          (for-syntax racket/base syntax/parse)
          racket/contract
          racket/sequence
-         racket/unsafe/undefined
-         data/queue)
+         racket/unsafe/undefined)
 
 (provide amb amb*
          for/amb for*/amb
@@ -15,6 +14,10 @@
          current-amb-empty-handler
          current-amb-shuffler
          current-amb-queue
+         current-amb-queue?
+         current-amb-queue-length
+         current-amb-queue-empty?
+         current-amb-make-queue
          current-amb-enqueue!
          current-amb-dequeue!
          schedule-amb-tasks!)
@@ -23,10 +26,11 @@
 (define (amb* alt*)
   (let/cc k
     (schedule-amb-tasks! alt* k)
-    (if (non-empty-queue? (current-amb-queue))
+    (if ((current-amb-queue-empty?)
+         (current-amb-queue))
+        ((current-amb-empty-handler))
         (((current-amb-dequeue!)
-          (current-amb-queue)))
-        ((current-amb-empty-handler)))))
+          (current-amb-queue))))))
 
 (define-syntax (amb stx)
   (syntax-parse stx
@@ -49,24 +53,36 @@
 
 
 (define (in-amb* thk)
-  (define amb-queue (make-queue))
-  (define continue  unsafe-undefined)
-  (define return    unsafe-undefined)
+  (define queue?       (current-amb-queue?))
+  (define queue-length (current-amb-queue-length))
+  (define queue-empty? (current-amb-queue-empty?))
+  (define make-queue   (current-amb-make-queue))
+  (define enqueue!     (current-amb-enqueue!))
+  (define dequeue!     (current-amb-dequeue!))
   (make-do-sequence
    (λ ()
+     (define queue (make-queue))
+     (define continue unsafe-undefined)
+     (define return   unsafe-undefined)
      (define (break) (continue #f))
      (define (call . v*) (apply return v*))
-     (define (init-task) (call-with-values thk call))
+     (define (task) (call-with-values thk call))
      (initiate-sequence
-      #:init-pos (enqueue! amb-queue init-task)
-      #:next-pos values
+      #:init-pos (enqueue! queue task)
+      #:next-pos void
       #:continue-with-pos?
       (λ (_) (let/cc k (set! continue k) #t))
       #:pos->element
       (λ (_)
         (let/cc k
           (set! return k)
-          (parameterize ([current-amb-queue amb-queue]
+          (parameterize ([current-amb-queue         queue]
+                         [current-amb-queue?        queue?]
+                         [current-amb-queue-length  queue-length]
+                         [current-amb-queue-empty?  queue-empty?]
+                         [current-amb-make-queue    make-queue]
+                         [current-amb-enqueue!      enqueue!]
+                         [current-amb-dequeue!      dequeue!]
                          [current-amb-empty-handler break])
             (amb))))))))
 
@@ -77,20 +93,32 @@
      (syntax/loc stx
        [(id ...)
         (:do-in
-         ([(amb-queue) (make-queue)]
-          [(continue)  unsafe-undefined]
-          [(return)    unsafe-undefined])
+         ([(queue?)       (current-amb-queue?)]
+          [(queue-length) (current-amb-queue-length)]
+          [(queue-empty?) (current-amb-queue-empty?)]
+          [(make-queue)   (current-amb-make-queue)]
+          [(enqueue!)     (current-amb-enqueue!)]
+          [(dequeue!)     (current-amb-dequeue!)])
          (begin
+           (define queue (make-queue))
+           (define continue unsafe-undefined)
+           (define return   unsafe-undefined)
            (define (break) (continue #f))
            (define (call . v*) (apply return v*))
-           (define (init-task) (call-with-values thk call))
-           (enqueue! amb-queue init-task))
+           (define (task) (call-with-values thk call))
+           (enqueue! queue task))
          ()
          (let/cc k (set! continue k) #t)
          ([(id ...)
            (let/cc k
              (set! return k)
-             (parameterize ([current-amb-queue amb-queue]
+             (parameterize ([current-amb-queue         queue]
+                            [current-amb-queue?        queue?]
+                            [current-amb-queue-length  queue-length]
+                            [current-amb-queue-empty?  queue-empty?]
+                            [current-amb-make-queue    make-queue]
+                            [current-amb-enqueue!      enqueue!]
+                            [current-amb-dequeue!      dequeue!]
                             [current-amb-empty-handler break])
                (amb)))])
          #t
