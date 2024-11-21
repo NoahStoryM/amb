@@ -196,7 +196,7 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 @defproc[(schedule-amb-tasks!
           [k continuation?]
           [alt* (listof (-> any))]
-          [amb-queue (current-amb-queue) queue?])
+          [amb-queue queue? (current-amb-queue)])
          void?]{
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
