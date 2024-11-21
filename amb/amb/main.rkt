@@ -4,7 +4,7 @@
          racket/contract
          racket/unsafe/undefined
          data/queue)
-(require (except-in "base.rkt" in-amb*)
+(require (except-in "base.rkt" in-amb in-amb*)
          (contract-in "base.rkt" [in-amb* (-> (-> any) sequence?)]))
 
 (provide amb
