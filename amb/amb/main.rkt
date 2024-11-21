@@ -20,11 +20,6 @@
          schedule-amb-tasks!)
 
 
-(define-syntax (amb stx)
-  (syntax-parse stx
-    #:datum-literals ()
-    [(_ expr ...) (syntax/loc stx (amb* (list (λ () expr) ...)))]))
-
 (define (amb* alt*)
   (if (null? alt*)
       (if (non-empty-queue? (current-amb-queue))
@@ -34,6 +29,11 @@
       (let/cc k
         (schedule-amb-tasks! alt* k)
         (amb))))
+
+(define-syntax (amb stx)
+  (syntax-parse stx
+    #:datum-literals ()
+    [(_ expr ...) (syntax/loc stx (amb* (list (λ () expr) ...)))]))
 
 
 (define-syntaxes (for/amb for*/amb)
