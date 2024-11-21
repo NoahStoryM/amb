@@ -79,13 +79,13 @@
   (time
    (: next (→ Integer Integer (Values Integer Integer)))
    (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
-   (for ([i : Natural (in-range 100000)]
+   (for ([i : Index 100000]
          [([j : Integer] [k : Integer]) (in-amb* (λ () (next 0 0)))])
      (list i j k)))
   (time
    (: next (→ Integer Integer))
    (define (next j) (amb j (next (add1 j))))
-   (for ([i : Natural (in-range 100000)]
+   (for ([i : Index 100000]
          [j : Integer (in-amb (next 0))])
      (list i j)))
   (time
@@ -93,6 +93,6 @@
    (define (next j) (amb j (next (add1 j))))
    (: s (Sequenceof Integer))
    (define s (in-amb (next 0)))
-   (for ([i : Natural (in-range 100000)]
+   (for ([i : Index 100000]
          [j : Integer s])
      (list i j))))

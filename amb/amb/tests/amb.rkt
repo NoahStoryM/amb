@@ -100,26 +100,26 @@
   (parameterize ([current-amb-queue (make-queue)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (time
-     (for ([i (in-range 100000)]
+     (for ([i 100000]
            [(j k) (in-amb* (λ () (next 0 0)))])
        (list i j k))))
   (parameterize ([current-amb-queue (make-queue)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (define s (in-amb* (λ () (next 0 0))))
     (time
-     (for ([i (in-range 100000)]
+     (for ([i 100000]
            [(j k) s])
        (list i j k))))
   (parameterize ([current-amb-queue (make-queue)])
     (define (next j) (amb j (next (add1 j))))
     (time
-     (for ([i (in-range 100000)]
+     (for ([i 100000]
            [j (in-amb (next 0))])
        (list i j))))
   (parameterize ([current-amb-queue (make-queue)])
     (define (next j) (amb j (next (add1 j))))
     (define s (in-amb (next 0)))
     (time
-     (for ([i (in-range 100000)]
+     (for ([i 100000]
            [j s])
        (list i j)))))
