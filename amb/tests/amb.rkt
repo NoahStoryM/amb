@@ -52,7 +52,7 @@
   (check-equal? (for/set ([i (in-amb* thk)])  i) res)
   (check-equal? (for/set ([i (in-amb (thk))]) i) res)
   (check-exn exn:fail:contract:blame? (λ () (in-amb* 123)))
-  (check-exn exn:fail:contract? (λ () (for ([i (in-amb* 123)] [j '()]) i))))
+  (check-exn exn:fail:contract:blame? (λ () (for ([i (in-amb* 123)] [j '()]) i))))
 
 (test-case "Test multi values in amb"
   (define (thk)

@@ -27,7 +27,7 @@
 
 (define (check-thk thk)
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
-    (raise-argument-error 'in-amb* "(-> any)" thk)))
+    (in-amb* thk)))
 
 (define-for-syntax (in-amb*-parser stx)
   (syntax-parse stx
