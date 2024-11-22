@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require racket/set data/queue rackunit)
-(require "../../amb.rkt")
+(require "../main.rkt")
 
 (let ()
   (define (thk)

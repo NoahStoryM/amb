@@ -1,7 +1,7 @@
 #lang info
 
 (define license 'MIT)
-(define collection 'multi)
+(define collection "typed")
 (define version "0.0")
 
 (define pkg-desc "Typed Ambiguous Operator")

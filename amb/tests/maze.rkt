@@ -1,6 +1,6 @@
 #lang racket
 
-(require "../../amb.rkt")
+(require "../main.rkt")
 
 
 (define maze
