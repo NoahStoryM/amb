@@ -3,14 +3,7 @@
 #+EMAIL: noahstorym@gmail.com
 
 * Table of Contents                                       :TOC_5_gh:noexport:
-- [[#raco-pkg-install-amb][raco pkg install amb]]
 - [[#raco-pkg-install-typed-amb][raco pkg install typed-amb]]
-
-* raco pkg install amb
-
-#+begin_src racket
-(require amb)
-#+end_src
 
 * raco pkg install typed-amb
 
