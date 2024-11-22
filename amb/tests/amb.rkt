@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require racket/set data/queue rackunit)
+(require racket/contract/combinator racket/set data/queue rackunit)
 (require "../main.rkt")
 
 (let ()
@@ -50,7 +50,9 @@
       (list x y)))
   (define res (list->set '((7 8) (4 8) (0 3) (0 8) (0 2))))
   (check-equal? (for/set ([i (in-amb* thk)])  i) res)
-  (check-equal? (for/set ([i (in-amb (thk))]) i) res))
+  (check-equal? (for/set ([i (in-amb (thk))]) i) res)
+  (check-exn exn:fail:contract:blame? (λ () (in-amb* 123)))
+  (check-exn exn:fail:contract? (λ () (for ([i (in-amb* 123)] [j '()]) i))))
 
 (test-case "Test multi values in amb"
   (define (thk)
