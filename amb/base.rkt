@@ -49,16 +49,17 @@
 
 (define (in-amb* thk)
   (define amb-queue (make-queue))
-  (define continue  unsafe-undefined)
-  (define return    unsafe-undefined)
+  (define continue unsafe-undefined)
+  (define return unsafe-undefined)
+  (define (break) (continue #f))
+  (define (call . v*) (apply return v*))
+  (define (amb-task) (call-with-values thk call))
+  (enqueue! amb-queue amb-task)
   (make-do-sequence
    (λ ()
-     (define (break) (continue #f))
-     (define (call . v*) (apply return v*))
-     (define (amb-task) (call-with-values thk call))
      (initiate-sequence
-      #:init-pos (enqueue! amb-queue amb-task)
-      #:next-pos void
+      #:init-pos 0
+      #:next-pos add1
       #:continue-with-pos?
       (λ (_) (let/cc k (set! continue k) #t))
       #:pos->element

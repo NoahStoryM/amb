@@ -5,6 +5,7 @@
          racket/unsafe/undefined
          data/queue)
 (require (except-in "base.rkt" in-amb in-amb*)
+         (rename-in "base.rkt" [in-amb* -in-amb*])
          (contract-in "base.rkt" [in-amb* (-> (-> any) sequence?)]))
 
 (provide amb
@@ -24,17 +25,23 @@
           [schedule-amb-tasks!  (->* (continuation? (listof (-> any))) (queue?) void?)]))
 
 
+(define (check-thk thk)
+  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
+    (raise-argument-error 'in-amb* "(-> any)" thk)))
+
 (define-for-syntax (in-amb*-parser stx)
   (syntax-parse stx
     #:datum-literals ()
-    [[(id:id ...) (_ thk)]
+    [[(id:id ...) (_ expr)]
      (syntax/loc stx
        [(id ...)
         (:do-in
-         ([(amb-queue) (make-queue)]
-          [(continue)  unsafe-undefined]
-          [(return)    unsafe-undefined])
+         ([(thk) expr])
          (begin
+           (check-thk thk)
+           (define amb-queue (make-queue))
+           (define continue unsafe-undefined)
+           (define return unsafe-undefined)
            (define (break) (continue #f))
            (define (call . v*) (apply return v*))
            (define (amb-task) (call-with-values thk call))
@@ -58,7 +65,7 @@
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
-     (syntax/loc stx (in-amb* (λ () expr)))]))
+     (syntax/loc stx (-in-amb* (λ () expr)))]))
 
 (define-for-syntax (in-amb-parser stx)
   (syntax-parse stx
