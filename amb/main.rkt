@@ -27,6 +27,7 @@
 
 (define (check-thk thk)
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
+    ;; break contract
     (in-amb* thk)))
 
 (define-for-syntax (in-amb*-parser stx)
