@@ -24,8 +24,8 @@
   (let/cc k
     (schedule-amb-tasks! k alt* amb-tasks)
     (if (= (queue-length amb-tasks) 0)
-        (((current-amb-popper) amb-tasks))
-        ((current-amb-empty-handler)))))
+        ((current-amb-empty-handler))
+        (((current-amb-popper) amb-tasks)))))
 
 (define-syntax (amb stx)
   (syntax-parse stx
