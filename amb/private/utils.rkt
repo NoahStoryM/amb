@@ -10,7 +10,7 @@
 
 (define (raise-amb-error)
   (raise (exn:fail:contract:amb
-          "amb: empty amb queue;\n expected at least one amb task\n  in: (amb)"
+          "amb: empty amb tasks;\n expected at least one amb task\n  in: (amb)"
           (current-continuation-marks))))
 
 (define current-amb-empty-handler (make-parameter raise-amb-error))
