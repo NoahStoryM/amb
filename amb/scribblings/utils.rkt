@@ -7,7 +7,7 @@
 
 (provide (except-out (all-defined-out) main))
 
-(define (make-amb-eval) (make-base-eval #:lang 'racket/base '(require racket/list data/queue amb)))
+(define (make-amb-eval) (make-base-eval #:lang 'racket/base '(require racket/mutable-treelist amb)))
 (define-syntax-rule (amb-examples body ...) (examples #:eval (make-amb-eval) body ...))
 
 (define-syntax (define-tech stx)

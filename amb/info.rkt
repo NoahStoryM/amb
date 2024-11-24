@@ -7,7 +7,7 @@
 (define pkg-desc "Ambiguous Operator")
 
 (define deps '("base"))
-(define build-deps '("scribble-lib" "rackunit-lib" "racket-doc" "data-doc"))
+(define build-deps '("scribble-lib" "rackunit-lib" "racket-doc"))
 
 (define scribblings '(("scribblings/amb.scrbl")))
 

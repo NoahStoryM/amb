@@ -1,7 +1,13 @@
 #lang racket/base
 
-(require data/queue)
+(require racket/mutable-treelist)
 (provide (all-defined-out))
+
+
+(define (mutable-treelist-pop! mtl)
+  (define pos (sub1 (mutable-treelist-length mtl)))
+  (begin0 (mutable-treelist-ref mtl pos)
+    (mutable-treelist-delete! mtl pos)))
 
 
 (struct exn:fail:contract:amb exn:fail:contract ()
@@ -15,9 +21,9 @@
 
 (define current-amb-empty-handler (make-parameter raise-amb-error))
 (define current-amb-shuffler (make-parameter reverse))
-(define current-amb-tasks    (make-parameter (make-queue)))
-(define current-amb-pusher   (make-parameter enqueue-front!))
-(define current-amb-popper   (make-parameter dequeue!))
+(define current-amb-tasks    (make-parameter (mutable-treelist)))
+(define current-amb-pusher   (make-parameter mutable-treelist-add!))
+(define current-amb-popper   (make-parameter mutable-treelist-pop!))
 
 (define (schedule-amb-tasks! k alt* [amb-tasks (current-amb-tasks)])
   (define push! (current-amb-pusher))

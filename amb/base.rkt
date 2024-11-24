@@ -2,9 +2,9 @@
 
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
+         racket/mutable-treelist
          racket/sequence
-         racket/unsafe/undefined
-         data/queue)
+         racket/unsafe/undefined)
 
 (provide amb amb*
          for/amb for*/amb
@@ -23,7 +23,7 @@
   (define amb-tasks (current-amb-tasks))
   (let/cc k
     (schedule-amb-tasks! k alt* amb-tasks)
-    (if (= (queue-length amb-tasks) 0)
+    (if (= (mutable-treelist-length amb-tasks) 0)
         ((current-amb-empty-handler))
         (((current-amb-popper) amb-tasks)))))
 
@@ -48,13 +48,12 @@
 
 
 (define (in-amb* thk)
-  (define amb-tasks (make-queue))
   (define continue unsafe-undefined)
   (define return unsafe-undefined)
   (define (break) (continue #f))
   (define (call . v*) (apply return v*))
   (define (amb-task) (call-with-values thk call))
-  ((current-amb-pusher) amb-tasks amb-task)
+  (define amb-tasks (mutable-treelist amb-task))
   (make-do-sequence
    (λ ()
      (initiate-sequence

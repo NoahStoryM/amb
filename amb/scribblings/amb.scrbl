@@ -4,8 +4,8 @@
                      racket/list
                      racket/function
                      racket/contract
+                     racket/mutable-treelist
                      syntax/parse
-                     data/queue
                      amb)
           "utils.rkt")
 
@@ -22,14 +22,14 @@ John McCarthy's ambiguous operator.
 
 The form @racket[(amb expr ...)] expands to @racket[(amb* (list (λ () expr) ...))].
 
-Wrapping @racket[amb] expressions with a new @tech{amb queue} is recommended.
+Wrapping @racket[amb] expressions with a new @tech{amb mtreelist} is recommended.
 This ensures that each instance of non-deterministic computation starts with a
-fresh queue, avoiding unintended interactions between different @racket[amb]
+fresh mtreelist, avoiding unintended interactions between different @racket[amb]
 expressions.
 
 @amb-examples[
 (eval:error
- (parameterize ([current-amb-tasks (make-queue)])
+ (parameterize ([current-amb-tasks (mutable-treelist)])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -39,8 +39,8 @@ expressions.
          (amb))))))
 (eval:error
  (parameterize ([current-amb-shuffler values]
-                [current-amb-tasks    (make-queue)]
-                [current-amb-pusher   enqueue!])
+                [current-amb-tasks    (mutable-treelist)]
+                [current-amb-pusher   mutable-treelist-cons!])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -69,22 +69,23 @@ The form @racket[(for/amb (for-clause ...) break-clause ... body ...+)] expands
 to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))].
 
 @amb-examples[
+(require racket/list)
 (parameterize ([current-amb-shuffler shuffle]
-               [current-amb-tasks    (make-queue)]
-               [current-amb-pusher    enqueue!])
+               [current-amb-tasks    (mutable-treelist)]
+               [current-amb-pusher   mutable-treelist-cons!])
   (define x (let next ([i 0]) (amb (next (add1 i)) i)))
   (define y (for/amb ([i 3]) i))
   (unless (< x 2) (amb))
   (displayln (cons x y))
   (unless (= (+ x y) 3) (amb)))
-(parameterize ([current-amb-tasks (make-queue)])
+(parameterize ([current-amb-tasks (mutable-treelist)])
   (define-values (x y)
     (for/amb ([v '([2 . 9] [9 . 2])])
       (values (car v) (cdr v))))
   (unless (> x y) (amb))
   (displayln (cons x y)))
 (let/cc break
-  (parameterize ([current-amb-tasks (make-queue)]
+  (parameterize ([current-amb-tasks (mutable-treelist)]
                  [current-amb-empty-handler break])
     (define-values (x y)
       (for*/amb ([i 3] [j 3])
@@ -96,7 +97,7 @@ to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))
   (define a* '())
   (define b* '())
   (define (return) (k a* (list->bytes b*)))
-  (parameterize ([current-amb-tasks (make-queue)]
+  (parameterize ([current-amb-tasks (mutable-treelist)]
                  [current-amb-empty-handler return])
     (define x (for/amb ([i 10]) i))
     (when (even? x)
@@ -112,22 +113,22 @@ to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))
 
 Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
 expression @racket[expr], allowing for lazy evaluation of results. The
-@racket[in-amb] form automatically creates a new @tech{amb queue}, so there is no
+@racket[in-amb] form automatically creates a new @tech{amb mtreelist}, so there is no
 need to worry about affecting calls to other @racket[amb] expressions.
 
 The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 
 @amb-examples[
-(parameterize ([current-amb-tasks (make-queue)])
+(parameterize ([current-amb-tasks (mutable-treelist)])
   (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
   (amb 1 2 3)
-  (displayln (= 2 (queue-length (current-amb-tasks))))
+  (displayln (= 2 (mutable-treelist-length (current-amb-tasks))))
   (time
    (displayln
     (for/and ([i (in-range 100000)]
               [(j k) (in-amb (next 0 0))])
       (= i j (- k)))))
-  (displayln (= 2 (queue-length (current-amb-tasks))))
+  (displayln (= 2 (mutable-treelist-length (current-amb-tasks))))
   )
 ]
 }
@@ -163,20 +164,20 @@ A helper procedure used by @racket[in-amb].
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
            #:inspector #f]{
 
-Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
+Raised when evaluating @racket[(amb)] with an empty @tech{amb mtreelist}.
 
 @amb-examples[
 (eval:error
- (parameterize ([current-amb-tasks (make-queue)])
+ (parameterize ([current-amb-tasks (mutable-treelist)])
    (amb)))
 (eval:error
- (parameterize ([current-amb-tasks (make-queue)])
+ (parameterize ([current-amb-tasks (mutable-treelist)])
    (amb* '())))
 (eval:error
- (parameterize ([current-amb-tasks (make-queue)])
+ (parameterize ([current-amb-tasks (mutable-treelist)])
    (for/amb ([i '()]) i)))
 (eval:error
- (parameterize ([current-amb-tasks (make-queue)])
+ (parameterize ([current-amb-tasks (mutable-treelist)])
    (for*/amb ([i '()]) i)))
 ]
 }
@@ -191,12 +192,12 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 ]
 }
 
-@section{Amb Queue Management}
+@section{Amb Tasks Management}
 
 @defproc[(schedule-amb-tasks!
           [k continuation?]
           [alt* (listof (-> any))]
-          [amb-tasks queue? (current-amb-tasks)])
+          [amb-tasks mutable-treelist? (current-amb-tasks)])
          void?]{
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
@@ -210,34 +211,34 @@ in @racket[k].
 @defparam[current-amb-empty-handler amb-empty-handler (-> none/c)]{
 
 A @tech/refer{parameter} that specifies the procedure to be called when the
-@tech{amb queue} is empty and @racket[(amb)] is evaluated. The default value is
+@tech{amb mtreelist} is empty and @racket[(amb)] is evaluated. The default value is
 @racket[raise-amb-error].
 }
 
 @defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
 
 A @tech/refer{parameter} that specifies how to @racket[shuffle] @racket[alt*]
-before scheduling new @tech{amb tasks} into the current @tech{amb queue}. The
+before scheduling new @tech{amb tasks} into the current @tech{amb mtreelist}. The
 default value is @racket[reverse].
 }
 
-@defparam[current-amb-tasks tasks queue?]{
+@defparam[current-amb-tasks tasks mutable-treelist?]{
 
-A @tech/refer{parameter} that holds the queue of @deftech{amb task}s to be
+A @tech/refer{parameter} that holds the mtreelist of @deftech{amb task}s to be
 evaluated, which is populated as needed by @racket[schedule-amb-tasks!]. The
-default value is an empty @deftech{amb queue}.
+default value is an empty @deftech{amb mtreelist}.
 }
 
-@defparam[current-amb-popper dequeue! (-> queue? (-> none/c))]{
+@defparam[current-amb-popper pop! (-> mutable-treelist? (-> none/c))]{
 
 A @tech/refer{parameter} that defines the method for dequeuing an @tech{amb task}
-from the current @tech{amb queue}. The default value is @racket[dequeue!], which
-removes and returns the @tech{amb task} at the front of the queue.
+from the current @tech{amb mtreelist}. The default value removes and returns the
+@tech{amb task} at the end of the mtreelist.
 }
 
-@defparam[current-amb-pusher enqueue! (-> queue? (-> none/c) void?)]{
+@defparam[current-amb-pusher push! (-> mutable-treelist? (-> none/c) void?)]{
 
 A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task}
-into the current @tech{amb queue}. The default value is @racket[enqueue-front!],
-which adds the @tech{amb task} to the front of the queue.
+into the current @tech{amb mtreelist}. The default value adds the @tech{amb task}
+to the end of the queue.
 }
