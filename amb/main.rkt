@@ -19,9 +19,9 @@
           [raise-amb-error (-> none/c)]
           [current-amb-empty-handler (parameter/c (-> none/c))]
           [current-amb-shuffler (parameter/c (-> list? list?))]
-          [current-amb-queue    (parameter/c queue?)]
-          [current-amb-enqueue! (parameter/c (-> queue? (-> none/c) void?))]
-          [current-amb-dequeue! (parameter/c (-> queue? (-> none/c)))]
+          [current-amb-tasks    (parameter/c queue?)]
+          [current-amb-pusher   (parameter/c (-> queue? (-> none/c) void?))]
+          [current-amb-popper   (parameter/c (-> queue? (-> none/c)))]
           [schedule-amb-tasks!  (->* (continuation? (listof (-> any))) (queue?) void?)]))
 
 
@@ -40,19 +40,19 @@
          ([(thk) expr])
          (begin
            (check-thk thk)
-           (define amb-queue (make-queue))
+           (define amb-tasks (make-queue))
            (define continue unsafe-undefined)
            (define return unsafe-undefined)
            (define (break) (continue #f))
            (define (call . v*) (apply return v*))
            (define (amb-task) (call-with-values thk call))
-           (enqueue! amb-queue amb-task))
+           ((current-amb-pusher) amb-tasks amb-task))
          ()
          (let/cc k (set! continue k) #t)
          ([(id ...)
            (let/cc k
              (set! return k)
-             (parameterize ([current-amb-queue amb-queue]
+             (parameterize ([current-amb-tasks amb-tasks]
                             [current-amb-empty-handler break])
                (amb)))])
          #t

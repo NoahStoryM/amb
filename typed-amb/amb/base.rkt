@@ -13,9 +13,9 @@
   [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
-  [current-amb-queue    (Parameter (Queue (→ Nothing) (→ Nothing)))]
-  [current-amb-enqueue! (Parameter (→ (Queue (→ Nothing) Any) (→ Nothing) Void))]
-  [current-amb-dequeue! (Parameter (→ (Queue Nothing (→ Nothing)) (→ Nothing)))]
+  [current-amb-tasks    (Parameter (Queue (→ Nothing) (→ Nothing)))]
+  [current-amb-pusher   (Parameter (→ (Queue (→ Nothing) Any) (→ Nothing) Void))]
+  [current-amb-popper   (Parameter (→ (Queue Nothing (→ Nothing)) (→ Nothing)))]
   [schedule-amb-tasks!  (∀ (a ...) (→* ((→ a ... a Nothing) (Listof (→ (Values a ... a)))) ((Queue (→ Nothing) Any)) Void))])
 
 

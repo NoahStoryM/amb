@@ -17,7 +17,7 @@
               (set! res (cons (list x y z) res))
               (amb)))))))
   (test-case "DFS"
-    (parameterize ([current-amb-queue (make-queue)])
+    (parameterize ([current-amb-tasks (make-queue)])
       (check-equal?
        (thk)
        '((1) (1 3) (1 3 5)
@@ -29,9 +29,9 @@
              (2 4) (2 4 5)
                    (2 4 6)))))
   (test-case "BFS"
-    (parameterize ([current-amb-queue (make-queue)]
+    (parameterize ([current-amb-tasks (make-queue)]
                    [current-amb-shuffler values]
-                   [current-amb-enqueue! enqueue!])
+                   [current-amb-pusher   enqueue!])
       (check-equal?
        (thk)
        '((1) (2)
@@ -56,7 +56,7 @@
 
 (test-case "Test multi values in amb"
   (define (thk)
-    (parameterize ([current-amb-queue (make-queue)])
+    (parameterize ([current-amb-tasks (make-queue)])
       (let-values ([(x y) (amb (values 2 9) (values 9 2))])
         (when (> x y) (amb))
         (list x y))))
@@ -64,7 +64,7 @@
 
 (test-case "Test multi values in for/amb"
   (define (thk)
-    (parameterize ([current-amb-queue (make-queue)])
+    (parameterize ([current-amb-tasks (make-queue)])
       (let-values ([(x y)
                     (for/amb ([v '([2 9] [9 2])])
                       (apply values v))])
@@ -74,7 +74,7 @@
 
 (test-case "Test nested amb expressions"
   (define (thk)
-    (parameterize ([current-amb-queue (make-queue)])
+    (parameterize ([current-amb-tasks (make-queue)])
       (let ([a (amb 'x 'y (let ([b (amb 1 2 3)]) (- b)) 'z)])
         (when (symbol? a) (amb))
         a)))
@@ -84,41 +84,41 @@
   (let/cc k
     (define res #f)
     (define (return) (k res))
-    (parameterize ([current-amb-queue (make-queue)]
+    (parameterize ([current-amb-tasks (make-queue)]
                    [current-amb-empty-handler return])
       (time (check-eq? 99999 (let ([i (for/amb ([i 100000]) i)]) (set! res i) (amb))))))
-  (parameterize ([current-amb-queue (make-queue)])
+  (parameterize ([current-amb-tasks (make-queue)])
     (time
      (define m 100000)
      (define n (for/amb ([i (in-inclusive-range 0 m)]) i))
      (when (< n m) (amb))
      (check-eq? n m)))
-  (parameterize ([current-amb-queue (make-queue)])
+  (parameterize ([current-amb-tasks (make-queue)])
     (time
      (define m 100000)
      (define n (let next ([i 0]) (amb i (next (add1 i)))))
      (when (< n m) (amb))
      (check-eq? n m)))
-  (parameterize ([current-amb-queue (make-queue)])
+  (parameterize ([current-amb-tasks (make-queue)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (time
      (for ([i 100000]
            [(j k) (in-amb* (λ () (next 0 0)))])
        (list i j k))))
-  (parameterize ([current-amb-queue (make-queue)])
+  (parameterize ([current-amb-tasks (make-queue)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (define s (in-amb* (λ () (next 0 0))))
     (time
      (for ([i 100000]
            [(j k) s])
        (list i j k))))
-  (parameterize ([current-amb-queue (make-queue)])
+  (parameterize ([current-amb-tasks (make-queue)])
     (define (next j) (amb j (next (add1 j))))
     (time
      (for ([i 100000]
            [j (in-amb (next 0))])
        (list i j))))
-  (parameterize ([current-amb-queue (make-queue)])
+  (parameterize ([current-amb-tasks (make-queue)])
     (define (next j) (amb j (next (add1 j))))
     (define s (in-amb (next 0)))
     (time

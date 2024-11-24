@@ -29,7 +29,7 @@ expressions.
 
 @amb-examples[
 (eval:error
- (parameterize ([current-amb-queue (make-queue)])
+ (parameterize ([current-amb-tasks (make-queue)])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -39,8 +39,8 @@ expressions.
          (amb))))))
 (eval:error
  (parameterize ([current-amb-shuffler values]
-                [current-amb-queue    (make-queue)]
-                [current-amb-enqueue! enqueue!])
+                [current-amb-tasks    (make-queue)]
+                [current-amb-pusher   enqueue!])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -70,21 +70,21 @@ to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))
 
 @amb-examples[
 (parameterize ([current-amb-shuffler shuffle]
-               [current-amb-queue    (make-queue)]
-               [current-amb-enqueue! enqueue!])
+               [current-amb-tasks    (make-queue)]
+               [current-amb-pusher    enqueue!])
   (define x (let next ([i 0]) (amb (next (add1 i)) i)))
   (define y (for/amb ([i 3]) i))
   (unless (< x 2) (amb))
   (displayln (cons x y))
   (unless (= (+ x y) 3) (amb)))
-(parameterize ([current-amb-queue (make-queue)])
+(parameterize ([current-amb-tasks (make-queue)])
   (define-values (x y)
     (for/amb ([v '([2 . 9] [9 . 2])])
       (values (car v) (cdr v))))
   (unless (> x y) (amb))
   (displayln (cons x y)))
 (let/cc break
-  (parameterize ([current-amb-queue (make-queue)]
+  (parameterize ([current-amb-tasks (make-queue)]
                  [current-amb-empty-handler break])
     (define-values (x y)
       (for*/amb ([i 3] [j 3])
@@ -96,7 +96,7 @@ to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))
   (define a* '())
   (define b* '())
   (define (return) (k a* (list->bytes b*)))
-  (parameterize ([current-amb-queue (make-queue)]
+  (parameterize ([current-amb-tasks (make-queue)]
                  [current-amb-empty-handler return])
     (define x (for/amb ([i 10]) i))
     (when (even? x)
@@ -118,16 +118,16 @@ need to worry about affecting calls to other @racket[amb] expressions.
 The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 
 @amb-examples[
-(parameterize ([current-amb-queue (make-queue)])
+(parameterize ([current-amb-tasks (make-queue)])
   (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
   (amb 1 2 3)
-  (displayln (= 2 (queue-length (current-amb-queue))))
+  (displayln (= 2 (queue-length (current-amb-tasks))))
   (time
    (displayln
     (for/and ([i (in-range 100000)]
               [(j k) (in-amb (next 0 0))])
       (= i j (- k)))))
-  (displayln (= 2 (queue-length (current-amb-queue))))
+  (displayln (= 2 (queue-length (current-amb-tasks))))
   )
 ]
 }
@@ -167,16 +167,16 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb queue}.
 
 @amb-examples[
 (eval:error
- (parameterize ([current-amb-queue (make-queue)])
+ (parameterize ([current-amb-tasks (make-queue)])
    (amb)))
 (eval:error
- (parameterize ([current-amb-queue (make-queue)])
+ (parameterize ([current-amb-tasks (make-queue)])
    (amb* '())))
 (eval:error
- (parameterize ([current-amb-queue (make-queue)])
+ (parameterize ([current-amb-tasks (make-queue)])
    (for/amb ([i '()]) i)))
 (eval:error
- (parameterize ([current-amb-queue (make-queue)])
+ (parameterize ([current-amb-tasks (make-queue)])
    (for*/amb ([i '()]) i)))
 ]
 }
@@ -196,11 +196,11 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 @defproc[(schedule-amb-tasks!
           [k continuation?]
           [alt* (listof (-> any))]
-          [amb-queue queue? (current-amb-queue)])
+          [amb-tasks queue? (current-amb-tasks)])
          void?]{
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
-adding them to @racket[amb-queue]. Each @tech{amb task} is a @racket[thunk] that,
+adding them to @racket[amb-tasks]. Each @tech{amb task} is a @racket[thunk] that,
 when invoked, uses @racket[call-in-continuation] to call an @tech{alternative}
 in @racket[k].
 }
@@ -221,21 +221,21 @@ before scheduling new @tech{amb tasks} into the current @tech{amb queue}. The
 default value is @racket[reverse].
 }
 
-@defparam[current-amb-queue amb-queue queue?]{
+@defparam[current-amb-tasks tasks queue?]{
 
 A @tech/refer{parameter} that holds the queue of @deftech{amb task}s to be
 evaluated, which is populated as needed by @racket[schedule-amb-tasks!]. The
 default value is an empty @deftech{amb queue}.
 }
 
-@defparam[current-amb-dequeue! amb-dequeue! (-> queue? (-> none/c))]{
+@defparam[current-amb-popper dequeue! (-> queue? (-> none/c))]{
 
 A @tech/refer{parameter} that defines the method for dequeuing an @tech{amb task}
 from the current @tech{amb queue}. The default value is @racket[dequeue!], which
 removes and returns the @tech{amb task} at the front of the queue.
 }
 
-@defparam[current-amb-enqueue! amb-enqueue! (-> queue? (-> none/c) void?)]{
+@defparam[current-amb-pusher enqueue! (-> queue? (-> none/c) void?)]{
 
 A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task}
 into the current @tech{amb queue}. The default value is @racket[enqueue-front!],

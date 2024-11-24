@@ -13,18 +13,18 @@
          raise-amb-error
          current-amb-empty-handler
          current-amb-shuffler
-         current-amb-queue
-         current-amb-enqueue!
-         current-amb-dequeue!
+         current-amb-tasks
+         current-amb-pusher
+         current-amb-popper
          schedule-amb-tasks!)
 
 
 (define (amb* alt*)
-  (define amb-queue (current-amb-queue))
+  (define amb-tasks (current-amb-tasks))
   (let/cc k
-    (schedule-amb-tasks! k alt* amb-queue)
-    (if (non-empty-queue? amb-queue)
-        (((current-amb-dequeue!) amb-queue))
+    (schedule-amb-tasks! k alt* amb-tasks)
+    (if (non-empty-queue? amb-tasks)
+        (((current-amb-popper) amb-tasks))
         ((current-amb-empty-handler)))))
 
 (define-syntax (amb stx)
@@ -48,13 +48,13 @@
 
 
 (define (in-amb* thk)
-  (define amb-queue (make-queue))
+  (define amb-tasks (make-queue))
   (define continue unsafe-undefined)
   (define return unsafe-undefined)
   (define (break) (continue #f))
   (define (call . v*) (apply return v*))
   (define (amb-task) (call-with-values thk call))
-  (enqueue! amb-queue amb-task)
+  ((current-amb-pusher) amb-tasks amb-task)
   (make-do-sequence
    (λ ()
      (initiate-sequence
@@ -66,7 +66,7 @@
       (λ (_)
         (let/cc k
           (set! return k)
-          (parameterize ([current-amb-queue amb-queue]
+          (parameterize ([current-amb-tasks amb-tasks]
                          [current-amb-empty-handler break])
             (amb))))))))
 
