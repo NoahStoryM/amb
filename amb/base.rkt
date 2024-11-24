@@ -23,7 +23,7 @@
   (define amb-tasks (current-amb-tasks))
   (let/cc k
     (schedule-amb-tasks! k alt* amb-tasks)
-    (if (non-empty-queue? amb-tasks)
+    (if (= (queue-length amb-tasks) 0)
         (((current-amb-popper) amb-tasks))
         ((current-amb-empty-handler)))))
 
