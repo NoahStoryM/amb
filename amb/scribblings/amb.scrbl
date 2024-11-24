@@ -240,5 +240,5 @@ from the current @tech{amb mtreelist}. The default value removes and returns the
 
 A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task}
 into the current @tech{amb mtreelist}. The default value adds the @tech{amb task}
-to the end of the queue.
+to the end of the mtreelist.
 }
