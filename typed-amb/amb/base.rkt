@@ -1,8 +1,8 @@
 #lang typed/racket/base
 
 (require (for-syntax racket/base syntax/parse)
-         typed/racket/unsafe
-         typed/data/queue)
+         typed/racket/mutable-treelist
+         typed/racket/unsafe)
 
 (provide amb amb* for/amb for*/amb in-amb)
 
@@ -13,10 +13,13 @@
   [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
-  [current-amb-tasks    (Parameter (Queue (→ Nothing) (→ Nothing)))]
-  [current-amb-pusher   (Parameter (→ (Queue (→ Nothing) Any) (→ Nothing) Void))]
-  [current-amb-popper   (Parameter (→ (Queue Nothing (→ Nothing)) (→ Nothing)))]
-  [schedule-amb-tasks!  (∀ (a ...) (→* ((→ a ... a Nothing) (Listof (→ (Values a ... a)))) ((Queue (→ Nothing) Any)) Void))])
+  [current-amb-tasks    (Parameter (Mutable-TreeListof (→ Nothing) (→ Nothing)))]
+  [current-amb-pusher   (Parameter (→ (Mutable-TreeListof (→ Nothing) Any) (→ Nothing) Void))]
+  [current-amb-popper   (Parameter (→ (Mutable-TreeListof Nothing (→ Nothing)) (→ Nothing)))]
+  [schedule-amb-tasks!  (∀ (a ...)
+                           (→* ((→ a ... a Nothing) (Listof (→ (Values a ... a))))
+                               ((Mutable-TreeListof (→ Nothing) Any))
+                               Void))])
 
 
 (define-syntax (amb stx)
