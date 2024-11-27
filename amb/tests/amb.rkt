@@ -3,6 +3,7 @@
 (require racket/contract/combinator
          racket/mutable-treelist
          racket/set
+         racket/stream
          rackunit)
 (require "../main.rkt")
 
@@ -51,11 +52,15 @@
           [y (amb 3 8 2)])
       (unless (<= x y) (amb))
       (list x y)))
-  (define res (list->set '((7 8) (4 8) (0 3) (0 8) (0 2))))
-  (check-equal? (for/set ([i (in-amb* thk)])  i) res)
-  (check-equal? (for/set ([i (in-amb (thk))]) i) res)
+  (define ls '((7 8) (4 8) (0 3) (0 8) (0 2)))
+  (define st (list->set ls))
+  (check-equal? (for/set ([i (in-amb* thk)])  i) st)
+  (check-equal? (for/set ([i (in-amb (thk))]) i) st)
   (check-exn exn:fail:contract:blame? (λ () (in-amb* 123)))
-  (check-exn exn:fail:contract:blame? (λ () (for ([i (in-amb* 123)] [j '()]) i))))
+  (check-exn exn:fail:contract:blame? (λ () (for ([i (in-amb* 123)] [j '()]) i)))
+  (define s (in-amb* thk))
+  (check-equal? (for/set ([i (in-stream s)]) i) st)
+  (check-equal? (for/set ([i (in-stream s)]) i) st))
 
 (test-case "Test multi values in amb"
   (define (thk)

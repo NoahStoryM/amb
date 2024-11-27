@@ -4,13 +4,17 @@
          racket/contract
          racket/mutable-treelist
          racket/unsafe/undefined)
-(require (except-in "base.rkt" in-amb in-amb*)
-         (rename-in "base.rkt" [in-amb* -in-amb*])
-         (contract-in "base.rkt" [in-amb* (-> (-> any) sequence?)]))
+(require (rename-in "base.rkt"
+                    [in-amb*  -in-amb*]
+                    [in-amb*₁ -in-amb*₁])
+         (contract-in "base.rkt"
+                      [in-amb*  (-> (-> any) sequence?)]
+                      [in-amb*₁ (-> (-> any) sequence?)]))
 
 (provide amb
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
+         in-amb₁ in-amb*₁
          (contract-out
           (struct exn:fail:contract:amb
             ([message string?]
@@ -30,35 +34,17 @@
     ;; break contract
     (in-amb* thk)))
 
-(define-for-syntax (in-amb*-parser stx)
-  (syntax-parse stx
-    #:datum-literals ()
-    [[(id:id ...) (_ expr)]
-     (syntax/loc stx
-       [(id ...)
-        (:do-in
-         ([(thk) expr])
-         (begin
-           (check-thk thk)
-           (define continue unsafe-undefined)
-           (define return unsafe-undefined)
-           (define (break) (continue #f))
-           (define (call . v*) (apply return v*))
-           (define (amb-task) (call-with-values thk call))
-           (define amb-tasks (mutable-treelist amb-task)))
-         ()
-         (let/cc k (set! continue k) #t)
-         ([(id ...)
-           (let/cc k
-             (set! return k)
-             (parameterize ([current-amb-tasks amb-tasks]
-                            [current-amb-empty-handler break])
-               (amb)))])
-         #t
-         #t
-         ())])]))
-
-(define-sequence-syntax *in-amb* (λ () #'in-amb*) in-amb*-parser)
+(define-sequence-syntax *in-amb*
+  (λ () #'in-amb*)
+  (λ (stx)
+    (syntax-parse stx
+      #:datum-literals ()
+      [[(id:id ...) (_ expr)]
+       (syntax/loc stx
+         [(id ...)
+          (let ([thk expr])
+            (check-thk thk)
+            (-in-amb*₁ thk))])])))
 
 
 (define-for-syntax (in-amb stx)
@@ -67,10 +53,19 @@
     [(_ expr)
      (syntax/loc stx (-in-amb* (λ () expr)))]))
 
-(define-for-syntax (in-amb-parser stx)
+(define-sequence-syntax *in-amb
+  in-amb
+  (λ (stx)
+    (syntax-parse stx
+      #:datum-literals ()
+      [[(id:id ...) (_ expr)]
+       (syntax/loc stx
+         [(id ...)
+          (-in-amb*₁ (λ () expr))])])))
+
+
+(define-syntax (in-amb₁ stx)
   (syntax-parse stx
     #:datum-literals ()
-    [[(id:id ...) (_ expr)]
-     (in-amb*-parser (syntax/loc stx [(id ...) (_ (λ () expr))]))]))
-
-(define-sequence-syntax *in-amb in-amb in-amb-parser)
+    [(_ expr)
+     (syntax/loc stx (in-amb*₁ (λ () expr)))]))

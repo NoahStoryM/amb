@@ -4,6 +4,7 @@
                      racket/list
                      racket/function
                      racket/contract
+                     racket/stream
                      racket/mutable-treelist
                      syntax/parse
                      amb)
@@ -107,11 +108,11 @@ to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))
 ]
 }
 
-@section{Sequence Constructor}
+@section{Stream Constructor}
 
 @defform[(in-amb expr)]{
 
-Constructs a @tech/refer{sequence} from the results of evaluating the ambiguous
+Constructs a @tech/refer{stream} from the results of evaluating the ambiguous
 expression @racket[expr], allowing for lazy evaluation of results. The
 @racket[in-amb] form automatically creates a new @tech{amb mtreelist}, so there is no
 need to worry about affecting calls to other @racket[amb] expressions.
@@ -134,7 +135,7 @@ The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 }
 
 A good practice is to wrap @racket[amb] expressions in a procedure, then use
-@racket[in-amb] or @racket[in-amb*] to create a lazy @tech/refer{sequence}
+@racket[in-amb] or @racket[in-amb*] to create a lazy @tech/refer{stream}
 that produces as many results as needed.
 
 @amb-examples[
@@ -146,7 +147,7 @@ that produces as many results as needed.
   (displayln m))
 ]
 
-@defproc[(in-amb* [thk (-> any)]) sequence?]{
+@defproc[(in-amb* [thk (-> any)]) stream?]{
 
 A helper procedure used by @racket[in-amb].
 }

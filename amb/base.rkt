@@ -4,11 +4,13 @@
          (for-syntax racket/base syntax/parse)
          racket/mutable-treelist
          racket/sequence
+         racket/stream
          racket/unsafe/undefined)
 
 (provide amb amb*
          for/amb for*/amb
-         in-amb in-amb*
+         in-amb  in-amb*
+         in-amb₁ in-amb*₁
          (struct-out exn:fail:contract:amb)
          raise-amb-error
          current-amb-empty-handler
@@ -48,12 +50,27 @@
 
 
 (define (in-amb* thk)
-  (define continue unsafe-undefined)
   (define return unsafe-undefined)
-  (define (break) (continue #f))
   (define (call . v*) (apply return v*))
   (define (amb-task) (call-with-values thk call))
   (define amb-tasks (mutable-treelist amb-task))
+  (define break unsafe-undefined)
+  (define (amb-empty-handler) (break #t))
+  (for/stream ([_ (in-naturals)])
+    #:break (let/cc k (set! break k) #f)
+    (let/cc k
+      (set! return k)
+      (parameterize ([current-amb-tasks         amb-tasks]
+                     [current-amb-empty-handler amb-empty-handler])
+        (amb)))))
+
+(define (in-amb*₁ thk)
+  (define return unsafe-undefined)
+  (define (call . v*) (apply return v*))
+  (define (amb-task) (call-with-values thk call))
+  (define amb-tasks (mutable-treelist amb-task))
+  (define continue unsafe-undefined)
+  (define (amb-empty-handler) (continue #f))
   (make-do-sequence
    (λ ()
      (initiate-sequence
@@ -65,12 +82,17 @@
       (λ (_)
         (let/cc k
           (set! return k)
-          (parameterize ([current-amb-tasks amb-tasks]
-                         [current-amb-empty-handler break])
+          (parameterize ([current-amb-tasks         amb-tasks]
+                         [current-amb-empty-handler amb-empty-handler])
             (amb))))))))
 
-(define-syntax (in-amb stx)
-  (syntax-parse stx
-    #:datum-literals ()
-    [(_ expr)
-     (syntax/loc stx (in-amb* (λ () expr)))]))
+(define-syntaxes (in-amb in-amb₁)
+  (let ()
+    (define ((make derived-stx) stx)
+      (syntax-parse stx
+        #:datum-literals ()
+        [(_ expr)
+         (quasisyntax/loc stx
+           (#,derived-stx (λ () expr)))]))
+    (values (make #'in-amb*)
+            (make #'in-amb*₁))))
