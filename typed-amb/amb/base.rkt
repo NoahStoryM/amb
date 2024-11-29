@@ -4,11 +4,12 @@
          typed/racket/mutable-treelist/lab
          typed/racket/unsafe)
 
-(provide amb amb* for/amb for*/amb in-amb in-amb₁)
+(provide amb amb* amb*₁ for/amb for*/amb in-amb in-amb₁)
 
 (unsafe-require/typed/provide amb/base
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
-  [amb* (∀ (a ...) (case→ (→ Null Nothing) (→ (Listof (→ (Values a ... a))) (Values a ... a))))]
+  [amb*  (∀ (a ...) (case→ (→      Nothing) (→         (→ (Values a ... a)) * (Values a ... a))))]
+  [amb*₁ (∀ (a ...) (case→ (→ Null Nothing) (→ (Listof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*  (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [raise-amb-error (→ Nothing)]
@@ -27,7 +28,7 @@
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)
-     (syntax/loc stx (amb* (list (λ () expr) ...)))]))
+     (syntax/loc stx (amb* (λ () expr) ...))]))
 
 
 (define-syntaxes (for/amb for*/amb)
@@ -53,7 +54,7 @@
       parser)
     (define ((make-for/amb derived-stx) stx)
       (quasisyntax/loc stx
-        (amb* #,((alt*-parser derived-stx) stx))))
+        (amb*₁ #,((alt*-parser derived-stx) stx))))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 

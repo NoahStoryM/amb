@@ -19,7 +19,8 @@
           (struct exn:fail:contract:amb
             ([message string?]
              [continuation-marks continuation-mark-set?]))
-          [amb* (-> (listof (-> any)) any)]
+          [amb*  (-> (-> any) ... any)]
+          [amb*₁ (-> (listof (-> any)) any)]
           [raise-amb-error (-> none/c)]
           [current-amb-empty-handler (parameter/c (-> none/c))]
           [current-amb-shuffler (parameter/c (-> list? list?))]

@@ -3,7 +3,7 @@
 (require (for-syntax racket/base syntax/parse)
          "base.rkt")
 
-(provide amb amb*
+(provide amb amb* amb*₁
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb₁ in-amb*₁

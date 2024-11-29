@@ -21,7 +21,7 @@
 
 John McCarthy's ambiguous operator.
 
-The form @racket[(amb expr ...)] expands to @racket[(amb* (list (λ () expr) ...))].
+The form @racket[(amb expr ...)] expands to @racket[(amb* (λ () expr) ...)].
 
 Wrapping @racket[amb] expressions with a new @tech{amb mtreelist} is recommended.
 This ensures that each instance of non-deterministic computation starts with a
@@ -52,7 +52,7 @@ expressions.
 ]
 }
 
-@defproc[(amb* [alt* (listof (-> any))]) any]{
+@defproc[(amb* [alt (-> any)] ...) any]{
 
 A helper procedure used by @racket[amb].
 }
@@ -67,7 +67,7 @@ The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
 they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
 
 The form @racket[(for/amb (for-clause ...) break-clause ... body ...+)] expands
-to @racket[(amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))].
+to @racket[(apply amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))].
 
 @amb-examples[
 (require racket/list)
@@ -173,7 +173,7 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb mtreelist}.
    (amb)))
 (eval:error
  (parameterize ([current-amb-tasks (mutable-treelist)])
-   (amb* '())))
+   (amb*)))
 (eval:error
  (parameterize ([current-amb-tasks (mutable-treelist)])
    (for/amb ([i '()]) i)))

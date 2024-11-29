@@ -7,7 +7,7 @@
          racket/stream
          racket/unsafe/undefined)
 
-(provide amb amb*
+(provide amb amb* amb*₁
          for/amb for*/amb
          in-amb  in-amb*
          in-amb₁ in-amb*₁
@@ -21,7 +21,7 @@
          schedule-amb-tasks!)
 
 
-(define (amb* alt*)
+(define (amb*₁ alt*)
   (define amb-tasks (current-amb-tasks))
   (let/cc k
     (schedule-amb-tasks! k alt* amb-tasks)
@@ -29,11 +29,13 @@
         ((current-amb-empty-handler))
         (((current-amb-popper) amb-tasks)))))
 
+(define (amb* . alt*) (amb*₁ alt*))
+
 (define-syntax (amb stx)
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)
-     (syntax/loc stx (amb* (list (λ () expr) ...)))]))
+     (syntax/loc stx (amb* (λ () expr) ...))]))
 
 
 (define-syntaxes (for/amb for*/amb)
@@ -44,7 +46,7 @@
       (syntax-parse stx
         [(_ (clause ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (amb* (#,derived-stx (clause ...) break ... (λ () body ...))))]))
+           (amb*₁ (#,derived-stx (clause ...) break ... (λ () body ...))))]))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
