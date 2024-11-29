@@ -109,4 +109,7 @@
    (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
    (for ([i : Index 100000]
          [([j : Integer] k) (in-amb (next 0 0))])
-     (list i j k))))
+     (list i j k)))
+  (parameterize ([current-amb-shuffler (λ (v) v)])
+    (time (for ([i (in-amb (for/amb ([i 100000]) : Index i))]) i)))
+  (time (for ([i (in-amb (for/amb : Index ([i 100000]) i))]) i)))

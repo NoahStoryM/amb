@@ -132,4 +132,7 @@
     (time
      (for ([i 100000]
            [j s])
-       (list i j)))))
+       (list i j))))
+  (parameterize ([current-amb-shuffler values])
+    (time (for ([i (in-amb (for/amb ([i 100000]) i))]) i)))
+  (time (for ([i (in-amb (for/amb ([i 100000]) i))]) i)))
