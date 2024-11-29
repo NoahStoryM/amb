@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(require unsafe/typed/racket/mutable-treelist typed/rackunit)
+(require typed/racket/mutable-treelist/lab typed/rackunit)
 (require "../../amb.rkt")
 
 

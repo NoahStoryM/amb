@@ -1,7 +1,7 @@
 #lang typed/racket/base
 
 (require (for-syntax racket/base syntax/parse)
-         unsafe/typed/racket/mutable-treelist
+         typed/racket/mutable-treelist/lab
          typed/racket/unsafe)
 
 (provide amb amb* for/amb for*/amb in-amb in-amb₁)
