@@ -2,8 +2,7 @@
 
 (require (for-syntax racket/base syntax/parse)
          racket/contract
-         racket/mutable-treelist
-         racket/unsafe/undefined)
+         racket/mutable-treelist)
 (require (rename-in "base.rkt"
                     [in-amb*  -in-amb*]
                     [in-amb*₁ -in-amb*₁])
