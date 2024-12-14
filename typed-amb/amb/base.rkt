@@ -36,16 +36,17 @@
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
     (define (alt*-parser derived-stx)
-      (define parser
-        (syntax-parser
+      (define (parser stx)
+        (syntax-parse stx
           #:datum-literals (:)
           [(_ : t1 (clause ...) : t2 break:break-clause ... body ...+)
-           #`(#,derived-stx
+           (quasisyntax/loc stx
+             (#,derived-stx
               : (Listof (→ t1))
               (clause ...)
               : (Listof (→ t2))
               break ...
-              (ann (ann (λ () body ...) (→ t2)) (→ t1)))]
+              (ann (ann (λ () body ...) (→ t2)) (→ t1))))]
           [(~or* (name : t0 (clause ...) break:break-clause ... body ...+)
                  (name (clause ...) : t0 break:break-clause ... body ...+)
                  (name (clause ...) break:break-clause ... body ...+))
