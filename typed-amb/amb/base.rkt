@@ -51,7 +51,7 @@
                  (name (clause ...) : t0 break:break-clause ... body ...+)
                  (name (clause ...) break:break-clause ... body ...+))
            #:with t (if (attribute t0) #'t0 #'AnyValues)
-           (parser #'(name : t (clause ...) : t break ... body ...))]))
+           (parser (syntax/loc stx (name : t (clause ...) : t break ... body ...)))]))
       parser)
     (define ((make-for/amb derived-stx) stx)
       (quasisyntax/loc stx
