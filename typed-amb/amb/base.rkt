@@ -35,27 +35,25 @@
   (let ()
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define (alt*-parser derived-stx)
+    (define (make-for/amb derived-stx)
       (define (parser stx)
         (syntax-parse stx
           #:datum-literals (:)
           [(_ : t1 (clause ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
-             (#,derived-stx
-              : (Listof (→ t1))
-              (clause ...)
-              : (Listof (→ t2))
-              break ...
-              (ann (ann (λ () body ...) (→ t2)) (→ t1))))]
+             (amb*₁
+              (#,derived-stx
+               : (Listof (→ t1))
+               (clause ...)
+               : (Listof (→ t2))
+               break ...
+               (ann (ann (λ () body ...) (→ t2)) (→ t1)))))]
           [(~or* (name : t0 (clause ...) break:break-clause ... body ...+)
                  (name (clause ...) : t0 break:break-clause ... body ...+)
                  (name (clause ...) break:break-clause ... body ...+))
            #:with t (if (attribute t0) #'t0 #'AnyValues)
            (parser (syntax/loc stx (name : t (clause ...) : t break ... body ...)))]))
       parser)
-    (define ((make-for/amb derived-stx) stx)
-      (quasisyntax/loc stx
-        (amb*₁ #,((alt*-parser derived-stx) stx))))
     (values (make-for/amb #'for/list)
             (make-for/amb #'for*/list))))
 
