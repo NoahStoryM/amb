@@ -40,7 +40,12 @@
           (vector->treelist
            (for/vector #:length (length alt*) ([alt (in-list alt*)])
              (define (amb-task) (call-in-continuation k alt))
-             amb-task)))
+             amb-task))
+          ;; `for/treelist' uses `treelist-add' to create new treelists,
+          ;; so `vector->treelist' is better than it.
+          #;(for/treelist ([alt (in-list alt*)])
+              (define (amb-task) (call-in-continuation k alt))
+              amb-task))
         (if (eq? amb-push! mutable-treelist-add!)
             (mutable-treelist-append!  amb-tasks new-tasks)
             (mutable-treelist-prepend! new-tasks amb-tasks)))
