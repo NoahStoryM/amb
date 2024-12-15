@@ -28,20 +28,20 @@
 (define (schedule-amb-tasks! k alt* [amb-tasks (current-amb-tasks)])
   (define amb-push!   (current-amb-pusher))
   (define amb-shuffle (current-amb-shuffler))
-  (if (or (equal? amb-push! mutable-treelist-add!)
-          (equal? amb-push! mutable-treelist-cons!))
+  (if (or (eq? amb-push! mutable-treelist-add!)
+          (eq? amb-push! mutable-treelist-cons!))
       (let ([alt*
              (cond
-               [(equal? amb-push! mutable-treelist-add!) (amb-shuffle alt*)]
-               [(equal? amb-shuffle reverse) alt*]
-               [(equal? amb-shuffle shuffle) (shuffle alt*)]
+               [(eq? amb-push! mutable-treelist-add!) (amb-shuffle alt*)]
+               [(eq? amb-shuffle reverse) alt*]
+               [(eq? amb-shuffle shuffle) (shuffle alt*)]
                [else (amb-shuffle (reverse alt*))])])
         (define new-tasks
           (vector->treelist
            (for/vector #:length (length alt*) ([alt (in-list alt*)])
              (define (amb-task) (call-in-continuation k alt))
              amb-task)))
-        (if (equal? amb-push! mutable-treelist-add!)
+        (if (eq? amb-push! mutable-treelist-add!)
             (mutable-treelist-append!  amb-tasks new-tasks)
             (mutable-treelist-prepend! new-tasks amb-tasks)))
       (for ([alt (in-list (amb-shuffle alt*))])
