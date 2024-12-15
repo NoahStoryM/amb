@@ -33,9 +33,8 @@
       (let ([alt*
              (cond
                [(equal? amb-push! mutable-treelist-add!) (amb-shuffle alt*)]
-               [(equal? amb-shuffle shuffle) (shuffle alt*)]
                [(equal? amb-shuffle reverse) alt*]
-               [(equal? amb-shuffle values) (reverse alt*)]
+               [(equal? amb-shuffle shuffle) (shuffle alt*)]
                [else (amb-shuffle (reverse alt*))])])
         (define new-tasks
           (vector->treelist
