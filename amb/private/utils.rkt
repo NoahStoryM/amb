@@ -5,9 +5,8 @@
 
 
 (define (mutable-treelist-pop! mtl)
-  (define pos (sub1 (mutable-treelist-length mtl)))
-  (begin0 (mutable-treelist-ref mtl pos)
-    (mutable-treelist-delete! mtl pos)))
+  (begin0 (mutable-treelist-last mtl)
+    (mutable-treelist-delete! mtl (sub1 (mutable-treelist-length mtl)))))
 
 
 (struct exn:fail:contract:amb exn:fail:contract ()
