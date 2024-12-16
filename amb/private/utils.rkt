@@ -25,29 +25,31 @@
 (define current-amb-popper   (make-parameter mutable-treelist-pop!))
 
 (define (schedule-amb-tasks! k alt* [amb-tasks (current-amb-tasks)])
-  (define amb-push!   (current-amb-pusher))
   (define amb-shuffle (current-amb-shuffler))
-  (if (or (eq? amb-push! mutable-treelist-add!)
-          (eq? amb-push! mutable-treelist-cons!))
-      (let ([alt*
-             (cond
-               [(eq? amb-push! mutable-treelist-add!) (amb-shuffle alt*)]
-               [(eq? amb-shuffle reverse) alt*]
-               [(eq? amb-shuffle shuffle) (shuffle alt*)]
-               [else (reverse (amb-shuffle alt*))])])
-        (define new-tasks
-          (vector->treelist
-           (for/vector #:length (length alt*) ([alt (in-list alt*)])
-             (define (amb-task) (call-in-continuation k alt))
-             amb-task))
-          ;; `for/treelist' uses `treelist-add' to create new treelists,
-          ;; so `vector->treelist' is better than it.
-          #;(for/treelist ([alt (in-list alt*)])
+  (if (null? alt*)
+      (void (amb-shuffle '()))
+      (let ([amb-push! (current-amb-pusher)])
+        (if (or (eq? amb-push! mutable-treelist-add!)
+                (eq? amb-push! mutable-treelist-cons!))
+            (let ([alt*
+                   (cond
+                     [(eq? amb-push! mutable-treelist-add!) (amb-shuffle alt*)]
+                     [(eq? amb-shuffle reverse) alt*]
+                     [(eq? amb-shuffle shuffle) (shuffle alt*)]
+                     [else (reverse (amb-shuffle alt*))])])
+              (define new-tasks
+                (vector->treelist
+                 (for/vector #:length (length alt*) ([alt (in-list alt*)])
+                   (define (amb-task) (call-in-continuation k alt))
+                   amb-task))
+                ;; `for/treelist' uses `treelist-add' to create new treelists,
+                ;; so `vector->treelist' is better than it.
+                #;(for/treelist ([alt (in-list alt*)])
+                    (define (amb-task) (call-in-continuation k alt))
+                     amb-task))
+              (if (eq? amb-push! mutable-treelist-add!)
+                  (mutable-treelist-append!  amb-tasks new-tasks)
+                  (mutable-treelist-prepend! new-tasks amb-tasks)))
+            (for ([alt (in-list (amb-shuffle alt*))])
               (define (amb-task) (call-in-continuation k alt))
-              amb-task))
-        (if (eq? amb-push! mutable-treelist-add!)
-            (mutable-treelist-append!  amb-tasks new-tasks)
-            (mutable-treelist-prepend! new-tasks amb-tasks)))
-      (for ([alt (in-list (amb-shuffle alt*))])
-        (define (amb-task) (call-in-continuation k alt))
-        (amb-push! amb-tasks amb-task))))
+              (amb-push! amb-tasks amb-task))))))
