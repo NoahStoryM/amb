@@ -35,7 +35,7 @@
                [(eq? amb-push! mutable-treelist-add!) (amb-shuffle alt*)]
                [(eq? amb-shuffle reverse) alt*]
                [(eq? amb-shuffle shuffle) (shuffle alt*)]
-               [else (amb-shuffle (reverse alt*))])])
+               [else (reverse (amb-shuffle alt*))])])
         (define new-tasks
           (vector->treelist
            (for/vector #:length (length alt*) ([alt (in-list alt*)])
