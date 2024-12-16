@@ -102,6 +102,11 @@
      (when (< n m) (amb))
      (check-eq? n m)))
   (parameterize ([current-amb-tasks (mutable-treelist)])
+    (time
+     (for ([i 1000000]
+           [(j k) (in-amb* (λ () (for/amb ([i 1000000]) (values i (- i)))))])
+       (list i j k))))
+  (parameterize ([current-amb-tasks (mutable-treelist)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (time
      (for ([i 1000000]
