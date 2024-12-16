@@ -85,6 +85,14 @@
          [j : Integer s])
      (list i j)))
   (time
+   (: next (→ Integer Integer))
+   (define (next j) (amb j (next (add1 j))))
+   (: s (Sequenceof Integer))
+   (define s (in-amb* (λ () (for/amb ([i 1000000]) : Integer i))))
+   (for ([i : Index 1000000]
+         [j : Integer s])
+     (list i j)))
+  (time
    (: next (→ Integer Integer (Values Integer Integer)))
    (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
    (define s (in-amb* (λ () (next 0 0))))
