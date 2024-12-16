@@ -94,45 +94,45 @@
     (define (return) (k res))
     (parameterize ([current-amb-tasks (mutable-treelist)]
                    [current-amb-empty-handler return])
-      (time (check-eq? 99999 (let ([i (for/amb ([i 100000]) i)]) (set! res i) (amb))))))
+      (time (check-eq? 999999 (let ([i (for/amb ([i 1000000]) i)]) (set! res i) (amb))))))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (time
-     (define m 100000)
+     (define m 1000000)
      (define n (for/amb ([i (in-inclusive-range 0 m)]) i))
      (when (< n m) (amb))
      (check-eq? n m)))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (time
-     (define m 100000)
+     (define m 1000000)
      (define n (let next ([i 0]) (amb i (next (add1 i)))))
      (when (< n m) (amb))
      (check-eq? n m)))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (time
-     (for ([i 100000]
+     (for ([i 1000000]
            [(j k) (in-amb* (λ () (next 0 0)))])
        (list i j k))))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (define s (in-amb* (λ () (next 0 0))))
     (time
-     (for ([i 100000]
+     (for ([i 1000000]
            [(j k) s])
        (list i j k))))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (define (next j) (amb j (next (add1 j))))
     (time
-     (for ([i 100000]
+     (for ([i 1000000]
            [j (in-amb (next 0))])
        (list i j))))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (define (next j) (amb j (next (add1 j))))
     (define s (in-amb (next 0)))
     (time
-     (for ([i 100000]
+     (for ([i 1000000]
            [j s])
        (list i j))))
   (parameterize ([current-amb-shuffler values])
-    (time (for ([i (in-amb (for/amb ([i 100000]) i))]) i)))
-  (time (for ([i (in-amb (for/amb ([i 100000]) i))]) i)))
+    (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
+  (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
