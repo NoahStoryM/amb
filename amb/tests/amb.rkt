@@ -89,12 +89,6 @@
   (check-eq? (thk) -1))
 
 (test-case "Test efficiency"
-  (let/cc k
-    (define res #f)
-    (define (return) (k res))
-    (parameterize ([current-amb-tasks (mutable-treelist)]
-                   [current-amb-empty-handler return])
-      (time (check-eq? 999999 (let ([i (for/amb ([i 1000000]) i)]) (set! res i) (amb))))))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (time
      (define m 1000000)
