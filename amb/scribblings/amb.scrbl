@@ -227,9 +227,9 @@ A @tech/refer{parameter} that specifies the procedure to be called when the
 
 @defparam[current-amb-shuffler shuffle! (-> mutable-vector? void?)]{
 
-A @tech/refer{parameter} that specifies how to @racket[shuffle] @racket[alt*]
-before scheduling new @tech{amb tasks} into the current @tech{amb mtreelist}. The
-default value is @racket[reverse].
+A @tech/refer{parameter} that specifies how to shuffle @racket[alt*] before
+scheduling new @tech{amb tasks} into the current @tech{amb mtreelist}. The
+default value reverses @racket[alt*].
 }
 
 @defparam[current-amb-tasks tasks mutable-treelist?]{
