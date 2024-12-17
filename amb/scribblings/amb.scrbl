@@ -215,14 +215,14 @@ an empty @deftech{amb mtreelist}.
 
 @defparam[current-amb-popper pop! (-> mutable-treelist? (-> none/c))]{
 
-A @tech/refer{parameter} that defines the method for dequeuing an @tech{amb task}
+A @tech/refer{parameter} that defines the method for popping an @tech{amb task}
 from the current @tech{amb mtreelist}. The default value removes and returns the
 @tech{amb task} at the end of the mtreelist.
 }
 
 @defparam[current-amb-pusher push! (-> mutable-treelist? (-> none/c) void?)]{
 
-A @tech/refer{parameter} that defines the method for enqueuing an @tech{amb task}
+A @tech/refer{parameter} that defines the method for pushing an @tech{amb task}
 into the current @tech{amb mtreelist}. The default value adds the @tech{amb task}
 to the end of the mtreelist.
 }
