@@ -55,13 +55,6 @@ expressions.
 @defproc[(amb* [alt (-> any)] ...) any]{
 
 A helper procedure used by @racket[amb].
-
-Essentially, @racket[(amb* alt ...)] acts like @racket[(amb*₁ (vector alt ...))].
-}
-
-@defproc[(amb*₁ [alt* (vectorof (-> any) #:immutable #f)]) any]{
-
-A helper procedure used by @racket[amb*], @racket[for/amb] and @racket[for*/amb].
 }
 
 @deftogether[(@defform*[((for/amb maybe-length (for-clause ...) break-clause ... body ...+)
@@ -70,11 +63,8 @@ A helper procedure used by @racket[amb*], @racket[for/amb] and @racket[for*/amb]
                          (for*/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))])]{
 
 The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
-@racket[for/vector] and @racket[for*/vector], but instead of evaluating the loop body,
-they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
-
-The form @racket[(for/amb maybe-length (for-clause ...) break-clause ... body ...+)] expands
-to @racket[(amb*₁ (for/vector maybe-length (for-clause ...) break-clause ... (λ () body ...+)))].
+@racket[for/vector] and @racket[for*/vector], but instead of evaluating the loop
+body, they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
 
 @amb-examples[
 (parameterize ([current-amb-shuffler void]
@@ -182,9 +172,6 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb mtreelist}.
    (amb*)))
 (eval:error
  (parameterize ([current-amb-tasks (mutable-treelist)])
-   (amb*₁ (vector))))
-(eval:error
- (parameterize ([current-amb-tasks (mutable-treelist)])
    (for/amb ([i '()]) i)))
 (eval:error
  (parameterize ([current-amb-tasks (mutable-treelist)])
@@ -202,41 +189,28 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 ]
 }
 
-@section{Amb Tasks Management}
-
-@defproc[(schedule-amb-tasks!
-          [k continuation?]
-          [alt* (vectorof (-> any) #:immutable #f)]
-          [tasks mutable-treelist? (current-amb-tasks)])
-         void?]{
-
-Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
-adding them to @racket[tasks]. Each @tech{amb task} is a @racket[thunk] that,
-when invoked, uses @racket[call-in-continuation] to call an @tech{alternative}
-in @racket[k].
-}
-
 @section{Parameter}
 
 @defparam[current-amb-empty-handler empty-handler (-> none/c)]{
 
 A @tech/refer{parameter} that specifies the procedure to be called when the
-@tech{amb mtreelist} is empty and @racket[(amb)] is evaluated. The default value is
-@racket[raise-amb-error].
+@tech{amb mtreelist} is empty and @racket[(amb)] is evaluated. The default value
+is @racket[raise-amb-error].
 }
 
 @defparam[current-amb-shuffler shuffle! (-> mutable-vector? void?)]{
 
-A @tech/refer{parameter} that specifies how to shuffle @racket[alt*] before
+A @tech/refer{parameter} that specifies how to shuffle @tech{alternatives} before
 scheduling new @tech{amb tasks} into the current @tech{amb mtreelist}. The
-default value reverses @racket[alt*].
+default value reverses @tech{alternatives}.
 }
 
 @defparam[current-amb-tasks tasks mutable-treelist?]{
 
-A @tech/refer{parameter} that holds the mtreelist of @deftech{amb task}s to be
-evaluated, which is populated as needed by @racket[schedule-amb-tasks!]. The
-default value is an empty @deftech{amb mtreelist}.
+A @tech/refer{parameter} that holds the mtreelist of @tech{amb tasks} to be
+evaluated. Each @deftech{amb task} is a @racket[thunk] that, when invoked, uses
+@racket[call-in-continuation] to call an @tech{alternative}. The default value is
+an empty @deftech{amb mtreelist}.
 }
 
 @defparam[current-amb-popper pop! (-> mutable-treelist? (-> none/c))]{

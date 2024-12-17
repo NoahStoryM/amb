@@ -19,15 +19,13 @@
           (struct exn:fail:contract:amb
             ([message string?]
              [continuation-marks continuation-mark-set?]))
-          [amb*  (-> (-> any) ... any)]
-          [amb*₁ (-> (vectorof (-> any) #:immutable #f) any)]
+          [amb* (-> (-> any) ... any)]
           [raise-amb-error (-> none/c)]
           [current-amb-empty-handler (parameter/c (-> none/c))]
           [current-amb-shuffler (parameter/c (-> mutable-vector? void?))]
           [current-amb-tasks    (parameter/c mutable-treelist?)]
           [current-amb-pusher   (parameter/c (-> mutable-treelist? (-> none/c) void?))]
-          [current-amb-popper   (parameter/c (-> mutable-treelist? (-> none/c)))]
-          [schedule-amb-tasks!  (->* (continuation? (vectorof (-> any) #:immutable #f)) (mutable-treelist?) void?)]))
+          [current-amb-popper   (parameter/c (-> mutable-treelist? (-> none/c)))]))
 
 
 (define (check-thk thk)

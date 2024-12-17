@@ -37,7 +37,7 @@
 (define current-amb-pusher   (make-parameter mutable-treelist-add!))
 (define current-amb-popper   (make-parameter mutable-treelist-pop!))
 
-(define (schedule-amb-tasks! k alt* [tasks (current-amb-tasks)])
+(define (schedule-amb-tasks! k alt* tasks)
   (define shuffle! (current-amb-shuffler))
   (if (= 0 (vector-length alt*))
       (shuffle! alt*)

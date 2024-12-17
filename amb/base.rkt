@@ -17,8 +17,7 @@
          current-amb-shuffler
          current-amb-tasks
          current-amb-pusher
-         current-amb-popper
-         schedule-amb-tasks!)
+         current-amb-popper)
 
 
 (define (amb*₁ alt*)
@@ -35,7 +34,7 @@
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)
-     (syntax/loc stx (amb* (λ () expr) ...))]))
+     (syntax/loc stx (amb*₁ (vector (λ () expr) ...)))]))
 
 
 (define-syntaxes (for/amb for*/amb)

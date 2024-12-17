@@ -3,7 +3,7 @@
 (require (for-syntax racket/base syntax/parse)
          "base.rkt")
 
-(provide amb amb* amb*₁
+(provide amb amb*
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb₁ in-amb*₁
@@ -13,8 +13,7 @@
          current-amb-shuffler
          current-amb-tasks
          current-amb-pusher
-         current-amb-popper
-         schedule-amb-tasks!)
+         current-amb-popper)
 
 
 (define-sequence-syntax *in-amb*

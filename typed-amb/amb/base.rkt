@@ -8,8 +8,8 @@
 
 (unsafe-require/typed/provide amb/base
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
-  [amb*  (∀ (a ...) (case→ (→      Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
-  [amb*₁ (∀ (a ...) (case→ (→ Null Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
+  [amb*  (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
+  [amb*₁ (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*  (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [raise-amb-error (→ Nothing)]
@@ -17,11 +17,7 @@
   [current-amb-shuffler (Parameter (∀ (a) (→ (Mutable-Vectorof a) Void)))]
   [current-amb-tasks    (Parameter (Mutable-TreeListof (→ Nothing) (→ Nothing)))]
   [current-amb-pusher   (Parameter (→ (Mutable-TreeListof (→ Nothing) Any) (→ Nothing) Void))]
-  [current-amb-popper   (Parameter (→ (Mutable-TreeListof Nothing (→ Nothing)) (→ Nothing)))]
-  [schedule-amb-tasks!  (∀ (a ...)
-                           (→* ((→ a ... a Nothing) (Mutable-Vectorof (→ (Values a ... a))))
-                               ((Mutable-TreeListof (→ Nothing) Any))
-                               Void))])
+  [current-amb-popper   (Parameter (→ (Mutable-TreeListof Nothing (→ Nothing)) (→ Nothing)))])
 
 
 (define-syntax (amb stx)
