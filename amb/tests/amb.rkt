@@ -117,7 +117,7 @@
     (define s (in-amb* (λ () (next 0 0))))
     (time
      (for ([i 1000000]
-           [(j k) s])
+           [(j k) (in-stream s)])
        (list i j k))))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (define (next j) (amb j (next (add1 j))))
@@ -130,8 +130,14 @@
     (define s (in-amb (next 0)))
     (time
      (for ([i 1000000]
-           [j s])
+           [j (in-stream s)])
        (list i j))))
   (parameterize ([current-amb-shuffler values])
+    (define s (in-amb (for/amb ([i 1000000]) i)))
+    (time (for ([i (in-stream s)]) i)))
+  (parameterize ([current-amb-shuffler values])
     (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
+  (let ()
+    (define s (in-amb (for/amb ([i 1000000]) i)))
+    (time (for ([i (in-stream s)]) i)))
   (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
