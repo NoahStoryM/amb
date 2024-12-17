@@ -34,7 +34,7 @@
                    (2 4 6)))))
   (test-case "BFS"
     (parameterize ([current-amb-tasks    (mutable-treelist)]
-                   [current-amb-shuffler values]
+                   [current-amb-shuffler void]
                    [current-amb-pusher   mutable-treelist-cons!])
       (check-equal?
        (thk)
@@ -74,7 +74,7 @@
   (define (thk)
     (parameterize ([current-amb-tasks (mutable-treelist)])
       (let-values ([(x y)
-                    (for/amb ([v '([2 9] [9 2])])
+                    (for/amb #:length 2 ([v '([2 9] [9 2])])
                       (apply values v))])
         (when (> x y) (amb))
         (list x y))))
@@ -91,8 +91,13 @@
 (test-case "Test efficiency"
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (time
+     (define m 10000000)
+     (define n (for/amb #:length m ([i (in-range m)]) i))
+     (void)))
+  (parameterize ([current-amb-tasks (mutable-treelist)])
+    (time
      (define m 1000000)
-     (define n (for/amb ([i (in-inclusive-range 0 m)]) i))
+     (define n (for/amb #:length (add1 m) ([i (in-inclusive-range 0 m)]) i))
      (when (< n m) (amb))
      (check-eq? n m)))
   (parameterize ([current-amb-tasks (mutable-treelist)])
@@ -104,7 +109,7 @@
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (time
      (for ([i 1000000]
-           [(j k) (in-amb* (λ () (for/amb ([i 1000000]) (values i (- i)))))])
+           [(j k) (in-amb* (λ () (for/amb #:length 1000000 ([i 1000000]) (values i (- i)))))])
        (list i j k))))
   (parameterize ([current-amb-tasks (mutable-treelist)])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
@@ -132,12 +137,12 @@
      (for ([i 1000000]
            [j (in-stream s)])
        (list i j))))
-  (parameterize ([current-amb-shuffler values])
-    (define s (in-amb (for/amb ([i 1000000]) i)))
+  (parameterize ([current-amb-shuffler void])
+    (define s (in-amb (for/amb #:length 1000000([i 1000000]) i)))
     (time (for ([i (in-stream s)]) i)))
-  (parameterize ([current-amb-shuffler values])
-    (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
+  (parameterize ([current-amb-shuffler void])
+    (time (for ([i (in-amb (for/amb #:length 1000000([i 1000000]) i))]) i)))
   (let ()
-    (define s (in-amb (for/amb ([i 1000000]) i)))
+    (define s (in-amb (for/amb #:length 1000000([i 1000000]) i)))
     (time (for ([i (in-stream s)]) i)))
-  (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
+  (time (for ([i (in-amb (for/amb #:length 1000000([i 1000000]) i))]) i)))

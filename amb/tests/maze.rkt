@@ -32,6 +32,5 @@
         (solve-maze x y (cons pos path) (cons dir dir*)))))
 
 
-(parameterize ([current-amb-shuffler shuffle])
-  (for ([ans (in-amb (solve-maze 0 0 '() '()))])
-    (pretty-print ans)))
+(for ([ans (in-amb (solve-maze 0 0 '() '()))])
+  (pretty-print ans))

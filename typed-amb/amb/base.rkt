@@ -8,18 +8,18 @@
 
 (unsafe-require/typed/provide amb/base
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
-  [amb*  (∀ (a ...) (case→ (→      Nothing) (→         (→ (Values a ... a)) * (Values a ... a))))]
-  [amb*₁ (∀ (a ...) (case→ (→ Null Nothing) (→ (Listof (→ (Values a ... a)))  (Values a ... a))))]
+  [amb*  (∀ (a ...) (case→ (→      Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
+  [amb*₁ (∀ (a ...) (case→ (→ Null Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*  (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
-  [current-amb-shuffler (Parameter (∀ (a) (→ (Listof a) (Listof a))))]
+  [current-amb-shuffler (Parameter (∀ (a) (→ (Mutable-Vectorof a) Void)))]
   [current-amb-tasks    (Parameter (Mutable-TreeListof (→ Nothing) (→ Nothing)))]
   [current-amb-pusher   (Parameter (→ (Mutable-TreeListof (→ Nothing) Any) (→ Nothing) Void))]
   [current-amb-popper   (Parameter (→ (Mutable-TreeListof Nothing (→ Nothing)) (→ Nothing)))]
   [schedule-amb-tasks!  (∀ (a ...)
-                           (→* ((→ a ... a Nothing) (Listof (→ (Values a ... a))))
+                           (→* ((→ a ... a Nothing) (Mutable-Vectorof (→ (Values a ... a))))
                                ((Mutable-TreeListof (→ Nothing) Any))
                                Void))])
 
@@ -33,29 +33,45 @@
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
+    (define-splicing-syntax-class length-clause
+      [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
     (define (make-for/amb derived-stx)
       (define (parser stx)
         (syntax-parse stx
           #:datum-literals (:)
-          [(_ : t1 (clause ...) : t2 break:break-clause ... body ...+)
+          [(_ : t1 #:length n #:fill fill (clauses ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
              (amb*₁
               (#,derived-stx
-               : (Listof (→ t1))
-               (clause ...)
-               : (Listof (→ t2))
+               : (Mutable-Vectorof (→ t1))
+               #:length n
+               #:fill (ann (λ () : t2 fill) (→ t1))
+               (clauses ...)
+               : (→ t2)
                break ...
-               (ann (ann (λ () body ...) (→ t2)) (→ t1)))))]
-          [(~or* (name : t0 (clause ...) break:break-clause ... body ...+)
-                 (name (clause ...) : t0 break:break-clause ... body ...+)
-                 (name (clause ...) break:break-clause ... body ...+))
+               (ann (λ () : t2 body ...) (→ t1)))))]
+          [(name : t1 #:length n (clauses ...) : t2 break:break-clause ... body ...+)
+           (parser (syntax/loc stx (name : t1 #:length n #:fill 0 (clauses ...) : t2 break ... body ...)) )]
+          [(name : t1 (clauses ...) : t2 break:break-clause ... body ...+)
+           (quasisyntax/loc stx
+             (amb*₁
+              (#,derived-stx
+               : (Mutable-Vectorof (→ t1))
+               (clauses ...)
+               : (→ t2)
+               break ...
+               (ann (λ () : t2 body ...) (→ t1)))))]
+          [(~or* (name : t0 (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+)
+                 (name (~optional length:length-clause) (clauses ...) : t0 break:break-clause ... body ...+)
+                 (name (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+))
            #:with t (if (attribute t0) #'t0 #'AnyValues)
-           (parser (syntax/loc stx (name : t (clause ...) : t break ... body ...)))]))
+           #:with (maybe-length ...) (if (attribute length) #'length #'())
+           (parser (syntax/loc stx (name : t maybe-length ... (clauses ...) : t break ... body ...)))]))
       parser)
-    (values (make-for/amb #'for/list)
-            (make-for/amb #'for*/list))))
+    (values (make-for/amb #'for/vector)
+            (make-for/amb #'for*/vector))))
 
 
 (define-syntaxes (in-amb in-amb₁)

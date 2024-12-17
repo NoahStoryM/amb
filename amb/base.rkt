@@ -22,14 +22,14 @@
 
 
 (define (amb*₁ alt*)
-  (define amb-tasks (current-amb-tasks))
+  (define tasks (current-amb-tasks))
   (let/cc k
-    (schedule-amb-tasks! k alt* amb-tasks)
-    (if (= (mutable-treelist-length amb-tasks) 0)
+    (schedule-amb-tasks! k alt* tasks)
+    (if (= (mutable-treelist-length tasks) 0)
         ((current-amb-empty-handler))
-        (((current-amb-popper) amb-tasks)))))
+        (((current-amb-popper) tasks)))))
 
-(define (amb* . alt*) (amb*₁ alt*))
+(define (amb* . alt*) (amb*₁ (list->vector alt*)))
 
 (define-syntax (amb stx)
   (syntax-parse stx
@@ -44,35 +44,42 @@
       [pattern (~seq (~or* #:break #:final) guard:expr)])
     (define ((make-for/amb derived-stx) stx)
       (syntax-parse stx
-        [(_ (clause ...) break:break-clause ... body ...+)
+        #:datum-literals ()
+        [(_ #:length n #:fill fill (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (amb*₁ (#,derived-stx (clause ...) break ... (λ () body ...))))]))
-    (values (make-for/amb #'for/list)
-            (make-for/amb #'for*/list))))
+           (amb*₁ (#,derived-stx #:length n #:fill (λ () fill) (clauses ...) break ... (λ () body ...))))]
+        [(_ #:length n (clauses ...) break:break-clause ... body ...+)
+         (quasisyntax/loc stx
+           (amb*₁ (#,derived-stx #:length n #:fill (λ () 0) (clauses ...) break ... (λ () body ...))))]
+        [(_ (clauses ...) break:break-clause ... body ...+)
+         (quasisyntax/loc stx
+           (amb*₁ (#,derived-stx (clauses ...) break ... (λ () body ...))))]))
+    (values (make-for/amb #'for/vector)
+            (make-for/amb #'for*/vector))))
 
 
 (define (in-amb* thk)
   (define return unsafe-undefined)
   (define (call . v*) (apply return v*))
   (define (amb-task) (call-with-values thk call))
-  (define amb-tasks (mutable-treelist amb-task))
+  (define tasks (mutable-treelist amb-task))
   (define break unsafe-undefined)
-  (define (amb-empty-handler) (break #t))
+  (define (empty-handler) (break #t))
   (for/stream ([_ (in-naturals)])
     #:break (let/cc k (set! break k) #f)
     (let/cc k
       (set! return k)
-      (parameterize ([current-amb-tasks         amb-tasks]
-                     [current-amb-empty-handler amb-empty-handler])
+      (parameterize ([current-amb-tasks         tasks]
+                     [current-amb-empty-handler empty-handler])
         (amb)))))
 
 (define (in-amb*₁ thk)
   (define return unsafe-undefined)
   (define (call . v*) (apply return v*))
   (define (amb-task) (call-with-values thk call))
-  (define amb-tasks (mutable-treelist amb-task))
+  (define tasks (mutable-treelist amb-task))
   (define continue unsafe-undefined)
-  (define (amb-empty-handler) (continue #f))
+  (define (empty-handler) (continue #f))
   (make-do-sequence
    (λ ()
      (initiate-sequence
@@ -84,8 +91,8 @@
       (λ (_)
         (let/cc k
           (set! return k)
-          (parameterize ([current-amb-tasks         amb-tasks]
-                         [current-amb-empty-handler amb-empty-handler])
+          (parameterize ([current-amb-tasks         tasks]
+                         [current-amb-empty-handler empty-handler])
             (amb))))))))
 
 (define-syntaxes (in-amb in-amb₁)

@@ -76,6 +76,11 @@
      '(1 2 3 x y))))
 
 (test-case "Test efficiency"
+  (parameterize ([current-amb-tasks (mutable-treelist)])
+    (time
+     (define m 10000000)
+     (define n (for/amb #:length m ([i (in-range m)]) : Integer i))
+     (void)))
   (time
    (: next (→ Integer Integer))
    (define (next j) (amb j (next (add1 j))))
@@ -88,7 +93,7 @@
    (: next (→ Integer Integer))
    (define (next j) (amb j (next (add1 j))))
    (: s (Sequenceof Integer))
-   (define s (in-amb* (λ () (for/amb ([i 1000000]) : Integer i))))
+   (define s (in-amb* (λ () (for/amb #:length 1000000 ([i 1000000]) : Integer i))))
    (for ([i : Index 1000000]
          [j : Integer s])
      (list i j)))
@@ -118,6 +123,6 @@
    (for ([i : Index 1000000]
          [([j : Integer] k) (in-amb (next 0 0))])
      (list i j k)))
-  (parameterize ([current-amb-shuffler (λ (v) v)])
-    (time (for ([i (in-amb (for/amb ([i 1000000]) : Index i))]) i)))
-  (time (for ([i (in-amb (for/amb : Index ([i 1000000]) i))]) i)))
+  (parameterize ([current-amb-shuffler (λ (v) (void))])
+    (time (for ([i (in-amb (for/amb #:length 1000000 ([i 1000000]) : Index i))]) i)))
+  (time (for ([i (in-amb (for/amb : Index #:length 1000000 ([i 1000000]) i))]) i)))

@@ -2,6 +2,7 @@
 
 (require (for-syntax racket/base syntax/parse)
          racket/contract
+         racket/mutability
          racket/mutable-treelist)
 (require (rename-in "base.rkt"
                     [in-amb*  -in-amb*]
@@ -19,14 +20,14 @@
             ([message string?]
              [continuation-marks continuation-mark-set?]))
           [amb*  (-> (-> any) ... any)]
-          [amb*₁ (-> (listof (-> any)) any)]
+          [amb*₁ (-> (vectorof (-> any) #:immutable #f) any)]
           [raise-amb-error (-> none/c)]
           [current-amb-empty-handler (parameter/c (-> none/c))]
-          [current-amb-shuffler (parameter/c (-> list? list?))]
+          [current-amb-shuffler (parameter/c (-> mutable-vector? void?))]
           [current-amb-tasks    (parameter/c mutable-treelist?)]
           [current-amb-pusher   (parameter/c (-> mutable-treelist? (-> none/c) void?))]
           [current-amb-popper   (parameter/c (-> mutable-treelist? (-> none/c)))]
-          [schedule-amb-tasks!  (->* (continuation? (listof (-> any))) (mutable-treelist?) void?)]))
+          [schedule-amb-tasks!  (->* (continuation? (vectorof (-> any) #:immutable #f)) (mutable-treelist?) void?)]))
 
 
 (define (check-thk thk)

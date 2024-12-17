@@ -1,10 +1,10 @@
 #lang scribble/manual
 
 @(require (for-label racket/base
-                     racket/list
                      racket/function
                      racket/contract
                      racket/stream
+                     racket/mutability
                      racket/mutable-treelist
                      syntax/parse
                      amb)
@@ -39,7 +39,7 @@ expressions.
          (displayln (list x y z))
          (amb))))))
 (eval:error
- (parameterize ([current-amb-shuffler values]
+ (parameterize ([current-amb-shuffler void]
                 [current-amb-tasks    (mutable-treelist)]
                 [current-amb-pusher   mutable-treelist-cons!])
    (let ([x (amb 1 2)])
@@ -55,27 +55,33 @@ expressions.
 @defproc[(amb* [alt (-> any)] ...) any]{
 
 A helper procedure used by @racket[amb].
+
+Essentially, @racket[(amb* alt ...)] acts like @racket[(amb*₁ (vector alt ...))].
 }
 
-@deftogether[(@defform*[((for/amb (for-clause ...) break-clause ... body ...+)
-                         (for/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))]
-              @defform*[((for*/amb (for-clause ...) break-clause ... body ...+)
-                         (for*/amb type-ann-maybe (for-clause ...) type-ann-maybe expr ...+))])]{
+@defproc[(amb*₁ [alt* (vectorof (-> any) #:immutable #f)]) any]{
+
+A helper procedure used by @racket[amb*], @racket[for/amb] and @racket[for*/amb].
+}
+
+@deftogether[(@defform*[((for/amb maybe-length (for-clause ...) break-clause ... body ...+)
+                         (for/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))]
+              @defform*[((for*/amb maybe-length (for-clause ...) break-clause ... body ...+)
+                         (for*/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))])]{
 
 The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
-@racket[for/list] and @racket[for*/list], but instead of evaluating the loop body,
+@racket[for/vector] and @racket[for*/vector], but instead of evaluating the loop body,
 they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
 
-The form @racket[(for/amb (for-clause ...) break-clause ... body ...+)] expands
-to @racket[(apply amb* (for/list (for-clause ...) break-clause ... (λ () body ...+)))].
+The form @racket[(for/amb maybe-length (for-clause ...) break-clause ... body ...+)] expands
+to @racket[(amb*₁ (for/vector maybe-length (for-clause ...) break-clause ... (λ () body ...+)))].
 
 @amb-examples[
-(require racket/list)
-(parameterize ([current-amb-shuffler shuffle]
+(parameterize ([current-amb-shuffler void]
                [current-amb-tasks    (mutable-treelist)]
                [current-amb-pusher   mutable-treelist-cons!])
   (define x (let next ([i 0]) (amb (next (add1 i)) i)))
-  (define y (for/amb ([i 3]) i))
+  (define y (for/amb #:length 3 ([i 3]) i))
   (unless (< x 2) (amb))
   (displayln (cons x y))
   (unless (= (+ x y) 3) (amb)))
@@ -89,7 +95,7 @@ to @racket[(apply amb* (for/list (for-clause ...) break-clause ... (λ () body .
   (parameterize ([current-amb-tasks (mutable-treelist)]
                  [current-amb-empty-handler break])
     (define-values (x y)
-      (for*/amb ([i 3] [j 3])
+      (for*/amb #:length 3 #:fill (values -1 -1) ([i 3] [j 3])
         (values i j)))
     (unless (> x y) (amb))
     (displayln (cons x y))
@@ -176,6 +182,9 @@ Raised when evaluating @racket[(amb)] with an empty @tech{amb mtreelist}.
    (amb*)))
 (eval:error
  (parameterize ([current-amb-tasks (mutable-treelist)])
+   (amb*₁ (vector))))
+(eval:error
+ (parameterize ([current-amb-tasks (mutable-treelist)])
    (for/amb ([i '()]) i)))
 (eval:error
  (parameterize ([current-amb-tasks (mutable-treelist)])
@@ -197,26 +206,26 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 
 @defproc[(schedule-amb-tasks!
           [k continuation?]
-          [alt* (listof (-> any))]
-          [amb-tasks mutable-treelist? (current-amb-tasks)])
+          [alt* (vectorof (-> any) #:immutable #f)]
+          [tasks mutable-treelist? (current-amb-tasks)])
          void?]{
 
 Schedules new @tech{amb tasks} for all @tech{alternatives} in @racket[alt*],
-adding them to @racket[amb-tasks]. Each @tech{amb task} is a @racket[thunk] that,
+adding them to @racket[tasks]. Each @tech{amb task} is a @racket[thunk] that,
 when invoked, uses @racket[call-in-continuation] to call an @tech{alternative}
 in @racket[k].
 }
 
 @section{Parameter}
 
-@defparam[current-amb-empty-handler amb-empty-handler (-> none/c)]{
+@defparam[current-amb-empty-handler empty-handler (-> none/c)]{
 
 A @tech/refer{parameter} that specifies the procedure to be called when the
 @tech{amb mtreelist} is empty and @racket[(amb)] is evaluated. The default value is
 @racket[raise-amb-error].
 }
 
-@defparam[current-amb-shuffler amb-shuffler (-> list? list?)]{
+@defparam[current-amb-shuffler shuffle! (-> mutable-vector? void?)]{
 
 A @tech/refer{parameter} that specifies how to @racket[shuffle] @racket[alt*]
 before scheduling new @tech{amb tasks} into the current @tech{amb mtreelist}. The
