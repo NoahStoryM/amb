@@ -6,7 +6,7 @@
 
 (provide amb amb* amb*₁ for/amb for*/amb in-amb in-amb₁)
 
-(unsafe-require/typed/provide amb/base
+(unsafe-require/typed/provide amb/core
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
   [amb*  (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
   [amb*₁ (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]

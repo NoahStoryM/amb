@@ -4,10 +4,10 @@
          racket/contract
          racket/mutability
          racket/mutable-treelist)
-(require (rename-in "base.rkt"
+(require (rename-in "core.rkt"
                     [in-amb*  -in-amb*]
                     [in-amb*₁ -in-amb*₁])
-         (contract-in "base.rkt"
+         (contract-in "core.rkt"
                       [in-amb*  (-> (-> any) sequence?)]
                       [in-amb*₁ (-> (-> any) sequence?)]))
 
