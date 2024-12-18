@@ -54,7 +54,7 @@ expressions.
 
 @defproc[(amb* [alt (-> any)] ...) any]{
 
-A helper procedure used by @racket[amb].
+The backend of @racket[amb].
 }
 
 @deftogether[(@defform*[((for/amb maybe-length (for-clause ...) break-clause ... body ...+)
@@ -110,8 +110,8 @@ body, they wrap each iteration as a @racket[thunk] to create @deftech{alternativ
 
 Constructs a @tech/refer{stream} from the results of evaluating the ambiguous
 expression @racket[expr], allowing for lazy evaluation of results. The
-@racket[in-amb] form automatically creates a new @tech{amb mtreelist}, so there is no
-need to worry about affecting calls to other @racket[amb] expressions.
+@racket[in-amb] form automatically creates a new @tech{amb mtreelist}, so there
+is no need to worry about affecting calls to other @racket[amb] expressions.
 
 The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 
@@ -145,7 +145,7 @@ that produces as many results as needed.
 
 @defproc[(in-amb* [thk (-> any)]) stream?]{
 
-A helper procedure used by @racket[in-amb].
+The backend of @racket[in-amb].
 }
 
 @amb-examples[
