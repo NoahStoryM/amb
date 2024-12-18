@@ -1,7 +1,7 @@
 #lang typed/racket/base
 
-(require (for-syntax racket/base syntax/parse)
-         "core.rkt")
+(require "core.rkt"
+         (for-syntax racket/base syntax/parse))
 
 (provide amb amb*
          for/amb for*/amb
