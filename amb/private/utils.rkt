@@ -1,8 +1,6 @@
 #lang racket/base
 
-(require racket/treelist
-         racket/mutable-treelist
-         racket/vector)
+(require racket/mutable-treelist)
 (provide (all-defined-out))
 
 
@@ -36,29 +34,3 @@
 (define current-amb-tasks    (make-parameter (mutable-treelist)))
 (define current-amb-pusher   (make-parameter mutable-treelist-add!))
 (define current-amb-popper   (make-parameter mutable-treelist-pop!))
-
-(define (schedule-amb-tasks! k alt* tasks)
-  (define shuffle! (current-amb-shuffler))
-  (if (= 0 (vector-length alt*))
-      (shuffle! alt*)
-      (let ([push! (current-amb-pusher)])
-        (define (alt->amb-task alt)
-          (define (amb-task) (call-in-continuation k alt))
-          amb-task)
-        (cond
-          [(or (eq? push! mutable-treelist-add!)
-               (eq? push! mutable-treelist-cons!))
-           (cond
-             [(eq? push! mutable-treelist-add!) (shuffle! alt*)]
-             [(eq? shuffle! vector-reverse!) (void)]
-             #;[(eq? shuffle! vector-shuffle!) (shuffle! alt*)]
-             [else (shuffle! alt*) (vector-reverse! alt*)])
-           (vector-map! alt->amb-task alt*)
-           (define new-tasks (vector->treelist alt*))
-           (if (eq? push! mutable-treelist-add!)
-               (mutable-treelist-append!  tasks new-tasks)
-               (mutable-treelist-prepend! new-tasks tasks))]
-          [else
-           (shuffle! alt*)
-           (for ([alt (in-vector alt*)])
-             (push! tasks (alt->amb-task alt)))]))))

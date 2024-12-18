@@ -3,8 +3,10 @@
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
          racket/mutable-treelist
+         racket/treelist
          racket/sequence
          racket/stream
+         racket/vector
          racket/unsafe/undefined)
 
 (provide amb amb* amb*₁
@@ -18,6 +20,33 @@
          current-amb-tasks
          current-amb-pusher
          current-amb-popper)
+
+
+(define (schedule-amb-tasks! k alt* tasks)
+  (define shuffle! (current-amb-shuffler))
+  (if (= 0 (vector-length alt*))
+      (shuffle! alt*)
+      (let ([push! (current-amb-pusher)])
+        (define (alt->amb-task alt)
+          (define (amb-task) (call-in-continuation k alt))
+          amb-task)
+        (cond
+          [(or (eq? push! mutable-treelist-add!)
+               (eq? push! mutable-treelist-cons!))
+           (cond
+             [(eq? push! mutable-treelist-add!) (shuffle! alt*)]
+             [(eq? shuffle! vector-reverse!) (void)]
+             #;[(eq? shuffle! vector-shuffle!) (shuffle! alt*)]
+             [else (shuffle! alt*) (vector-reverse! alt*)])
+           (vector-map! alt->amb-task alt*)
+           (define new-tasks (vector->treelist alt*))
+           (if (eq? push! mutable-treelist-add!)
+               (mutable-treelist-append!  tasks new-tasks)
+               (mutable-treelist-prepend! new-tasks tasks))]
+          [else
+           (shuffle! alt*)
+           (for ([alt (in-vector alt*)])
+             (push! tasks (alt->amb-task alt)))]))))
 
 
 (define (amb*₁ alt*)
@@ -71,7 +100,8 @@
         (alt)))
     (define s
       (for/stream ([_ (in-naturals)])
-        #:break (let/cc k (set! break k) #f)
+        #:break
+        (let/cc k (set! break k) #f)
         (let/cc k (set! return k) ((wrap amb*)))))
     (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) sync)))
 
