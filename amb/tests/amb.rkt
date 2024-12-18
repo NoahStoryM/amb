@@ -7,6 +7,8 @@
          rackunit)
 (require "../main.rkt")
 
+(displayln "Test `amb.rkt'")
+
 (let ()
   (define (thk)
     (let/cc k

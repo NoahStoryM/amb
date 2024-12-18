@@ -60,55 +60,42 @@
 (define (in-amb* thk)
   (let/cc return
     (define (call . v*) (apply return v*))
-    (define goto unsafe-undefined)
-    (define (amb-task) (call-in-continuation goto thk))
+    (define exit unsafe-undefined)
+    (define (amb-task) (call-in-continuation exit thk))
     (define tasks (mutable-treelist amb-task))
     (define break unsafe-undefined)
     (define (empty-handler) (break #t))
+    (define ((wrap alt))
+      (parameterize ([current-amb-tasks         tasks]
+                     [current-amb-empty-handler empty-handler])
+        (alt)))
     (define s
       (for/stream ([_ (in-naturals)])
         #:break (let/cc k (set! break k) #f)
-        (let/cc k
-          (set! return k)
-          (parameterize ([current-amb-tasks         tasks]
-                         [current-amb-empty-handler empty-handler])
-            (amb)))))
-    (call-with-values
-     (λ ()
-       (parameterize ([current-amb-tasks         tasks]
-                      [current-amb-empty-handler empty-handler])
-         (let/cc k (set! goto k) s)))
-     call)))
+        (let/cc k (set! return k) ((wrap amb*)))))
+    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) call)))
 
 (define (in-amb*₁ thk)
   (let/cc return
     (define (call . v*) (apply return v*))
-    (define goto unsafe-undefined)
-    (define (amb-task) (call-in-continuation goto thk))
+    (define exit unsafe-undefined)
+    (define (amb-task) (call-in-continuation exit thk))
     (define tasks (mutable-treelist amb-task))
     (define continue unsafe-undefined)
     (define (empty-handler) (continue #f))
+    (define ((wrap alt))
+      (parameterize ([current-amb-tasks         tasks]
+                     [current-amb-empty-handler empty-handler])
+        (alt)))
     (define s
       (make-do-sequence
        (λ ()
          (initiate-sequence
           #:init-pos 0
           #:next-pos add1
-          #:continue-with-pos?
-          (λ (_) (let/cc k (set! continue k) #t))
-          #:pos->element
-          (λ (_)
-            (let/cc k
-              (set! return k)
-              (parameterize ([current-amb-tasks         tasks]
-                             [current-amb-empty-handler empty-handler])
-                (amb))))))))
-    (call-with-values
-     (λ ()
-       (parameterize ([current-amb-tasks         tasks]
-                      [current-amb-empty-handler empty-handler])
-         (let/cc k (set! goto k) s)))
-     call)))
+          #:continue-with-pos? (λ (_) (let/cc k (set! continue k) #t))
+          #:pos->element       (λ (_) (let/cc k (set! return k) ((wrap amb*))))))))
+    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) call)))
 
 (define-syntaxes (in-amb in-amb₁)
   (let ()
