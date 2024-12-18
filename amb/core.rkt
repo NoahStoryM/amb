@@ -53,7 +53,7 @@
   (define tasks (current-amb-tasks))
   (let/cc k
     (schedule-amb-tasks! k alt* tasks)
-    (if (= (mutable-treelist-length tasks) 0)
+    (if (= 0 (mutable-treelist-length tasks))
         ((current-amb-empty-handler))
         (((current-amb-popper) tasks)))))
 

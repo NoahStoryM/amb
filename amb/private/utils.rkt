@@ -6,10 +6,10 @@
 
 (define (vector-reverse! v)
   (define len (vector-length v))
-  (when (>= len 2)
+  (when (<= 2 len)
     (for ([i (in-range 0 len)]
           [j (in-range (sub1 len) -1 -1)])
-      #:final (<= (- j i) 2)
+      #:final (>= 2 (- j i))
       (define vi (vector-ref v i))
       (define vj (vector-ref v j))
       (vector-set! v i vj)
