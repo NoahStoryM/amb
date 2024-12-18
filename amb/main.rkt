@@ -50,7 +50,8 @@
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
-     (syntax/loc stx (-in-amb* (λ () expr)))]))
+     (syntax/loc stx
+       (-in-amb* (λ () expr)))]))
 
 (define-sequence-syntax *in-amb
   in-amb
@@ -67,4 +68,5 @@
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
-     (syntax/loc stx (in-amb*₁ (λ () expr)))]))
+     (syntax/loc stx
+       (in-amb*₁ (λ () expr)))]))

@@ -23,14 +23,16 @@
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
-         [(id ...) (in-amb*₁ expr)])])))
+         [(id ...)
+          (in-amb*₁ expr)])])))
 
 
 (define-for-syntax (in-amb stx)
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
-     (syntax/loc stx (in-amb* (λ () expr)))]))
+     (syntax/loc stx
+       (in-amb* (λ () expr)))]))
 
 (define-sequence-syntax *in-amb
   in-amb
@@ -39,11 +41,13 @@
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
-         [(id ...) (in-amb*₁ (λ () expr))])])))
+         [(id ...)
+          (in-amb*₁ (λ () expr))])])))
 
 
 (define-syntax (in-amb₁ stx)
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
-     (syntax/loc stx (in-amb*₁ (λ () expr)))]))
+     (syntax/loc stx
+       (in-amb*₁ (λ () expr)))]))
