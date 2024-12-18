@@ -59,7 +59,7 @@
 
 (define (in-amb* thk)
   (let/cc return
-    (define (call . v*) (apply return v*))
+    (define (sync . v*) (apply return v*))
     (define exit unsafe-undefined)
     (define (amb-task) (call-in-continuation exit thk))
     (define tasks (mutable-treelist amb-task))
@@ -73,11 +73,11 @@
       (for/stream ([_ (in-naturals)])
         #:break (let/cc k (set! break k) #f)
         (let/cc k (set! return k) ((wrap amb*)))))
-    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) call)))
+    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) sync)))
 
 (define (in-amb*₁ thk)
   (let/cc return
-    (define (call . v*) (apply return v*))
+    (define (sync . v*) (apply return v*))
     (define exit unsafe-undefined)
     (define (amb-task) (call-in-continuation exit thk))
     (define tasks (mutable-treelist amb-task))
@@ -95,7 +95,7 @@
           #:next-pos add1
           #:continue-with-pos? (λ (_) (let/cc k (set! continue k) #t))
           #:pos->element       (λ (_) (let/cc k (set! return k) ((wrap amb*))))))))
-    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) call)))
+    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) sync)))
 
 (define-syntaxes (in-amb in-amb₁)
   (let ()
