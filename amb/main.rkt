@@ -22,10 +22,12 @@
           [amb* (-> (-> any) ... any)]
           [raise-amb-error (-> none/c)]
           [current-amb-empty-handler (parameter/c (-> none/c))]
+          [current-amb-maker (parameter/c (-> (-> none/c) ... sequence?))]
+          [current-amb-tasks (parameter/c sequence?)]
           [current-amb-shuffler (parameter/c (-> mutable-vector? void?))]
-          [current-amb-tasks    (parameter/c mutable-treelist?)]
-          [current-amb-pusher   (parameter/c (-> mutable-treelist? (-> none/c) void?))]
-          [current-amb-popper   (parameter/c (-> mutable-treelist? (-> none/c)))]))
+          [current-amb-length (parameter/c (-> sequence? exact-nonnegative-integer?))]
+          [current-amb-pusher (parameter/c (-> sequence? (-> none/c) void?))]
+          [current-amb-popper (parameter/c (-> sequence? (-> none/c)))]))
 
 
 (define (check-thk thk)

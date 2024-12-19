@@ -16,8 +16,10 @@
          (struct-out exn:fail:contract:amb)
          raise-amb-error
          current-amb-empty-handler
-         current-amb-shuffler
+         current-amb-maker
          current-amb-tasks
+         current-amb-shuffler
+         current-amb-length
          current-amb-pusher
          current-amb-popper)
 
@@ -53,7 +55,7 @@
   (define tasks (current-amb-tasks))
   (let/cc k
     (schedule-amb-tasks! k alt* tasks)
-    (if (= 0 (mutable-treelist-length tasks))
+    (if (= 0 ((current-amb-length) tasks))
         ((current-amb-empty-handler))
         (((current-amb-popper) tasks)))))
 
@@ -88,34 +90,54 @@
 
 (define (in-amb* thk)
   (let/cc return
-    (define (sync . v*) (apply return v*))
     (define exit unsafe-undefined)
-    (define (amb-task) (call-in-continuation exit thk))
-    (define tasks (mutable-treelist amb-task))
     (define break unsafe-undefined)
+    (define (sync . v*) (apply return v*))
     (define (empty-handler) (break #t))
+    (define make     (current-amb-maker))
+    (define tasks    (make))
+    (define shuffle! (current-amb-shuffler))
+    (define length   (current-amb-length))
+    (define push!    (current-amb-pusher))
+    (define pop!     (current-amb-popper))
     (define ((wrap alt))
-      (parameterize ([current-amb-tasks         tasks]
-                     [current-amb-empty-handler empty-handler])
+      (parameterize ([current-amb-empty-handler empty-handler]
+                     [current-amb-maker make]
+                     [current-amb-tasks tasks]
+                     [current-amb-shuffler shuffle!]
+                     [current-amb-length length]
+                     [current-amb-pusher push!]
+                     [current-amb-popper pop!])
         (alt)))
     (define s
       (for/stream ([_ (in-naturals)])
         #:break
         (let/cc k (set! break k) #f)
         (let/cc k (set! return k) ((wrap amb*)))))
+    (define (amb-task) (call-in-continuation exit thk))
+    (push! tasks amb-task)
     (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) sync)))
 
 (define (in-amb*₁ thk)
   (let/cc return
-    (define (sync . v*) (apply return v*))
     (define exit unsafe-undefined)
-    (define (amb-task) (call-in-continuation exit thk))
-    (define tasks (mutable-treelist amb-task))
     (define continue unsafe-undefined)
+    (define (sync . v*) (apply return v*))
     (define (empty-handler) (continue #f))
+    (define make     (current-amb-maker))
+    (define tasks    (make))
+    (define shuffle! (current-amb-shuffler))
+    (define length   (current-amb-length))
+    (define push!    (current-amb-pusher))
+    (define pop!     (current-amb-popper))
     (define ((wrap alt))
-      (parameterize ([current-amb-tasks         tasks]
-                     [current-amb-empty-handler empty-handler])
+      (parameterize ([current-amb-empty-handler empty-handler]
+                     [current-amb-maker make]
+                     [current-amb-tasks tasks]
+                     [current-amb-shuffler shuffle!]
+                     [current-amb-length length]
+                     [current-amb-pusher push!]
+                     [current-amb-popper pop!])
         (alt)))
     (define s
       (make-do-sequence
@@ -125,6 +147,8 @@
           #:next-pos add1
           #:continue-with-pos? (λ (_) (let/cc k (set! continue k) #t))
           #:pos->element       (λ (_) (let/cc k (set! return k) ((wrap amb*))))))))
+    (define (amb-task) (call-in-continuation exit thk))
+    (push! tasks amb-task)
     (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) sync)))
 
 (define-syntaxes (in-amb in-amb₁)

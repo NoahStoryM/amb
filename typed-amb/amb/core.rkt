@@ -1,7 +1,6 @@
 #lang typed/racket/base
 
 (require (for-syntax racket/base syntax/parse)
-         typed/racket/mutable-treelist/lab
          typed/racket/unsafe)
 
 (provide amb amb* amb*₁ for/amb for*/amb in-amb in-amb₁)
@@ -14,10 +13,12 @@
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
+  [current-amb-maker (Parameter (→ (→ Nothing) * (Sequenceof (→ Nothing))))]
+  [current-amb-tasks (Parameter (Sequenceof (→ Nothing)))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Mutable-Vectorof a) Void)))]
-  [current-amb-tasks    (Parameter (Mutable-TreeListof (→ Nothing) (→ Nothing)))]
-  [current-amb-pusher   (Parameter (→ (Mutable-TreeListof (→ Nothing) Any) (→ Nothing) Void))]
-  [current-amb-popper   (Parameter (→ (Mutable-TreeListof Nothing (→ Nothing)) (→ Nothing)))])
+  [current-amb-length (Parameter (→ SequenceTop Index))]
+  [current-amb-pusher (Parameter (→ (Sequenceof (→ Nothing)) (→ Nothing) Void))]
+  [current-amb-popper (Parameter (→ (Sequenceof (→ Nothing)) (→ Nothing)))])
 
 
 (define-syntax (amb stx)

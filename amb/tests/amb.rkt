@@ -4,6 +4,7 @@
          racket/mutable-treelist
          racket/set
          racket/stream
+         data/queue
          rackunit)
 (require "../main.rkt")
 
@@ -23,7 +24,21 @@
               (set! res (cons (list x y z) res))
               (amb)))))))
   (test-case "DFS"
-    (parameterize ([current-amb-tasks (mutable-treelist)])
+    (parameterize ([current-amb-tasks ((current-amb-maker))])
+      (check-equal?
+       (thk)
+       '((1) (1 3) (1 3 5)
+                   (1 3 6)
+             (1 4) (1 4 5)
+                   (1 4 6)
+         (2) (2 3) (2 3 5)
+                   (2 3 6)
+             (2 4) (2 4 5)
+                   (2 4 6))))
+    (parameterize ([current-amb-tasks (make-queue)]
+                   [current-amb-length queue-length]
+                   [current-amb-pusher enqueue-front!]
+                   [current-amb-popper dequeue!])
       (check-equal?
        (thk)
        '((1) (1 3) (1 3 5)
@@ -35,9 +50,23 @@
              (2 4) (2 4 5)
                    (2 4 6)))))
   (test-case "BFS"
-    (parameterize ([current-amb-tasks    (mutable-treelist)]
+    (parameterize ([current-amb-tasks    ((current-amb-maker))]
                    [current-amb-shuffler void]
                    [current-amb-pusher   mutable-treelist-cons!])
+      (check-equal?
+       (thk)
+       '((1) (2)
+         (1 3) (1 4)
+         (2 3) (2 4)
+         (1 3 5) (1 3 6)
+         (1 4 5) (1 4 6)
+         (2 3 5) (2 3 6)
+         (2 4 5) (2 4 6))))
+    (parameterize ([current-amb-tasks (make-queue)]
+                   [current-amb-shuffler void]
+                   [current-amb-length queue-length]
+                   [current-amb-pusher enqueue!]
+                   [current-amb-popper dequeue!])
       (check-equal?
        (thk)
        '((1) (2)
@@ -66,7 +95,7 @@
 
 (test-case "Test multi values in amb"
   (define (thk)
-    (parameterize ([current-amb-tasks (mutable-treelist)])
+    (parameterize ([current-amb-tasks ((current-amb-maker))])
       (let-values ([(x y) (amb (values 2 9) (values 9 2))])
         (when (> x y) (amb))
         (list x y))))
@@ -74,7 +103,7 @@
 
 (test-case "Test multi values in for/amb"
   (define (thk)
-    (parameterize ([current-amb-tasks (mutable-treelist)])
+    (parameterize ([current-amb-tasks ((current-amb-maker))])
       (let-values ([(x y)
                     (for/amb #:length 2 ([v '([2 9] [9 2])])
                       (apply values v))])
@@ -84,55 +113,55 @@
 
 (test-case "Test nested amb expressions"
   (define (thk)
-    (parameterize ([current-amb-tasks (mutable-treelist)])
+    (parameterize ([current-amb-tasks ((current-amb-maker))])
       (let ([a (amb 'x 'y (let ([b (amb 1 2 3)]) (- b)) 'z)])
         (when (symbol? a) (amb))
         a)))
   (check-eq? (thk) -1))
 
 (test-case "Test efficiency"
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (time
      (define m 10000000)
      (define n (for/amb #:length m ([i (in-range m)]) i))
      (void)))
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (time
      (define m 1000000)
      (define n (for/amb #:length (add1 m) ([i (in-inclusive-range 0 m)]) i))
      (when (< n m) (amb))
      (check-eq? n m)))
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (time
      (define m 1000000)
      (define n (let next ([i 0]) (amb i (next (add1 i)))))
      (when (< n m) (amb))
      (check-eq? n m)))
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (time
      (for ([i 1000000]
            [(j k) (in-amb* (λ () (for/amb #:length 1000000 ([i 1000000]) (values i (- i)))))])
        (list i j k))))
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (time
      (for ([i 1000000]
            [(j k) (in-amb* (λ () (next 0 0)))])
        (list i j k))))
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
     (define s (in-amb* (λ () (next 0 0))))
     (time
      (for ([i 1000000]
            [(j k) (in-stream s)])
        (list i j k))))
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (define (next j) (amb j (next (add1 j))))
     (time
      (for ([i 1000000]
            [j (in-amb (next 0))])
        (list i j))))
-  (parameterize ([current-amb-tasks (mutable-treelist)])
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
     (define (next j) (amb j (next (add1 j))))
     (define s (in-amb (next 0)))
     (time

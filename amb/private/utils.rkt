@@ -30,7 +30,9 @@
           (current-continuation-marks))))
 
 (define current-amb-empty-handler (make-parameter raise-amb-error))
-(define current-amb-shuffler (make-parameter vector-reverse!))
+(define current-amb-maker    (make-parameter mutable-treelist))
 (define current-amb-tasks    (make-parameter (mutable-treelist)))
+(define current-amb-shuffler (make-parameter vector-reverse!))
+(define current-amb-length   (make-parameter mutable-treelist-length))
 (define current-amb-pusher   (make-parameter mutable-treelist-add!))
 (define current-amb-popper   (make-parameter mutable-treelist-pop!))

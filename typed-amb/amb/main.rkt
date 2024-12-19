@@ -10,8 +10,10 @@
          (struct-out exn:fail:contract:amb)
          raise-amb-error
          current-amb-empty-handler
-         current-amb-shuffler
+         current-amb-maker
          current-amb-tasks
+         current-amb-shuffler
+         current-amb-length
          current-amb-pusher
          current-amb-popper)
 
