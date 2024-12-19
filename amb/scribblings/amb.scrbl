@@ -239,7 +239,7 @@ from the current @tech{amb sequence}. The default value removes and returns the
 @tech{amb task} at the end of the @tech/refer{sequence}.
 }
 
-@defparam[current-amb-pusher push! (-> mutable-treelist? (-> none/c) void?)]{
+@defparam[current-amb-pusher push! (-> sequence? (-> none/c) void?)]{
 
 A @tech/refer{parameter} that defines the method for pushing an @tech{amb task}
 into the current @tech{amb sequence}. The default value adds the @tech{amb task}
