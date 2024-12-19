@@ -44,7 +44,8 @@
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)
-     (syntax/loc stx (amb*₁ (vector (λ () expr) ...)))]))
+     (syntax/loc stx
+       (amb*₁ (vector (λ () expr) ...)))]))
 
 
 (define-syntaxes (for/amb for*/amb)

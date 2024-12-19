@@ -5,13 +5,15 @@
 
 (provide amb amb* amb*₁ for/amb for*/amb in-amb in-amb₁)
 
-(unsafe-require/typed/provide amb/core
+(require/typed/provide amb/core
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
+  [raise-amb-error (→ Nothing)])
+
+(unsafe-require/typed/provide amb/core
   [amb*  (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
   [amb*₁ (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*  (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
-  [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Mutable-Vectorof a) Void)))]
   [current-amb-maker (Parameter (→ (→ Nothing) * (Sequenceof (→ Nothing))))]
@@ -25,7 +27,8 @@
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)
-     (syntax/loc stx (amb* (λ () expr) ...))]))
+     (syntax/loc stx
+       (amb* (λ () expr) ...))]))
 
 
 (define-syntaxes (for/amb for*/amb)

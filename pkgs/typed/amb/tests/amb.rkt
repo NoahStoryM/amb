@@ -3,6 +3,7 @@
 (require typed/rackunit)
 (require "../../amb.rkt")
 
+(displayln "Test `amb.rkt'")
 
 (test-case "Test amb operator"
   (parameterize ([current-amb-tasks ((current-amb-maker))])
