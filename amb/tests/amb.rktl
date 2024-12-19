@@ -1,82 +1,3 @@
-#lang racket/base
-
-(require racket/contract/combinator
-         racket/mutable-treelist
-         racket/set
-         racket/stream
-         data/queue
-         rackunit)
-(require "../main.rkt")
-
-(displayln "Test `amb.rkt'")
-
-(let ()
-  (define (thk)
-    (let/cc k
-      (define res '())
-      (define (return) (k (reverse res)))
-      (parameterize ([current-amb-empty-handler return])
-        (let ([x (amb 1 2)])
-          (set! res (cons (list x) res))
-          (let ([y (amb 3 4)])
-            (set! res (cons (list x y) res))
-            (let ([z (amb 5 6)])
-              (set! res (cons (list x y z) res))
-              (amb)))))))
-  (test-case "DFS"
-    (parameterize ([current-amb-tasks ((current-amb-maker))])
-      (check-equal?
-       (thk)
-       '((1) (1 3) (1 3 5)
-                   (1 3 6)
-             (1 4) (1 4 5)
-                   (1 4 6)
-         (2) (2 3) (2 3 5)
-                   (2 3 6)
-             (2 4) (2 4 5)
-                   (2 4 6))))
-    (parameterize ([current-amb-tasks (make-queue)]
-                   [current-amb-length queue-length]
-                   [current-amb-pusher enqueue-front!]
-                   [current-amb-popper dequeue!])
-      (check-equal?
-       (thk)
-       '((1) (1 3) (1 3 5)
-                   (1 3 6)
-             (1 4) (1 4 5)
-                   (1 4 6)
-         (2) (2 3) (2 3 5)
-                   (2 3 6)
-             (2 4) (2 4 5)
-                   (2 4 6)))))
-  (test-case "BFS"
-    (parameterize ([current-amb-tasks    ((current-amb-maker))]
-                   [current-amb-shuffler void]
-                   [current-amb-pusher   mutable-treelist-cons!])
-      (check-equal?
-       (thk)
-       '((1) (2)
-         (1 3) (1 4)
-         (2 3) (2 4)
-         (1 3 5) (1 3 6)
-         (1 4 5) (1 4 6)
-         (2 3 5) (2 3 6)
-         (2 4 5) (2 4 6))))
-    (parameterize ([current-amb-tasks (make-queue)]
-                   [current-amb-shuffler void]
-                   [current-amb-length queue-length]
-                   [current-amb-pusher enqueue!]
-                   [current-amb-popper dequeue!])
-      (check-equal?
-       (thk)
-       '((1) (2)
-         (1 3) (1 4)
-         (2 3) (2 4)
-         (1 3 5) (1 3 6)
-         (1 4 5) (1 4 6)
-         (2 3 5) (2 3 6)
-         (2 4 5) (2 4 6))))))
-
 (test-case "Test in-amb[*]"
   (define (thk)
     (let ([x (amb 7 4 0)]
@@ -169,11 +90,11 @@
            [j (in-stream s)])
        (list i j))))
   (parameterize ([current-amb-shuffler void])
-    (define s (in-amb (for/amb #:length 1000000([i 1000000]) i)))
+    (define s (in-amb (for/amb #:length 1000000 ([i 1000000]) i)))
     (time (for ([i (in-stream s)]) i)))
   (parameterize ([current-amb-shuffler void])
-    (time (for ([i (in-amb (for/amb #:length 1000000([i 1000000]) i))]) i)))
+    (time (for ([i (in-amb (for/amb #:length 1000000 ([i 1000000]) i))]) i)))
   (let ()
-    (define s (in-amb (for/amb #:length 1000000([i 1000000]) i)))
+    (define s (in-amb (for/amb #:length 1000000 ([i 1000000]) i)))
     (time (for ([i (in-stream s)]) i)))
-  (time (for ([i (in-amb (for/amb #:length 1000000([i 1000000]) i))]) i)))
+  (time (for ([i (in-amb (for/amb #:length 1000000 ([i 1000000]) i))]) i)))

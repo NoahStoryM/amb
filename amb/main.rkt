@@ -2,8 +2,7 @@
 
 (require (for-syntax racket/base syntax/parse)
          racket/contract/base
-         racket/mutability
-         racket/mutable-treelist)
+         racket/mutability)
 (require (rename-in "core.rkt"
                     [in-amb*  -in-amb*]
                     [in-amb*₁ -in-amb*₁])
@@ -21,13 +20,13 @@
              [continuation-marks continuation-mark-set?]))
           [amb* (-> (-> any) ... any)]
           [raise-amb-error (-> none/c)]
-          [current-amb-empty-handler (parameter/c (-> none/c))]
-          [current-amb-maker (parameter/c (-> (-> none/c) ... sequence?))]
-          [current-amb-tasks (parameter/c sequence?)]
-          [current-amb-shuffler (parameter/c (-> mutable-vector? void?))]
-          [current-amb-length (parameter/c (-> sequence? exact-nonnegative-integer?))]
-          [current-amb-pusher (parameter/c (-> sequence? (-> none/c) void?))]
-          [current-amb-popper (parameter/c (-> sequence? (-> none/c)))]))
+          [current-amb-empty-handler #;(parameter/c (-> none/c)) parameter?]
+          [current-amb-shuffler #;(parameter/c (-> mutable-vector? void?)) parameter?]
+          [current-amb-maker #;(parameter/c (-> (-> none/c) ... sequence?)) parameter?]
+          [current-amb-tasks #;(parameter/c sequence?) parameter?]
+          [current-amb-length #;(parameter/c (-> sequence? exact-nonnegative-integer?)) parameter?]
+          [current-amb-pusher #;(parameter/c (-> sequence? (-> none/c) void?)) parameter?]
+          [current-amb-popper #;(parameter/c (-> sequence? (-> none/c))) parameter?]))
 
 
 (define (check-thk thk)

@@ -5,8 +5,8 @@
                      racket/contract/base
                      racket/stream
                      racket/mutability
-                     racket/mutable-treelist
                      syntax/parse
+                     data/queue
                      amb)
           "utils.rkt")
 
@@ -41,7 +41,7 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
 (eval:error
  (parameterize ([current-amb-shuffler void]
                 [current-amb-tasks    ((current-amb-maker))]
-                [current-amb-pusher   mutable-treelist-cons!])
+                [current-amb-pusher   enqueue!])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -69,7 +69,7 @@ body, they wrap each iteration as a @racket[thunk] to create @deftech{alternativ
 @amb-examples[
 (parameterize ([current-amb-shuffler void]
                [current-amb-tasks    ((current-amb-maker))]
-               [current-amb-pusher   mutable-treelist-cons!])
+               [current-amb-pusher   enqueue!])
   (define x (let next ([i 0]) (amb (next (add1 i)) i)))
   (define y (for/amb #:length 3 ([i 3]) i))
   (unless (< x 2) (amb))
@@ -122,13 +122,13 @@ The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 (parameterize ([current-amb-tasks ((current-amb-maker))])
   (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
   (amb 1 2 3)
-  (displayln (= 2 (mutable-treelist-length (current-amb-tasks))))
+  (displayln (= 2 ((current-amb-length) (current-amb-tasks))))
   (time
    (displayln
     (for/and ([i (in-range 1000000)]
               [(j k) (in-amb (next 0 0))])
       (= i j (- k)))))
-  (displayln (= 2 (mutable-treelist-length (current-amb-tasks))))
+  (displayln (= 2 ((current-amb-length) (current-amb-tasks))))
   )
 ]
 }
@@ -201,23 +201,6 @@ A @tech/refer{parameter} that specifies the procedure to be called when the
 is @racket[raise-amb-error].
 }
 
-@defparam[current-amb-maker make (-> (-> none/c) ... sequence?)]{
-
-A @tech/refer{parameter} that specifies the method for creating a new
-@deftech{amb sequence}. This allows users to define the data structure used to
-store @tech{amb tasks} and its initialization. Each argument passed to @racket[make]
-represents an initial @tech{amb task} to be included in the @tech{amb sequence}.
-The default value is @racket[mutable-treelist].
-}
-
-@defparam[current-amb-tasks tasks sequence?]{
-
-A @tech/refer{parameter} that holds the @tech/refer{sequence} of @tech{amb tasks}
-to be evaluated. Each @deftech{amb task} is a @racket[thunk] that, when invoked,
-uses @racket[call-in-continuation] to call an @tech{alternative}. The default
-value is @racket[(mutable-treelist)].
-}
-
 @defparam[current-amb-shuffler shuffle! (-> mutable-vector? void?)]{
 
 A @tech/refer{parameter} that specifies how to shuffle @tech{alternatives} before
@@ -225,23 +208,36 @@ scheduling new @tech{amb tasks} into the current @tech{amb sequence}. The
 default value reverses @tech{alternatives}.
 }
 
+@defparam[current-amb-maker make (-> sequence?)]{
+
+A @tech/refer{parameter} that specifies the method for creating a new
+@deftech{amb sequence}. This allows users to define the data structure used to
+store @tech{amb tasks}. The default value is @racket[make-queue].
+}
+
+@defparam[current-amb-tasks tasks sequence?]{
+
+A @tech/refer{parameter} that holds the @tech/refer{sequence} of @tech{amb tasks}
+to be evaluated. Each @deftech{amb task} is a @racket[thunk] that, when invoked,
+uses @racket[call-in-continuation] to call an @tech{alternative}. The default
+value is @racket[(make-queue)].
+}
+
 @defparam[current-amb-length length (-> sequence? exact-nonnegative-integer?)]{
 
 A @tech/refer{parameter} that specifies the method for retrieving the number of
 @tech{amb tasks} in the current @tech{amb sequence}. The default value is
-@racket[mutable-treelist-length].
-}
-
-@defparam[current-amb-popper pop! (-> sequence? (-> none/c))]{
-
-A @tech/refer{parameter} that defines the method for popping an @tech{amb task}
-from the current @tech{amb sequence}. The default value removes and returns the
-@tech{amb task} at the end of the @tech/refer{sequence}.
+@racket[queue-length].
 }
 
 @defparam[current-amb-pusher push! (-> sequence? (-> none/c) void?)]{
 
 A @tech/refer{parameter} that defines the method for pushing an @tech{amb task}
-into the current @tech{amb sequence}. The default value adds the @tech{amb task}
-to the end of the @tech/refer{sequence}.
+into the current @tech{amb sequence}. The default value is @racket[enqueue-front!].
+}
+
+@defparam[current-amb-popper pop! (-> sequence? (-> none/c))]{
+
+A @tech/refer{parameter} that defines the method for popping an @tech{amb task}
+from the current @tech{amb sequence}. The default value is @racket[dequeue!].
 }
