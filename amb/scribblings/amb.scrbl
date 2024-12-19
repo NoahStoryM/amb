@@ -2,7 +2,7 @@
 
 @(require (for-label racket/base
                      racket/function
-                     racket/contract
+                     racket/contract/base
                      racket/stream
                      racket/mutability
                      racket/mutable-treelist

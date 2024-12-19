@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require (for-syntax racket/base syntax/parse)
-         racket/contract
+         racket/contract/base
          racket/mutability
          racket/mutable-treelist)
 (require (rename-in "core.rkt"
