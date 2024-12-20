@@ -68,68 +68,46 @@
             (make-for/amb #'for*/vector))))
 
 
-(define (in-amb* thk)
+(define (in-amb* alt)
   (let/cc return
-    (define exit unsafe-undefined)
-    (define break unsafe-undefined)
-    (define (sync . v*) (apply return v*))
-    (define (empty-handler) (break #t))
-    (define shuffle! (current-amb-shuffler))
-    (define make     (current-amb-maker))
-    (define tasks    (make))
-    (define length   (current-amb-length))
-    (define push!    (current-amb-pusher))
-    (define pop!     (current-amb-popper))
-    (define ((wrap alt))
-      (parameterize ([current-amb-empty-handler empty-handler]
-                     [current-amb-shuffler shuffle!]
-                     [current-amb-maker make]
-                     [current-amb-tasks tasks]
-                     [current-amb-length length]
-                     [current-amb-pusher push!]
-                     [current-amb-popper pop!])
-        (alt)))
-    (define s
-      (for/stream ([_ (in-naturals)])
-        #:break
-        (let/cc k (set! break k) #f)
-        (let/cc k (set! return k) ((wrap amb*)))))
-    (define (amb-task) (call-in-continuation exit thk))
-    (push! tasks amb-task)
-    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) sync)))
+    (call-with-values
+     (λ ()
+       (define break unsafe-undefined)
+       (define (empty-handler) (break #t))
+       (define tasks ((current-amb-maker)))
+       (parameterize ([current-amb-empty-handler empty-handler]
+                      [current-amb-tasks tasks])
+         (let/cc sync
+           #;(define (amb-task) (call-in-continuation sync alt))
+           ((current-amb-pusher) tasks #;amb-task alt)
+           (for/stream ([_ (in-naturals)])
+             #:break
+             (let/cc k (set! break k) #f)
+             (let/cc k (set! return k)
+               (call-in-continuation sync amb*))))))
+     (λ v* (apply return v*)))))
 
-(define (in-amb*₁ thk)
+(define (in-amb*₁ alt)
   (let/cc return
-    (define exit unsafe-undefined)
-    (define continue unsafe-undefined)
-    (define (sync . v*) (apply return v*))
-    (define (empty-handler) (continue #f))
-    (define shuffle! (current-amb-shuffler))
-    (define make     (current-amb-maker))
-    (define tasks    (make))
-    (define length   (current-amb-length))
-    (define push!    (current-amb-pusher))
-    (define pop!     (current-amb-popper))
-    (define ((wrap alt))
-      (parameterize ([current-amb-empty-handler empty-handler]
-                     [current-amb-shuffler shuffle!]
-                     [current-amb-maker make]
-                     [current-amb-tasks tasks]
-                     [current-amb-length length]
-                     [current-amb-pusher push!]
-                     [current-amb-popper pop!])
-        (alt)))
-    (define s
-      (make-do-sequence
-       (λ ()
-         (initiate-sequence
-          #:init-pos 0
-          #:next-pos add1
-          #:continue-with-pos? (λ (_) (let/cc k (set! continue k) #t))
-          #:pos->element       (λ (_) (let/cc k (set! return k) ((wrap amb*))))))))
-    (define (amb-task) (call-in-continuation exit thk))
-    (push! tasks amb-task)
-    (call-with-values (wrap (λ () (let/cc k (set! exit k) s))) sync)))
+    (call-with-values
+     (λ ()
+       (define continue unsafe-undefined)
+       (define (empty-handler) (continue #f))
+       (define tasks ((current-amb-maker)))
+       (parameterize ([current-amb-empty-handler empty-handler]
+                      [current-amb-tasks tasks])
+         (let/cc sync
+           #;(define (amb-task) (call-in-continuation sync alt))
+           ((current-amb-pusher) tasks #;amb-task alt)
+           (make-do-sequence
+            (λ ()
+              (initiate-sequence
+               #:init-pos 0
+               #:next-pos add1
+               #:continue-with-pos? (λ (_) (let/cc k (set! continue k) #t))
+               #:pos->element       (λ (_) (let/cc k (set! return k)
+                                             (call-in-continuation sync amb*)))))))))
+     (λ v* (apply return v*)))))
 
 (define-syntaxes (in-amb in-amb₁)
   (let ()
