@@ -4,7 +4,6 @@
          (for-syntax racket/base syntax/parse)
          racket/sequence
          racket/stream
-         racket/vector
          racket/unsafe/undefined)
 
 (provide amb amb* amb*₁
