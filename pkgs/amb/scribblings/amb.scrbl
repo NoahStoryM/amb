@@ -7,6 +7,7 @@
                      racket/mutability
                      syntax/parse
                      data/queue
+                     (only-in srfi/43 vector-reverse!)
                      amb)
           "utils.rkt")
 
@@ -205,7 +206,7 @@ is @racket[raise-amb-error].
 
 A @tech/refer{parameter} that specifies how to shuffle @tech{alternatives} before
 scheduling new @tech{amb tasks} into the current @tech{amb sequence}. The
-default value reverses @tech{alternatives}.
+default value is @racket[vector-reverse!].
 }
 
 @defparam[current-amb-maker make (-> sequence?)]{
