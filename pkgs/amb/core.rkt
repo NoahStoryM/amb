@@ -47,6 +47,7 @@
        (amb*₁ (vector (λ () expr) ...)))]))
 
 
+(define (zero) 0)
 (define-syntaxes (for/amb for*/amb)
   (let ()
     (define-splicing-syntax-class break-clause
@@ -59,7 +60,7 @@
            (amb*₁ (#,derived-stx #:length n #:fill (λ () fill) (clauses ...) break ... (λ () body ...))))]
         [(_ #:length n (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (amb*₁ (#,derived-stx #:length n #:fill (λ () 0) (clauses ...) break ... (λ () body ...))))]
+           (amb*₁ (#,derived-stx #:length n #:fill zero (clauses ...) break ... (λ () body ...))))]
         [(_ (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
            (amb*₁ (#,derived-stx (clauses ...) break ... (λ () body ...))))]))
