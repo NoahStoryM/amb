@@ -16,7 +16,7 @@
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Mutable-Vectorof a) Void)))]
-  [current-amb-maker    (Parameter (→ (→ Nothing) * (Sequenceof (→ Nothing))))]
+  [current-amb-maker    (Parameter (→ (Sequenceof (→ Nothing))))]
   [current-amb-tasks    (Parameter (Sequenceof (→ Nothing)))]
   [current-amb-length   (Parameter (→ SequenceTop Index))]
   [current-amb-pusher   (Parameter (→ (Sequenceof (→ Nothing)) (→ Nothing) Void))]
