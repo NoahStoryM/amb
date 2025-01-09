@@ -54,7 +54,7 @@
                (ann (λ () : t2 body ...) (→ t1)))))]
           [(name : t1 #:length n (clauses ...) : t2 break:break-clause ... body ...+)
            (parser (syntax/loc stx (name : t1 #:length n #:fill 0 (clauses ...) : t2 break ... body ...)) )]
-          [(name : t1 (clauses ...) : t2 break:break-clause ... body ...+)
+          [(_ : t1 (clauses ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
              (amb*₁
               (#,derived-stx
