@@ -16,7 +16,7 @@
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (∀ (a) (→ (Mutable-Vectorof a) Void)))]
-  [current-amb-maker    (Parameter (→ (→ Nothing) * (Sequenceof (→ Nothing))))]
+  [current-amb-maker    (Parameter (→ (Sequenceof (→ Nothing))))]
   [current-amb-tasks    (Parameter (Sequenceof (→ Nothing)))]
   [current-amb-length   (Parameter (→ SequenceTop Index))]
   [current-amb-pusher   (Parameter (→ (Sequenceof (→ Nothing)) (→ Nothing) Void))]
@@ -54,7 +54,7 @@
                (ann (λ () : t2 body ...) (→ t1)))))]
           [(name : t1 #:length n (clauses ...) : t2 break:break-clause ... body ...+)
            (parser (syntax/loc stx (name : t1 #:length n #:fill 0 (clauses ...) : t2 break ... body ...)) )]
-          [(name : t1 (clauses ...) : t2 break:break-clause ... body ...+)
+          [(_ : t1 (clauses ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
              (amb*₁
               (#,derived-stx
