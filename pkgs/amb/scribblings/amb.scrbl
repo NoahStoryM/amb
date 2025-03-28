@@ -24,19 +24,28 @@ John McCarthy's ambiguous operator.
 
 The form @racket[(amb expr ...)] expands to @racket[(amb* (λ () expr) ...)].
 
+@amb-examples[
+(amb 1 (values 2 3) 4)
+(amb)
+(amb)
+(eval:error (amb))
+]
+
+@margin-note{
+For most use cases, we recommend using @racket[in-amb] to construct
+a @racket[stream] from ambiguous computations.
+}
+
 Wrapping @racket[amb] expressions with a new @tech{amb sequence} is recommended.
 This ensures that each instance of non-deterministic computation starts with a
 fresh @tech/refer{sequence}, avoiding unintended interactions between different
 @racket[amb] expressions.
 
 @amb-examples[
-(amb 1 (values 2 3) 4)
-(amb)
-(amb)
-(eval:error (amb))
+(define make-amb-tasks (current-amb-maker))
 (amb 1 (values 2 3) 4)
 (eval:error
- (parameterize ([current-amb-tasks ((current-amb-maker))])
+ (parameterize ([current-amb-tasks (make-amb-tasks)])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -47,7 +56,7 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
 (amb)
 (eval:error
  (parameterize ([current-amb-shuffler void]
-                [current-amb-tasks    ((current-amb-maker))]
+                [current-amb-tasks    (make-amb-tasks)]
                 [current-amb-pusher   enqueue!])
    (let ([x (amb 1 2)])
      (displayln (list x))
