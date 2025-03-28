@@ -30,6 +30,11 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
 @racket[amb] expressions.
 
 @amb-examples[
+(amb 1 (values 2 3) 4)
+(amb)
+(amb)
+(eval:error (amb))
+(amb 1 (values 2 3) 4)
 (eval:error
  (parameterize ([current-amb-tasks ((current-amb-maker))])
    (let ([x (amb 1 2)])
@@ -39,6 +44,7 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
        (let ([z (amb 5 6)])
          (displayln (list x y z))
          (amb))))))
+(amb)
 (eval:error
  (parameterize ([current-amb-shuffler void]
                 [current-amb-tasks    ((current-amb-maker))]
@@ -50,6 +56,8 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
        (let ([z (amb 5 6)])
          (displayln (list x y z))
          (amb))))))
+(amb)
+(eval:error (amb))
 ]
 }
 
@@ -68,40 +76,11 @@ The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
 body, they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
 
 @amb-examples[
-(parameterize ([current-amb-shuffler void]
-               [current-amb-tasks    ((current-amb-maker))]
-               [current-amb-pusher   enqueue!])
-  (define x (let next ([i 0]) (amb (next (add1 i)) i)))
-  (define y (for/amb #:length 3 ([i 3]) i))
-  (unless (< x 2) (amb))
-  (displayln (cons x y))
-  (unless (= (+ x y) 3) (amb)))
-(parameterize ([current-amb-tasks ((current-amb-maker))])
-  (define-values (x y)
-    (for/amb ([v '([2 . 9] [9 . 2])])
-      (values (car v) (cdr v))))
-  (unless (> x y) (amb))
-  (displayln (cons x y)))
-(let/cc break
-  (parameterize ([current-amb-tasks ((current-amb-maker))]
-                 [current-amb-empty-handler break])
-    (define-values (x y)
-      (for*/amb #:length 3 #:fill (values -1 -1) ([i 3] [j 3])
-        (values i j)))
-    (unless (> x y) (amb))
-    (displayln (cons x y))
-    (amb)))
-(let/cc k
-  (define a* '())
-  (define b* '())
-  (define (return) (k a* (list->bytes b*)))
-  (parameterize ([current-amb-tasks ((current-amb-maker))]
-                 [current-amb-empty-handler return])
-    (define x (for/amb ([i 10]) i))
-    (when (even? x)
-      (set! a* (cons x a*))
-      (set! b* (cons (+ x 48) b*)))
-    (amb)))
+(for/amb #:length 4 ([i #(1 2)] [j #(x y)]) (values i j))
+(amb)
+(amb)
+(amb)
+(eval:error (amb))
 ]
 }
 
@@ -120,17 +99,11 @@ evaluated, so there is no need to worry about affecting calls to other
 The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 
 @amb-examples[
-(parameterize ([current-amb-tasks ((current-amb-maker))])
-  (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
-  (amb 1 2 3)
-  (displayln (= 2 ((current-amb-length) (current-amb-tasks))))
-  (time
-   (displayln
-    (for/and ([i (in-range 1000000)]
-              [(j k) (in-amb (next 0 0))])
-      (= i j (- k)))))
-  (displayln (= 2 ((current-amb-length) (current-amb-tasks))))
-  )
+(amb 1 2 3)
+(for/list ([(i j) (in-amb (amb (values 1 'x) (values 2 'y)))]) (cons i j))
+(amb)
+(amb)
+(eval:error (amb))
 ]
 }
 
@@ -143,8 +116,7 @@ that produces as many results as needed.
   (define m (amb 0 1 2 3 4))
   (unless (> m n) (amb))
   m)
-(for ([m (in-amb (f 2))])
-  (displayln m))
+(for/list ([m (in-amb (f 2))]) m)
 ]
 
 @defproc[(in-amb* [thk (-> any)]) stream?]{
