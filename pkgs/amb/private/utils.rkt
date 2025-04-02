@@ -1,7 +1,6 @@
 #lang racket/base
 
-(require data/queue
-         (only-in srfi/43 vector-reverse!))
+(require data/queue)
 (provide (all-defined-out))
 
 
@@ -15,7 +14,7 @@
           (current-continuation-marks))))
 
 (define current-amb-empty-handler (make-parameter raise-amb-error))
-(define current-amb-shuffler (make-parameter vector-reverse!))
+(define current-amb-shuffler (make-parameter void))
 (define current-amb-maker    (make-parameter make-queue))
 (define current-amb-tasks    (make-parameter (make-queue)))
 (define current-amb-length   (make-parameter queue-length))

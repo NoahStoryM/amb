@@ -7,7 +7,6 @@
                      racket/mutability
                      syntax/parse
                      data/queue
-                     (only-in srfi/43 vector-reverse!)
                      amb)
           "utils.rkt")
 
@@ -55,9 +54,8 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
          (amb))))))
 (amb)
 (eval:error
- (parameterize ([current-amb-shuffler void]
-                [current-amb-tasks    (make-amb-tasks)]
-                [current-amb-pusher   enqueue!])
+ (parameterize ([current-amb-tasks (make-amb-tasks)]
+                [current-amb-pusher enqueue!])
    (let ([x (amb 1 2)])
      (displayln (list x))
      (let ([y (amb 3 4)])
@@ -186,8 +184,8 @@ is @racket[raise-amb-error].
 @defparam[current-amb-shuffler shuffle! (-> mutable-vector? void?)]{
 
 A @tech/refer{parameter} that specifies how to shuffle @tech{alternatives} before
-scheduling new @tech{amb tasks} into the current @tech{amb sequence}. The
-default value is @racket[vector-reverse!].
+scheduling new @tech{amb tasks} into the current @tech{amb sequence}. The default
+value is @racket[void].
 }
 
 @defparam[current-amb-maker make (-> sequence?)]{
@@ -200,9 +198,17 @@ store @tech{amb tasks}. The default value is @racket[make-queue].
 @defparam[current-amb-tasks tasks sequence?]{
 
 A @tech/refer{parameter} that holds the @tech/refer{sequence} of @tech{amb tasks}
-to be evaluated. Each @deftech{amb task} is a @racket[thunk] that, when invoked,
-uses @racket[call-in-continuation] to call an @tech{alternative}. The default
-value is @racket[(make-queue)].
+to be evaluated. Each @deftech{amb task} is a @racket[vector] containing three
+elements:
+
+@itemlist[
+  @item{@racket[k]: The captured @tech/refer{continuation} for backtracking}
+  @item{@racket[alt*]: A @racket[vector] of @tech{alternatives} to attempt}
+  @item{@racket[i]: Index tracking the next @tech{alternative} to evaluate}
+]
+
+When processed, it uses @racket[call-in-continuation] to call the @racket[i]th
+element of @racket[alt*] in @racket[k]. The default value is @racket[(make-queue)].
 }
 
 @defparam[current-amb-length length (-> sequence? exact-nonnegative-integer?)]{

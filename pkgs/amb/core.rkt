@@ -2,6 +2,7 @@
 
 (require "private/utils.rkt"
          (for-syntax racket/base syntax/parse)
+         racket/match
          racket/sequence
          racket/stream
          racket/unsafe/undefined)
@@ -21,21 +22,28 @@
          current-amb-popper)
 
 
-(define (schedule-amb-tasks! k alt* tasks)
-  (define push! (current-amb-pusher))
-  ((current-amb-shuffler) alt*)
-  (for ([alt (in-vector alt*)])
-    (define (amb-task) (call-in-continuation k alt))
-    (push! tasks amb-task)))
+(define (next task*)
+  (if (= 0 ((current-amb-length) task*))
+      ((current-amb-empty-handler))
+      (for/first ([task task*])
+        (match-define (vector k alt* i) task)
+        (define alt (vector-ref alt* i))
+        (vector-set! alt* i 0)
+        (set! i (add1 i))
+        (vector-set! task 2 i)
+        (when (= i (vector-length alt*))
+          ((current-amb-popper) task*))
+        (call-in-continuation k alt))))
 
 
 (define (amb*₁ alt*)
-  (define tasks (current-amb-tasks))
-  (let/cc k
-    (schedule-amb-tasks! k alt* tasks)
-    (if (= 0 ((current-amb-length) tasks))
-        ((current-amb-empty-handler))
-        (((current-amb-popper) tasks)))))
+  (define task* (current-amb-tasks))
+  ((current-amb-shuffler) alt*)
+  (if (= 0 (vector-length alt*))
+      (next task*)
+      (let/cc k
+        ((current-amb-pusher) task* (vector k alt* 0))
+        (next task*))))
 
 (define (amb* . alt*) (amb*₁ (list->vector alt*)))
 
@@ -74,12 +82,11 @@
      (λ ()
        (define break unsafe-undefined)
        (define (empty-handler) (break #t))
-       (define tasks ((current-amb-maker)))
+       (define task* ((current-amb-maker)))
        (parameterize ([current-amb-empty-handler empty-handler]
-                      [current-amb-tasks tasks])
+                      [current-amb-tasks task*])
          (let/cc sync
-           #;(define (amb-task) (call-in-continuation sync alt))
-           ((current-amb-pusher) tasks #;amb-task alt)
+           ((current-amb-pusher) task* (vector sync (vector alt) 0))
            (for/stream ([_ (in-naturals)])
              #:break
              (let/cc k (set! break k) #f)
@@ -93,12 +100,11 @@
      (λ ()
        (define continue unsafe-undefined)
        (define (empty-handler) (continue #f))
-       (define tasks ((current-amb-maker)))
+       (define task* ((current-amb-maker)))
        (parameterize ([current-amb-empty-handler empty-handler]
-                      [current-amb-tasks tasks])
+                      [current-amb-tasks task*])
          (let/cc sync
-           #;(define (amb-task) (call-in-continuation sync alt))
-           ((current-amb-pusher) tasks #;amb-task alt)
+           ((current-amb-pusher) task* (vector sync (vector alt) 0))
            (make-do-sequence
             (λ ()
               (initiate-sequence

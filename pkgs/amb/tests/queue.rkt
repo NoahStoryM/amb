@@ -12,7 +12,7 @@
 
 (define (mutable-treelist-pop! mtl)
   (begin0 (mutable-treelist-last mtl)
-    (mutable-treelist-delete! mtl (sub1 (mutable-treelist-length mtl)))))
+    (mutable-treelist-delete! mtl 0)))
 
 (current-amb-maker  make-queue)
 (current-amb-tasks  (make-queue))
@@ -48,7 +48,7 @@
     (parameterize ([current-amb-maker mutable-treelist]
                    [current-amb-tasks (mutable-treelist)]
                    [current-amb-length mutable-treelist-length]
-                   [current-amb-pusher mutable-treelist-add!]
+                   [current-amb-pusher mutable-treelist-cons!]
                    [current-amb-popper mutable-treelist-pop!])
       (check-equal?
        (thk)
@@ -61,9 +61,8 @@
              (2 4) (2 4 5)
                    (2 4 6)))))
   (test-case "BFS"
-    (parameterize ([current-amb-shuffler void]
-                   [current-amb-tasks    ((current-amb-maker))]
-                   [current-amb-pusher   enqueue!])
+    (parameterize ([current-amb-tasks ((current-amb-maker))]
+                   [current-amb-pusher enqueue!])
       (check-equal?
        (thk)
        '((1) (2)
@@ -73,11 +72,10 @@
          (1 4 5) (1 4 6)
          (2 3 5) (2 3 6)
          (2 4 5) (2 4 6))))
-    (parameterize ([current-amb-shuffler void]
-                   [current-amb-maker mutable-treelist]
+    (parameterize ([current-amb-maker mutable-treelist]
                    [current-amb-tasks (mutable-treelist)]
                    [current-amb-length mutable-treelist-length]
-                   [current-amb-pusher mutable-treelist-cons!]
+                   [current-amb-pusher mutable-treelist-add!]
                    [current-amb-popper mutable-treelist-pop!])
       (check-equal?
        (thk)
