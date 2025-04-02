@@ -11,7 +11,7 @@
 (displayln "Test `queue.rkt'")
 
 (define (mutable-treelist-pop! mtl)
-  (begin0 (mutable-treelist-last mtl)
+  (begin0 (mutable-treelist-first mtl)
     (mutable-treelist-delete! mtl 0)))
 
 (current-amb-maker  make-queue)
