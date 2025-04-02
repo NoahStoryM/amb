@@ -218,13 +218,13 @@ A @tech/refer{parameter} that specifies the method for retrieving the number of
 @racket[queue-length].
 }
 
-@defparam[current-amb-pusher push! (-> sequence? (-> none/c) void?)]{
+@defparam[current-amb-pusher push! (-> sequence? amb-task? void?)]{
 
 A @tech/refer{parameter} that defines the method for pushing an @tech{amb task}
 into the current @tech{amb sequence}. The default value is @racket[enqueue-front!].
 }
 
-@defparam[current-amb-popper pop! (-> sequence? (-> none/c))]{
+@defparam[current-amb-popper pop! (-> sequence? amb-task?)]{
 
 A @tech/refer{parameter} that defines the method for popping an @tech{amb task}
 from the current @tech{amb sequence}. The default value is @racket[dequeue!].
