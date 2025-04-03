@@ -16,11 +16,11 @@
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
-  [current-amb-maker    (Parameter (∀ (a ...) (→ (Sequenceof a ... a))))]
-  [current-amb-tasks    (Parameter SequenceTop)]
+  [current-amb-maker    (Parameter (∀ (a) (→ (Sequenceof a))))]
+  [current-amb-tasks    (Parameter (Sequenceof Any))]
   [current-amb-length   (Parameter (→ SequenceTop Index))]
-  [current-amb-pusher   (Parameter (∀ (a ...) (→ (Sequenceof a ... a) a ... a Void)))]
-  [current-amb-popper   (Parameter (∀ (a ...) (→ (Sequenceof a ... a) (Values a ... a))))])
+  [current-amb-pusher   (Parameter (∀ (a) (→ (Sequenceof a) a Void)))]
+  [current-amb-popper   (Parameter (∀ (a) (→ (Sequenceof a) a)))])
 
 
 (define-syntax (amb stx)
