@@ -28,7 +28,7 @@
       (for/first ([task task*])
         (match-define (vector k alt* i) task)
         (define alt (vector-ref alt* i))
-        (vector-set! alt* i 0)
+        (vector-set! alt* i #f)
         (set! i (add1 i))
         (vector-set! task 2 i)
         (when (= i (vector-length alt*))
