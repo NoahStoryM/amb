@@ -204,11 +204,12 @@ elements:
 @itemlist[
   @item{@racket[k]: The captured @tech/refer{continuation} for backtracking}
   @item{@racket[alt*]: A @racket[vector] of @tech{alternatives} to attempt}
-  @item{@racket[i]: Index tracking the next @tech{alternative} to evaluate}
+  @item{@racket[pos]: Index tracking the next @tech{alternative} to evaluate}
 ]
 
-When processed, it uses @racket[call-in-continuation] to call the @racket[i]th
-element of @racket[alt*] in @racket[k]. The default value is @racket[(make-queue)].
+When processed, the first @tech{amb task} uses @racket[call-in-continuation] to
+call the element of @racket[alt*] at position @racket[pos] in @racket[k].
+The default value is @racket[(make-queue)].
 }
 
 @defparam[current-amb-length length (-> sequence? exact-nonnegative-integer?)]{
