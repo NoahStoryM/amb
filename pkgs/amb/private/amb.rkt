@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require "private/utils.rkt"
+(require "utils.rkt"
          (for-syntax racket/base syntax/parse)
          racket/match
          racket/sequence

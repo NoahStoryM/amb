@@ -3,10 +3,10 @@
 (require (for-syntax racket/base syntax/parse)
          racket/contract/base
          racket/mutability)
-(require (rename-in "core.rkt"
+(require (rename-in "private/amb.rkt"
                     [in-amb*  -in-amb*]
                     [in-amb*₁ -in-amb*₁])
-         (contract-in "core.rkt"
+         (contract-in "private/amb.rkt"
                       [in-amb*  (-> (-> any) sequence?)]
                       [in-amb*₁ (-> (-> any) sequence?)]))
 

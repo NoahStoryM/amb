@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(require "core.rkt"
+(require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
 (provide amb amb*
