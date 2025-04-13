@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
 (require (for-syntax racket/base syntax/parse)
-         typed/racket/unsafe)
+         typed/racket/unsafe
+         typed/goto)
 
 (provide amb amb* amb*₁ for/amb for*/amb in-amb in-amb₁)
 
@@ -16,8 +17,8 @@
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
-  [current-amb-maker    (Parameter (∀ (a) (→ (Sequenceof a))))]
-  [current-amb-tasks    (Parameter (Sequenceof Any))]
+  [current-amb-maker    (Parameter (→ (Sequenceof Label)))]
+  [current-amb-tasks    (Parameter (Sequenceof Label))]
   [current-amb-length   (Parameter (→ SequenceTop Index))]
   [current-amb-pusher   (Parameter (∀ (a) (→ (Sequenceof a) a Void)))]
   [current-amb-popper   (Parameter (∀ (a) (→ (Sequenceof a) a)))])

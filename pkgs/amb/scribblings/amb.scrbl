@@ -7,6 +7,7 @@
                      racket/mutability
                      syntax/parse
                      data/queue
+                     goto
                      amb)
           "utils.rkt")
 
@@ -198,18 +199,8 @@ store @tech{amb tasks}. The default value is @racket[make-queue].
 @defparam[current-amb-tasks tasks sequence?]{
 
 A @tech/refer{parameter} that holds the @tech/refer{sequence} of @tech{amb tasks}
-to be evaluated. Each @deftech{amb task} is a @racket[vector] containing three
-elements:
-
-@itemlist[
-  @item{@racket[k]: The captured @tech/refer{continuation} for backtracking}
-  @item{@racket[alt*]: A @racket[vector] of @tech{alternatives} to attempt}
-  @item{@racket[pos]: Index tracking the next @tech{alternative} to evaluate}
-]
-
-When processed, the first @tech{amb task} uses @racket[call-in-continuation] to
-call the element of @racket[alt*] at position @racket[pos] in @racket[k].
-The default value is @racket[(make-queue)].
+to be evaluated. Each @deftech{amb task} is a @tech/refer{continuation} created
+by @racket[current-continuation]. The default value is @racket[(make-queue)].
 }
 
 @defparam[current-amb-length length (-> sequence? exact-nonnegative-integer?)]{
@@ -219,13 +210,13 @@ A @tech/refer{parameter} that specifies the method for retrieving the number of
 @racket[queue-length].
 }
 
-@defparam[current-amb-pusher push! (-> sequence? amb-task? void?)]{
+@defparam[current-amb-pusher push! (-> sequence? continuation? void?)]{
 
 A @tech/refer{parameter} that defines the method for pushing an @tech{amb task}
 into the current @tech{amb sequence}. The default value is @racket[enqueue-front!].
 }
 
-@defparam[current-amb-popper pop! (-> sequence? amb-task?)]{
+@defparam[current-amb-popper pop! (-> sequence? continuation?)]{
 
 A @tech/refer{parameter} that defines the method for popping an @tech{amb task}
 from the current @tech{amb sequence}. The default value is @racket[dequeue!].

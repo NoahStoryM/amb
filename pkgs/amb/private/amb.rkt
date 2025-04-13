@@ -2,10 +2,9 @@
 
 (require "utils.rkt"
          (for-syntax racket/base syntax/parse)
-         racket/match
          racket/sequence
          racket/stream
-         racket/unsafe/undefined)
+         goto)
 
 (provide amb amb* amb*₁
          for/amb for*/amb
@@ -22,28 +21,37 @@
          current-amb-popper)
 
 
-(define (next task*)
-  (if (= 0 ((current-amb-length) task*))
-      ((current-amb-empty-handler))
+(define (fail #:empty-handler [empty-handler (current-amb-empty-handler)]
+              #:tasks [task* (current-amb-tasks)]
+              #:length [length (current-amb-length)])
+  (if (zero? (length task*))
+      (empty-handler)
       (for/first ([task task*])
-        (match-define (vector k alt* pos) task)
-        (define alt (vector-ref alt* pos))
-        (vector-set! alt* pos #f)
-        (let ([pos (add1 pos)])
-          (if (= pos (vector-length alt*))
-              ((current-amb-popper) task*)
-              (vector-set! task 2 pos)))
-        (call-in-continuation k alt))))
-
+        (goto task))))
 
 (define (amb*₁ alt*)
   (define task* (current-amb-tasks))
   ((current-amb-shuffler) alt*)
-  (if (= 0 (vector-length alt*))
-      (next task*)
-      (let/cc k
-        ((current-amb-pusher) task* (vector k alt* 0))
-        (next task*))))
+  (if (zero? (vector-length alt*))
+      (fail #:tasks task*)
+      (let* ([pos #f] [task (label)])
+        (cond
+          [(integer? pos)
+           (define alt (vector-ref alt* pos))
+           (vector-set! alt* pos #f)
+           (set! pos (add1 pos))
+           (when (= pos (vector-length alt*))
+             ((current-amb-popper) task*)
+             (set! alt* #f)
+             (set! pos #t))
+           (alt)]
+          [(not pos)
+           (set! pos 0)
+           ((current-amb-pusher) task* task)
+           (for/first ([task task*])
+             (goto task))]
+          [else
+           (fail #:tasks task*)]))))
 
 (define (amb* . alt*) (amb*₁ (list->vector alt*)))
 
@@ -77,43 +85,57 @@
 
 
 (define (in-amb* alt)
-  (let/cc return
-    (call-with-values
-     (λ ()
-       (define break unsafe-undefined)
-       (define (empty-handler) (break #t))
-       (define task* ((current-amb-maker)))
-       (parameterize ([current-amb-empty-handler empty-handler]
-                      [current-amb-tasks task*])
-         (let/cc sync
-           ((current-amb-pusher) task* (vector sync (vector alt) 0))
-           (for/stream ([_ (in-naturals)])
-             #:break
-             (let/cc k (set! break k) #f)
-             (let/cc k (set! return k)
-               (call-in-continuation sync amb*))))))
-     (λ v* (apply return v*)))))
+  (define break #f)
+  (define return #f)
+  (define (empty-handler) (break #t))
+  (define task* ((current-amb-maker)))
+  (define length (current-amb-length))
+  (parameterize ([current-amb-empty-handler empty-handler]
+                 [current-amb-tasks task*])
+    (define task (label))
+    (cond
+      [return
+       ((current-amb-popper) task*)
+       (call-with-values alt (λ v* (apply return v*)))]
+      [else
+       ((current-amb-pusher) task* task)
+       (for/stream ([_ (in-naturals)])
+         #:break
+         (let/cc k (set! break k) #f)
+         (let/cc k (set! return k)
+           (fail #:empty-handler empty-handler
+                 #:tasks task*
+                 #:length length)))])))
 
 (define (in-amb*₁ alt)
-  (let/cc return
-    (call-with-values
-     (λ ()
-       (define continue unsafe-undefined)
-       (define (empty-handler) (continue #f))
-       (define task* ((current-amb-maker)))
-       (parameterize ([current-amb-empty-handler empty-handler]
-                      [current-amb-tasks task*])
-         (let/cc sync
-           ((current-amb-pusher) task* (vector sync (vector alt) 0))
-           (make-do-sequence
-            (λ ()
-              (initiate-sequence
-               #:init-pos 0
-               #:next-pos add1
-               #:continue-with-pos? (λ (_) (let/cc k (set! continue k) #t))
-               #:pos->element       (λ (_) (let/cc k (set! return k)
-                                             (call-in-continuation sync amb*)))))))))
-     (λ v* (apply return v*)))))
+  (define continue #f)
+  (define return #f)
+  (define (empty-handler) (continue #f))
+  (define task* ((current-amb-maker)))
+  (define length (current-amb-length))
+  (parameterize ([current-amb-empty-handler empty-handler]
+                 [current-amb-tasks task*])
+    (define task (label))
+    (cond
+      [return
+       ((current-amb-popper) task*)
+       (call-with-values alt (λ v* (apply return v*)))]
+      [else
+       ((current-amb-pusher) task* task)
+       (make-do-sequence
+        (λ ()
+          (initiate-sequence
+           #:init-pos 0
+           #:next-pos add1
+           #:continue-with-pos?
+           (λ (_)
+             (let/cc k (set! continue k) #t))
+           #:pos->element
+           (λ (_)
+             (let/cc k (set! return k)
+               (fail #:empty-handler empty-handler
+                     #:tasks task*
+                     #:length length))))))])))
 
 (define-syntaxes (in-amb in-amb₁)
   (let ()
