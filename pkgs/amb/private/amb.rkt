@@ -26,8 +26,7 @@
               #:length [length (current-amb-length)])
   (if (zero? (length task*))
       (empty-handler)
-      (for/first ([task task*])
-        (goto task))))
+      (goto (sequence-ref task* 0))))
 
 (define (amb*₁ alt*)
   (define task* (current-amb-tasks))
@@ -48,8 +47,7 @@
           [(not pos)
            (set! pos 0)
            ((current-amb-pusher) task* task)
-           (for/first ([task task*])
-             (goto task))]
+           (goto (sequence-ref task* 0))]
           [else
            (fail #:tasks task*)]))))
 
