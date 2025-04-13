@@ -34,13 +34,13 @@
   ((current-amb-shuffler) alt*)
   (if (zero? (vector-length alt*))
       (fail #:tasks task*)
-      (let* ([pos #f] [task (label)])
+      (let* ([pos #t] [task (label)])
         (case/eq pos
-          [(#f)
+          [(#t)
            (set! pos 0)
            ((current-amb-pusher) task* task)
            (goto (sequence-ref task* 0))]
-          [(#t)
+          [(#f)
            (fail #:tasks task*)])
         (define alt (vector-ref alt* pos))
         (vector-set! alt* pos #f)
@@ -48,7 +48,7 @@
         (when (= pos (vector-length alt*))
           ((current-amb-popper) task*)
           (set! alt* #f)
-          (set! pos #t))
+          (set! pos #f))
         (alt))))
 
 (define (amb* . alt*) (amb*₁ (list->vector alt*)))
