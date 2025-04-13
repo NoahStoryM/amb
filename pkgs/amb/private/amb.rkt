@@ -2,6 +2,7 @@
 
 (require "utils.rkt"
          (for-syntax racket/base syntax/parse)
+         racket/case
          racket/sequence
          racket/stream
          goto)
@@ -34,22 +35,21 @@
   (if (zero? (vector-length alt*))
       (fail #:tasks task*)
       (let* ([pos #f] [task (label)])
-        (cond
-          [(integer? pos)
-           (define alt (vector-ref alt* pos))
-           (vector-set! alt* pos #f)
-           (set! pos (add1 pos))
-           (when (= pos (vector-length alt*))
-             ((current-amb-popper) task*)
-             (set! alt* #f)
-             (set! pos #t))
-           (alt)]
-          [(not pos)
+        (case/eq pos
+          [(#f)
            (set! pos 0)
            ((current-amb-pusher) task* task)
            (goto (sequence-ref task* 0))]
-          [else
-           (fail #:tasks task*)]))))
+          [(#t)
+           (fail #:tasks task*)])
+        (define alt (vector-ref alt* pos))
+        (vector-set! alt* pos #f)
+        (set! pos (add1 pos))
+        (when (= pos (vector-length alt*))
+          ((current-amb-popper) task*)
+          (set! alt* #f)
+          (set! pos #t))
+        (alt))))
 
 (define (amb* . alt*) (amb*₁ (list->vector alt*)))
 
