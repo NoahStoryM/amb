@@ -5,7 +5,7 @@
          racket/case
          racket/sequence
          racket/stream
-         goto)
+         goto/private/goto)
 
 (provide amb amb* amb*₁
          for/amb for*/amb
