@@ -92,10 +92,7 @@
                  [current-amb-tasks task*])
     (define task (label))
     (cond
-      [return
-       ((current-amb-popper) task*)
-       (call-with-values alt (λ v* (apply return v*)))]
-      [else
+      [(not return)
        ((current-amb-pusher) task* task)
        (for/stream ([_ (in-naturals)])
          #:break
@@ -103,7 +100,10 @@
          (let/cc k (set! return k)
            (fail #:empty-handler empty-handler
                  #:tasks task*
-                 #:length length)))])))
+                 #:length length)))]
+      [else
+       ((current-amb-popper) task*)
+       (call-with-values alt (λ v* (apply return v*)))])))
 
 (define (in-amb*₁ alt)
   (define continue #f)
@@ -115,10 +115,7 @@
                  [current-amb-tasks task*])
     (define task (label))
     (cond
-      [return
-       ((current-amb-popper) task*)
-       (call-with-values alt (λ v* (apply return v*)))]
-      [else
+      [(not return)
        ((current-amb-pusher) task* task)
        (make-do-sequence
         (λ ()
@@ -133,7 +130,10 @@
              (let/cc k (set! return k)
                (fail #:empty-handler empty-handler
                      #:tasks task*
-                     #:length length))))))])))
+                     #:length length))))))]
+      [else
+       ((current-amb-popper) task*)
+       (call-with-values alt (λ v* (apply return v*)))])))
 
 (define-syntaxes (in-amb in-amb₁)
   (let ()
