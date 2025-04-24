@@ -5,7 +5,7 @@
          (for-syntax racket/base
                      syntax/parse))
 
-(provide (except-out (all-defined-out) main))
+(provide (all-defined-out))
 
 (define (make-amb-eval) (make-base-eval #:lang 'racket/base '(require amb data/queue)))
 (define-syntax-rule (amb-examples body ...) (examples #:eval (make-amb-eval) body ...))
@@ -31,6 +31,3 @@
 
 (define-tech tech/guide '(lib "scribblings/guide/guide.scrbl"))
 (define-tech tech/refer '(lib "scribblings/reference/reference.scrbl"))
-
-(define main (λ ([argv (current-command-line-arguments)]) (values)))
-(module+ main (call-with-values main exit))
