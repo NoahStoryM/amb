@@ -1,4 +1,4 @@
-#lang typed/racket/base/optional
+#lang typed/racket/base/shallow
 
 (require (for-syntax racket/base syntax/parse)
          typed/goto)
