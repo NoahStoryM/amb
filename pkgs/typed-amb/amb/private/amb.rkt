@@ -1,20 +1,17 @@
-#lang typed/racket/base
+#lang typed/racket/base/optional
 
 (require (for-syntax racket/base syntax/parse)
-         typed/racket/unsafe
          typed/goto)
 
 (provide amb amb* amb*₁ for/amb for*/amb in-amb in-amb₁)
 
 (require/typed/provide amb/private/amb
-  [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
-  [raise-amb-error (→ Nothing)])
-
-(unsafe-require/typed/provide amb/private/amb
   [amb*  (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
   [amb*₁ (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*  (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
+  [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
+  [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
   [current-amb-maker    (Parameter (→ (Sequenceof Label)))]
