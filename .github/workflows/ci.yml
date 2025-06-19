@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Bogdanp/setup-racket@v1.14
+        with:
+          version: stable
+          distribution: full
+      - name: Install packages
+        run: raco pkg install --auto --batch pkgs/amb pkgs/typed-amb
+      - name: Run tests
+        run: raco test -p amb typed-amb
