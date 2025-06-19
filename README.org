@@ -3,17 +3,61 @@
 #+EMAIL: noahstorym@gmail.com
 
 * Table of Contents                                       :TOC_5_gh:noexport:
-- [[#raco-pkg-install-amb][raco pkg install amb]]
-- [[#raco-pkg-install-typed-amb][raco pkg install typed-amb]]
+- [[#about][About]]
+- [[#installation][Installation]]
+- [[#usage][Usage]]
+- [[#typed-interface][Typed Interface]]
 
-* raco pkg install amb
+* About
 
+"amb" provides John McCarthy's ambiguous operator for Racket.  It
+introduces ~amb~ along with helpers such as ~for/amb~ and
+~in-amb~ for exploring nondeterministic computations.  A typed version
+is available in the ~typed-amb~ package.
+
+* Installation
+
+- ~raco pkg install amb~
 #+begin_src racket
 (require amb)
 #+end_src
+#+begin_src bash
+raco pkg install amb
+#+end_src
 
-* raco pkg install typed-amb
-
+- ~raco pkg install typed-amb~
 #+begin_src racket
 (require typed/amb)
+#+end_src
+#+begin_src bash
+raco pkg install typed-amb
+#+end_src
+
+* Usage
+
+The forms allow exploring multiple execution paths.  The snippet below
+collects all pairs ~(x y)~ such that ~x < y~:
+
+#+begin_src racket
+(require amb)
+
+(for/list ([p (in-amb
+               (let ([x (amb 1 2 3)]
+                     [y (amb 3 4 5)])
+                 (when (>= x y) (amb))
+                 (list x y)))])
+  p)
+#+end_src
+
+This evaluates to
+#+begin_src racket
+'((1 3) (1 4) (1 5) (2 3) (2 4) (2 5))
+#+end_src
+
+* Typed Interface
+
+Using ~typed/amb~ offers the same API for Typed Racket programs.
+#+begin_src racket
+(require typed/amb)
+;; Typed usage mirrors the untyped API
 #+end_src
