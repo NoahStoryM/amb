@@ -20,7 +20,7 @@
           "amb: empty amb tasks;\n expected at least one amb task\n  in: (amb)"
           (current-continuation-marks))))
 
-;; Parameters controlling the runtime behaviour of amb.
+;; Parameters controlling the runtime behaviour of `(amb)`.
 (define current-amb-empty-handler (make-parameter raise-amb-error))
 ;; Called with a vector of choices to shuffle the search order.
 (define current-amb-shuffler (make-parameter void))
