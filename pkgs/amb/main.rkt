@@ -1,5 +1,9 @@
 #lang racket/base
 
+;; Public interface for the ambiguous operator.  This module re-exports
+;; the primitives from "private/amb.rkt" and adds sequence syntax and
+;; contracts for consumers.
+
 (require (for-syntax racket/base syntax/parse)
          racket/contract/base
          racket/mutability)
@@ -30,11 +34,15 @@
 
 
 (define (check-thk thk)
+  ;; Ensure `thk` is a zero-argument thunk.  Used to guard the
+  ;; contract for `in-amb*`.
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
     ;; break contract
     (in-amb* thk)))
 
 (define-sequence-syntax *in-amb*
+  ;; Sequence form used by `in-amb*`.  It wraps the provided expression
+  ;; in a thunk and verifies its contract.
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
@@ -55,6 +63,8 @@
        (-in-amb* (λ () expr)))]))
 
 (define-sequence-syntax *in-amb
+  ;; Sequence form for `(in-amb expr)` where the expression is wrapped
+  ;; in a thunk before passing to `in-amb*₁`.
   in-amb
   (λ (stx)
     (syntax-parse stx
@@ -66,6 +76,8 @@
 
 
 (define-syntax (in-amb₁ stx)
+  ;; Like `in-amb` but expands directly to `in-amb*₁` for use in
+  ;; contexts that already expect a sequence.
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)

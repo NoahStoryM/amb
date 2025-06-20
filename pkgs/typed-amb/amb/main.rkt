@@ -1,5 +1,8 @@
 #lang typed/racket/base
 
+;; Typed front-end for `amb`.  Provides the same API as the untyped
+;; version but with Typed Racket contracts.
+
 (require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
@@ -19,14 +22,15 @@
 
 
 (define-sequence-syntax *in-amb*
+  ;; Typed variant of `*in-amb*` that directly uses the typed core.
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
-       (syntax/loc stx
-         [(id ...)
-          (in-amb*₁ expr)])])))
+        (syntax/loc stx
+          [(id ...)
+            (in-amb*₁ expr)])])))
 
 
 (define-for-syntax (in-amb stx)
@@ -37,6 +41,8 @@
        (in-amb* (λ () expr)))]))
 
 (define-sequence-syntax *in-amb
+  ;; Equivalent of `*in-amb` from the untyped module but working with
+  ;; typed functions.
   in-amb
   (λ (stx)
     (syntax-parse stx
@@ -48,6 +54,8 @@
 
 
 (define-syntax (in-amb₁ stx)
+  ;; Short-hand macro that expands to `in-amb*₁` with the given
+  ;; expression wrapped in a thunk.
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
