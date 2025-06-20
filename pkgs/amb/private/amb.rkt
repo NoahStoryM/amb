@@ -1,5 +1,9 @@
 #lang racket/base
 
+;; Core implementation of the ambiguous operator.  This module
+;; defines the runtime primitives used by the public API in
+;; ~amb/main.rkt~ and its typed counterpart.
+
 (require "utils.rkt"
          (for-syntax racket/base syntax/parse)
          racket/case
@@ -25,23 +29,29 @@
 (define (fail #:empty-handler [empty-handler (current-amb-empty-handler)]
               #:tasks [task* (current-amb-tasks)]
               #:length [length (current-amb-length)])
+  ;; Jump to the next pending task or trigger the empty handler when
+  ;; no choices remain.
   (if (zero? (length task*))
       (empty-handler)
       (goto (sequence-ref task* 0))))
 
 (define (amb*₁ alt*)
+  ;; Process a vector of thunks sequentially, using the task queue to
+  ;; backtrack whenever a thunk signals failure via `amb`.
   (define len (vector-length alt*))
   (define task* (current-amb-tasks))
-  ((current-amb-shuffler) alt*)
+  ((current-amb-shuffler) alt*)       ; allow user provided randomization
   (if (zero? len)
       (fail #:tasks task*)
       (let* ([pos #t] [task (label)])
         (case/eq pos
           [(#t)
+           ;; first entry
            (set! pos 0)
            ((current-amb-pusher) task* task)
            (goto (sequence-ref task* 0))]
           [(#f)
+           ;; no more alternatives
            (fail #:tasks task*)])
         (define alt (vector-ref alt* pos))
         (vector-set! alt* pos #f)
@@ -52,9 +62,15 @@
           (set! pos #f))
         (alt))))
 
-(define (amb* . alt*) (amb*₁ (list->vector alt*)))
+(define (amb* . alt*)
+  ;; Public-facing helper that accepts any number of thunks and
+  ;; delegates to `amb*₁` after packing them into a vector.
+  (amb*₁ (list->vector alt*)))
 
 (define-syntax (amb stx)
+  ;; Macro form for writing `(amb expr ...)`.  Each expression is
+  ;; delayed, and the resulting alternatives are attempted in an
+  ;; unspecified order.
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)
@@ -62,8 +78,11 @@
        (amb*₁ (vector (λ () expr) ...)))]))
 
 
-(define (zero) 0)
+(define (zero) 0) ; helper used as the default #:fill value
 (define-syntaxes (for/amb for*/amb)
+  ;; Variants of `for` that evaluate the body in an ambiguous
+  ;; context.  Each clause behaves like its `for/vector` equivalent
+  ;; but backtracks on `(amb)`.
   (let ()
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
@@ -84,6 +103,8 @@
 
 
 (define (in-amb* alt)
+  ;; Convert a thunk producing multiple values into a sequence by
+  ;; repeatedly invoking it while maintaining a task queue.
   (define break #f)
   (define return #f)
   (define (empty-handler) (break #t))
@@ -107,6 +128,8 @@
        (call-with-values alt (λ v* (apply return v*)))])))
 
 (define (in-amb*₁ alt)
+  ;; Version of `in-amb*` that returns a do-sequence for use in
+  ;; sequence comprehensions.
   (define continue #f)
   (define return #f)
   (define (empty-handler) (continue #f))
@@ -137,6 +160,9 @@
        (call-with-values alt (λ v* (apply return v*)))])))
 
 (define-syntaxes (in-amb in-amb₁)
+  ;; Macros expanding to calls to `in-amb*` or `in-amb*₁` with the
+  ;; expression wrapped in a thunk.  They provide convenient sequence
+  ;; syntax for iterating over ambiguous computations.
   (let ()
     (define ((make derived-stx) stx)
       (syntax-parse stx
