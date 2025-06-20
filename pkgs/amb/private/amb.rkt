@@ -36,8 +36,8 @@
       (goto (sequence-ref task* 0))))
 
 (define (amb*₁ alt*)
-  ;; Evaluate a vector of thunks one by one, backtracking when a
-  ;; thunk signals failure via `amb`.
+  ;; Process a vector of thunks sequentially, using the task queue to
+  ;; backtrack whenever a thunk signals failure via `amb`.
   (define len (vector-length alt*))
   (define task* (current-amb-tasks))
   ((current-amb-shuffler) alt*)       ; allow user provided randomization
@@ -68,8 +68,9 @@
   (amb*₁ (list->vector alt*)))
 
 (define-syntax (amb stx)
-  ;; Macro form for writing `(amb expr ...)` where each expression is
-  ;; delayed and tried in sequence.
+  ;; Macro form for writing `(amb expr ...)`.  Each expression is
+  ;; delayed, and the resulting alternatives are attempted in an
+  ;; unspecified order.
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)

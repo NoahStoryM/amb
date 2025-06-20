@@ -1,8 +1,8 @@
 #lang typed/racket/base/shallow
 
-;; Typed wrapper around the untyped `amb` implementation.  All
-;; functions are re-exported with precise types for use in Typed
-;; Racket programs.
+;; Typed wrapper around the base `amb` implementation.  All functions
+;; are re-exported with precise types for use in Typed Racket
+;; programs.
 
 (require (for-syntax racket/base syntax/parse)
          typed/goto)
@@ -27,7 +27,7 @@
 
 (define-syntax (amb stx)
   ;; Typed version of the `amb` macro.  Each expression is delayed and
-  ;; processed by the untyped core.
+  ;; processed by the underlying implementation.
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr ...)
@@ -36,9 +36,9 @@
 
 
 (define-syntaxes (for/amb for*/amb)
-  ;; Typed versions of the `for/amb` and `for*/amb` macros.  They
-  ;; simply reuse the parser logic from the untyped module with type
-  ;; annotations preserved.
+  ;; Typed versions of the `for/amb` and `for*/amb` macros.  They reuse
+  ;; the parser logic from the base module while preserving type
+  ;; annotations.
   (let ()
     (define-splicing-syntax-class length-clause
       [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])

@@ -28,9 +28,9 @@
     (syntax-parse stx
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
-        (syntax/loc stx
-          [(id ...)
-            (in-amb*₁ expr)])])))
+       (syntax/loc stx
+         [(id ...)
+          (in-amb*₁ expr)])])))
 
 
 (define-for-syntax (in-amb stx)
@@ -41,7 +41,7 @@
        (in-amb* (λ () expr)))]))
 
 (define-sequence-syntax *in-amb
-  ;; Equivalent of `*in-amb` from the untyped module but working with
+  ;; Equivalent of `*in-amb` from the base module but working with
   ;; typed functions.
   in-amb
   (λ (stx)

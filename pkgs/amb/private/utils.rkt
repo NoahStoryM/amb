@@ -14,7 +14,7 @@
   #:extra-constructor-name make-exn:fail:contract:amb
   #:transparent)
 
-;; Raise a consistent error when an amb expression runs out of tasks.
+;; Raise a consistent error when `(amb)` runs out of tasks.
 (define (raise-amb-error)
   (raise (exn:fail:contract:amb
           "amb: empty amb tasks;\n expected at least one amb task\n  in: (amb)"

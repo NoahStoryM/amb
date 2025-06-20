@@ -37,7 +37,7 @@
   ;; Ensure `thk` is a zero-argument thunk.  Used to guard the
   ;; contract for `in-amb*`.
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
-    ;; break contract
+    ;; intentionally violate the contract
     (in-amb* thk)))
 
 (define-sequence-syntax *in-amb*
