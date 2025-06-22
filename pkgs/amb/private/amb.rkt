@@ -11,10 +11,10 @@
          racket/stream
          goto/no-check)
 
-(provide amb amb* amb*₁
+(provide amb amb* unsafe-amb*
          for/amb for*/amb
          in-amb  in-amb*
-         in-amb₁ in-amb*₁
+         in-amb/do in-amb*/do
          (struct-out exn:fail:contract:amb)
          raise-amb-error
          current-amb-empty-handler
@@ -35,7 +35,7 @@
       (empty-handler)
       (goto (sequence-ref task* 0))))
 
-(define (amb*₁ alt*)
+(define (unsafe-amb* alt*)
   ;; Process a vector of thunks sequentially, using the task queue to
   ;; backtrack whenever a thunk signals failure via `amb`.
   (define len (vector-length alt*))
@@ -64,8 +64,8 @@
 
 (define (amb* . alt*)
   ;; Public-facing helper that accepts any number of thunks and
-  ;; delegates to `amb*₁` after packing them into a vector.
-  (amb*₁ (list->vector alt*)))
+  ;; delegates to `unsafe-amb*` after packing them into a vector.
+  (unsafe-amb* (list->vector alt*)))
 
 (define-syntax (amb stx)
   ;; Macro form for writing `(amb expr ...)`.  Each expression is
@@ -75,7 +75,7 @@
     #:datum-literals ()
     [(_ expr ...)
      (syntax/loc stx
-       (amb*₁ (vector (λ () expr) ...)))]))
+       (unsafe-amb* (vector (λ () expr) ...)))]))
 
 
 (define (zero) 0) ; helper used as the default #:fill value
@@ -91,13 +91,13 @@
         #:datum-literals ()
         [(_ #:length n #:fill fill (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (amb*₁ (#,derived-stx #:length n #:fill (λ () fill) (clauses ...) break ... (λ () body ...))))]
+           (unsafe-amb* (#,derived-stx #:length n #:fill (λ () fill) (clauses ...) break ... (λ () body ...))))]
         [(_ #:length n (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (amb*₁ (#,derived-stx #:length n #:fill zero (clauses ...) break ... (λ () body ...))))]
+           (unsafe-amb* (#,derived-stx #:length n #:fill zero (clauses ...) break ... (λ () body ...))))]
         [(_ (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (amb*₁ (#,derived-stx (clauses ...) break ... (λ () body ...))))]))
+           (unsafe-amb* (#,derived-stx (clauses ...) break ... (λ () body ...))))]))
     (values (make-for/amb #'for/vector)
             (make-for/amb #'for*/vector))))
 
@@ -127,7 +127,7 @@
        ((current-amb-popper) task*)
        (call-with-values alt (λ v* (apply return v*)))])))
 
-(define (in-amb*₁ alt)
+(define (in-amb*/do alt)
   ;; Version of `in-amb*` that returns a do-sequence for use in
   ;; sequence comprehensions.
   (define continue #f)
@@ -159,8 +159,8 @@
        ((current-amb-popper) task*)
        (call-with-values alt (λ v* (apply return v*)))])))
 
-(define-syntaxes (in-amb in-amb₁)
-  ;; Macros expanding to calls to `in-amb*` or `in-amb*₁` with the
+(define-syntaxes (in-amb in-amb/do)
+  ;; Macros expanding to calls to `in-amb*` or `in-amb*/do` with the
   ;; expression wrapped in a thunk.  They provide convenient sequence
   ;; syntax for iterating over ambiguous computations.
   (let ()
@@ -171,4 +171,4 @@
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]))
     (values (make #'in-amb*)
-            (make #'in-amb*₁))))
+            (make #'in-amb*/do))))

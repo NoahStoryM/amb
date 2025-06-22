@@ -9,15 +9,15 @@
          racket/mutability)
 (require (rename-in "private/amb.rkt"
                     [in-amb*  -in-amb*]
-                    [in-amb*₁ -in-amb*₁])
+                    [in-amb*/do -in-amb*/do])
          (contract-in "private/amb.rkt"
                       [in-amb*  (-> (-> any) sequence?)]
-                      [in-amb*₁ (-> (-> any) sequence?)]))
+                      [in-amb*/do (-> (-> any) sequence?)]))
 
 (provide amb
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
-         in-amb₁ in-amb*₁
+         in-amb/do in-amb*/do
          (contract-out
           (struct exn:fail:contract:amb
             ([message string?]
@@ -49,10 +49,10 @@
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
-         [(id ...)
-          (let ([thk expr])
-            (check-thk thk)
-            (-in-amb*₁ thk))])])))
+          [(id ...)
+           (let ([thk expr])
+             (check-thk thk)
+             (-in-amb*/do thk))])])))
 
 
 (define-for-syntax (in-amb stx)
@@ -64,22 +64,22 @@
 
 (define-sequence-syntax *in-amb
   ;; Sequence form for `(in-amb expr)` where the expression is wrapped
-  ;; in a thunk before passing to `in-amb*₁`.
+  ;; in a thunk before passing to `in-amb*/do`.
   in-amb
   (λ (stx)
     (syntax-parse stx
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
-         [(id ...)
-          (-in-amb*₁ (λ () expr))])])))
+          [(id ...)
+           (-in-amb*/do (λ () expr))])])))
 
 
-(define-syntax (in-amb₁ stx)
-  ;; Like `in-amb` but expands directly to `in-amb*₁` for use in
+(define-syntax (in-amb/do stx)
+  ;; Like `in-amb` but expands directly to `in-amb*/do` for use in
   ;; contexts that already expect a sequence.
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
      (syntax/loc stx
-       (in-amb*₁ (λ () expr)))]))
+       (in-amb*/do (λ () expr)))]))

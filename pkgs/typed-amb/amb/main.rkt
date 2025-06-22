@@ -8,8 +8,8 @@
 
 (provide amb amb*
          for/amb for*/amb
-         (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
-         in-amb₁ in-amb*₁
+        (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
+        in-amb/do in-amb*/do
          (struct-out exn:fail:contract:amb)
          raise-amb-error
          current-amb-empty-handler
@@ -30,7 +30,7 @@
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
-          (in-amb*₁ expr)])])))
+          (in-amb*/do expr)])])))
 
 
 (define-for-syntax (in-amb stx)
@@ -50,14 +50,14 @@
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
-          (in-amb*₁ (λ () expr))])])))
+          (in-amb*/do (λ () expr))])])))
 
 
-(define-syntax (in-amb₁ stx)
-  ;; Short-hand macro that expands to `in-amb*₁` with the given
+(define-syntax (in-amb/do stx)
+  ;; Short-hand macro that expands to `in-amb*/do` with the given
   ;; expression wrapped in a thunk.
   (syntax-parse stx
     #:datum-literals ()
     [(_ expr)
      (syntax/loc stx
-       (in-amb*₁ (λ () expr)))]))
+       (in-amb*/do (λ () expr)))]))

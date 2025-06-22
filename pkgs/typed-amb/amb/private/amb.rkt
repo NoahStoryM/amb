@@ -7,13 +7,13 @@
 (require (for-syntax racket/base syntax/parse)
          typed/goto)
 
-(provide amb amb* amb*₁ for/amb for*/amb in-amb in-amb₁)
+(provide amb amb* unsafe-amb* for/amb for*/amb in-amb in-amb/do)
 
 (require/typed/provide amb/private/amb
   [amb*  (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
-  [amb*₁ (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
+  [unsafe-amb* (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*  (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
-  [in-amb*₁ (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
+  [in-amb*/do (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
   [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
@@ -50,7 +50,7 @@
           #:datum-literals (:)
           [(_ : t1 #:length n #:fill fill (clauses ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
-             (amb*₁
+             (unsafe-amb*
               (#,derived-stx
                : (Mutable-Vectorof (→ t1))
                #:length n
@@ -63,7 +63,7 @@
            (parser (syntax/loc stx (name : t1 #:length n #:fill 0 (clauses ...) : t2 break ... body ...)) )]
           [(_ : t1 (clauses ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
-             (amb*₁
+             (unsafe-amb*
               (#,derived-stx
                : (Mutable-Vectorof (→ t1))
                (clauses ...)
@@ -81,8 +81,8 @@
             (make-for/amb #'for*/vector))))
 
 
-(define-syntaxes (in-amb in-amb₁)
-  ;; Thin wrappers around `in-amb*` and `in-amb*₁` that accept an
+(define-syntaxes (in-amb in-amb/do)
+  ;; Thin wrappers around `in-amb*` and `in-amb*/do` that accept an
   ;; expression instead of a thunk.
   (let ()
     (define ((make derived-stx) stx)
@@ -92,4 +92,4 @@
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]))
     (values (make #'in-amb*)
-            (make #'in-amb*₁))))
+            (make #'in-amb*/do))))
