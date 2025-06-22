@@ -49,10 +49,10 @@
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
-          [(id ...)
-           (let ([thk expr])
-             (check-thk thk)
-             (-in-amb*/do thk))])])))
+         [(id ...)
+          (let ([thk expr])
+            (check-thk thk)
+            (-in-amb*/do thk))])])))
 
 
 (define-for-syntax (in-amb stx)
@@ -71,8 +71,8 @@
       #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
-          [(id ...)
-           (-in-amb*/do (λ () expr))])])))
+         [(id ...)
+          (-in-amb*/do (λ () expr))])])))
 
 
 (define-syntax (in-amb/do stx)
