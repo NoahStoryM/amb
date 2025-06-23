@@ -2,7 +2,7 @@
 
 ;; Core implementation of the ambiguous operator.  This module
 ;; defines the runtime primitives used by the public API in
-;; ~amb/main.rkt~ and its typed counterpart.
+;; "amb/main.rkt" and its typed counterpart.
 
 (require "utils.rkt"
          (for-syntax racket/base syntax/parse)
@@ -40,7 +40,7 @@
   ;; backtrack whenever a thunk signals failure via `amb`.
   (define len (vector-length alt*))
   (define task* (current-amb-tasks))
-  ((current-amb-shuffler) alt*)       ; allow user provided randomization
+  ((current-amb-shuffler) alt*)         ; allow user provided randomization
   (if (zero? len)
       (fail #:tasks task*)
       (let* ([pos #t] [task (label)])

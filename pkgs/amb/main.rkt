@@ -1,17 +1,16 @@
 #lang racket/base
 
 ;; Public interface for the ambiguous operator.  This module re-exports
-;; the primitives from "private/amb.rkt" and adds sequence syntax and
+;; the primitives from "amb/private/amb.rkt", adds sequence syntax, and
 ;; contracts for consumers.
 
 (require (for-syntax racket/base syntax/parse)
-         racket/contract/base
-         racket/mutability)
+         racket/contract/base)
 (require (rename-in "private/amb.rkt"
-                    [in-amb*  -in-amb*]
+                    [in-amb*    -in-amb*]
                     [in-amb*/do -in-amb*/do])
          (contract-in "private/amb.rkt"
-                      [in-amb*  (-> (-> any) sequence?)]
+                      [in-amb*    (-> (-> any) sequence?)]
                       [in-amb*/do (-> (-> any) sequence?)]))
 
 (provide amb
