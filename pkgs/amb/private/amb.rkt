@@ -9,7 +9,7 @@
          racket/case
          racket/sequence
          racket/stream
-         goto/no-check)
+         goto)
 
 (provide amb amb* unsafe-amb*
          for/amb for*/amb
