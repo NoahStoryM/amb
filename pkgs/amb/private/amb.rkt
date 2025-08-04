@@ -44,7 +44,7 @@
   (if (zero? len)
       (fail #:tasks task*)
       (let* ([pos #t] [task (label)])
-        (case/eqv pos
+        (case/eq pos
           [(#t)
            ;; first entry
            (set! pos 0)
