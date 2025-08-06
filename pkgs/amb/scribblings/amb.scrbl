@@ -133,11 +133,10 @@ The backend of @racket[in-amb].
 }
 
 @amb-examples[
-(define (thk)
-  (define x (for/amb ([i 10]) i))
-  (unless (even? x) (amb))
-  x)
-(for/list ([x (in-amb* thk)]) x)
+(define (make)
+  (parameterize ([current-amb-pusher enqueue!])
+    (let g () (amb 0 1 (cons (g) (g))))))
+(for/list ([x (in-amb* make)] [_ 10]) x)
 ]
 
 @section{Exception Type}
