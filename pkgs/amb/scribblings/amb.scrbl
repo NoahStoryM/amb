@@ -19,7 +19,6 @@
 @section{Ambiguous Operator}
 
 @defform[(amb expr ...)]{
-
 John McCarthy's ambiguous operator.
 
 The form @racket[(amb expr ...)] expands to @racket[(amb* (λ () expr) ...)].
@@ -70,7 +69,6 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
 }
 
 @defproc[(amb* [alt (-> any)] ...) any]{
-
 The backend of @racket[amb].
 }
 
@@ -78,7 +76,6 @@ The backend of @racket[amb].
                          (for/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))]
               @defform*[((for*/amb maybe-length (for-clause ...) break-clause ... body ...+)
                          (for*/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))])]{
-
 The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
 @racket[for/vector] and @racket[for*/vector], but instead of evaluating the loop
 body, they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
@@ -95,7 +92,6 @@ body, they wrap each iteration as a @racket[thunk] to create @deftech{alternativ
 @section{Stream Constructor}
 
 @defform[(in-amb expr)]{
-
 Constructs a @tech/refer{stream} from the results of evaluating the ambiguous
 expression @racket[expr], allowing for lazy evaluation of results.
 
@@ -128,9 +124,7 @@ that produces as many results as needed.
 ]
 
 @defproc[(in-amb* [thk (-> any)]) stream?]{
-
 The backend of @racket[in-amb].
-}
 
 @amb-examples[
 (define (make)
@@ -138,12 +132,12 @@ The backend of @racket[in-amb].
     (let g () (amb 0 1 (cons (g) (g))))))
 (for/list ([x (in-amb* make)] [_ 10]) x)
 ]
+}
 
 @section{Exception Type}
 
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
            #:inspector #f]{
-
 Raised when evaluating @racket[(amb)] with an empty @tech{amb sequence}.
 
 @amb-examples[
@@ -175,48 +169,41 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 @section{Parameter}
 
 @defparam[current-amb-empty-handler empty-handler (-> none/c)]{
-
 A @tech/refer{parameter} that specifies the procedure to be called when the
 @tech{amb sequence} is empty and @racket[(amb)] is evaluated. The default value
 is @racket[raise-amb-error].
 }
 
 @defparam[current-amb-shuffler shuffle! (-> mutable-vector? void?)]{
-
 A @tech/refer{parameter} that specifies how to shuffle @tech{alternatives} before
 scheduling new @tech{amb tasks} into the current @tech{amb sequence}. The default
 value is @racket[void].
 }
 
 @defparam[current-amb-maker make (-> sequence?)]{
-
 A @tech/refer{parameter} that specifies the method for creating a new
 @deftech{amb sequence}. This allows users to define the data structure used to
 store @tech{amb tasks}. The default value is @racket[make-queue].
 }
 
 @defparam[current-amb-tasks tasks sequence?]{
-
 A @tech/refer{parameter} that holds the @tech/refer{sequence} of @tech{amb tasks}
 to be evaluated. Each @deftech{amb task} is a @tech/refer{continuation} created
 by @racket[current-continuation]. The default value is @racket[(make-queue)].
 }
 
 @defparam[current-amb-length length (-> sequence? exact-nonnegative-integer?)]{
-
 A @tech/refer{parameter} that specifies the method for retrieving the number of
 @tech{amb tasks} in the current @tech{amb sequence}. The default value is
 @racket[queue-length].
 }
 
 @defparam[current-amb-pusher push! (-> sequence? continuation? void?)]{
-
 A @tech/refer{parameter} that defines the method for pushing an @tech{amb task}
 into the current @tech{amb sequence}. The default value is @racket[enqueue-front!].
 }
 
 @defparam[current-amb-popper pop! (-> sequence? continuation?)]{
-
 A @tech/refer{parameter} that defines the method for popping an @tech{amb task}
 from the current @tech{amb sequence}. The default value is @racket[dequeue!].
 }
