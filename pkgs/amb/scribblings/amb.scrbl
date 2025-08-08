@@ -134,6 +134,15 @@ The backend of @racket[in-amb].
 ]
 }
 
+@defform[(in-amb/do expr)]{
+Similar to @racket[in-amb], except that a @tech/refer{sequence} is returned
+instead of a @tech/refer{stream}.
+}
+
+@defproc[(in-amb*/do [thk (-> any)]) sequence?]{
+The backend of @racket[in-amb/do].
+}
+
 @section{Exception Type}
 
 @defstruct[(exn:fail:contract:amb exn:fail:contract) ()
