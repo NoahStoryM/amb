@@ -78,7 +78,6 @@
        (unsafe-amb* (vector (λ () expr) ...)))]))
 
 
-(define (zero) 0) ; helper used as the default #:fill value
 (define-syntaxes (for/amb for*/amb)
   ;; Variants of `for` that evaluate the body in an ambiguous
   ;; context.  Each clause behaves like its `for/vector` equivalent
@@ -89,12 +88,10 @@
     (define ((make-for/amb derived-stx) stx)
       (syntax-parse stx
         #:datum-literals ()
-        [(_ #:length n #:fill fill (clauses ...) break:break-clause ... body ...+)
+        [(_ #:length n (~optional (~seq #:fill fill-expr)) (clauses ...) break:break-clause ... body ...+)
+         #:with fill (if (attribute fill-expr) #'(λ () fill-expr) #'amb*)
          (quasisyntax/loc stx
-           (unsafe-amb* (#,derived-stx #:length n #:fill (λ () fill) (clauses ...) break ... (λ () body ...))))]
-        [(_ #:length n (clauses ...) break:break-clause ... body ...+)
-         (quasisyntax/loc stx
-           (unsafe-amb* (#,derived-stx #:length n #:fill zero (clauses ...) break ... (λ () body ...))))]
+           (unsafe-amb* (#,derived-stx #:length n #:fill fill (clauses ...) break ... (λ () body ...))))]
         [(_ (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
            (unsafe-amb* (#,derived-stx (clauses ...) break ... (λ () body ...))))]))

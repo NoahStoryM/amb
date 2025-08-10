@@ -48,19 +48,27 @@
       (define (parser stx)
         (syntax-parse stx
           #:datum-literals (:)
-          [(_ : t1 #:length n #:fill fill (clauses ...) : t2 break:break-clause ... body ...+)
+          [(name : t1
+                 #:length n
+                 (~optional (~seq #:fill fill-expr))
+                 (clauses ...)
+                 : t2
+                 break:break-clause ...
+                 body ...+)
+           #:with fill
+           (if (attribute fill-expr)
+               #'(ann (λ () : t2 fill-expr) (→ t1))
+               #'(ann amb* (→ Nothing)))
            (quasisyntax/loc stx
              (unsafe-amb*
               (#,derived-stx
                : (Mutable-Vectorof (→ t1))
                #:length n
-               #:fill (ann (λ () : t2 fill) (→ t1))
+               #:fill fill
                (clauses ...)
                : (→ t2)
                break ...
                (ann (λ () : t2 body ...) (→ t1)))))]
-          [(name : t1 #:length n (clauses ...) : t2 break:break-clause ... body ...+)
-           (parser (syntax/loc stx (name : t1 #:length n #:fill 0 (clauses ...) : t2 break ... body ...)) )]
           [(_ : t1 (clauses ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
              (unsafe-amb*
