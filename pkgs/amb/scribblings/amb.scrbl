@@ -84,6 +84,11 @@ body, they wrap each iteration as a @racket[thunk] to create @deftech{alternativ
 (for/amb #:length 4 ([i #(1 2)] [j #(x y)]) (values i j))
 (amb)
 (eval:error (amb))
+(for/amb #:length 4 #:fill 0 ([i #(1 2)] [j #(x y)]) (values i j))
+(amb)
+(amb)
+(amb)
+(eval:error (amb))
 ]
 }
 
