@@ -60,6 +60,8 @@
           ((current-amb-popper) task*)
           (set! alt* #f)
           (set! pos #f))
+        (when (equal? alt amb*)
+          (goto task))
         (alt))))
 
 (define (amb* . alt*)
