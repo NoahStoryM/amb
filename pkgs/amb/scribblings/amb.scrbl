@@ -170,18 +170,10 @@ The backend of @racket[in-amb/do].
 Raised when evaluating @racket[(amb)] with an empty @tech{amb sequence}.
 
 @amb-examples[
-(eval:error
- (parameterize ([current-amb-tasks ((current-amb-maker))])
-   (amb)))
-(eval:error
- (parameterize ([current-amb-tasks ((current-amb-maker))])
-   (amb*)))
-(eval:error
- (parameterize ([current-amb-tasks ((current-amb-maker))])
-   (for/amb ([i '()]) i)))
-(eval:error
- (parameterize ([current-amb-tasks ((current-amb-maker))])
-   (for*/amb ([i '()]) i)))
+(eval:error (amb))
+(eval:error (amb*))
+(eval:error (for/amb ([i '()]) i))
+(eval:error (for*/amb ([i '()]) i))
 ]
 }
 
@@ -190,8 +182,7 @@ Creates an @racket[exn:fail:contract:amb] value and @racket[raise]s it as an
 @tech/guide{exception}.
 
 @amb-examples[
-(eval:error
- (raise-amb-error))
+(eval:error (raise-amb-error))
 ]
 }
 
