@@ -70,6 +70,23 @@ fresh @tech/refer{sequence}, avoiding unintended interactions between different
 
 @defproc[(amb* [alt (-> any)] ...) any]{
 The backend of @racket[amb].
+
+If an @racket[alt] is the @racket[amb*] procedure itself, it is skipped, and
+evaluation proceeds to the next @racket[alt].
+
+@amb-examples[
+(define make-amb-tasks (current-amb-maker))
+(define (zero) 0)
+(define (one) 1)
+(current-amb-shuffler displayln)
+(amb* amb* zero amb* one amb*)
+(amb)
+(eval:error (amb))
+(define (amb+) (amb))
+(amb* amb+ zero amb+ one amb+)
+(amb)
+(eval:error (amb))
+]
 }
 
 @deftogether[(@defform*[((for/amb maybe-length (for-clause ...) break-clause ... body ...+)
