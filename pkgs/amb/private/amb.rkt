@@ -101,62 +101,49 @@
             (make-for/amb #'for*/vector))))
 
 
-(define (in-amb* alt)
-  ;; Convert a thunk producing multiple values into a sequence by
-  ;; repeatedly invoking it while maintaining a task queue.
-  (define break #f)
-  (define return #f)
-  (define (empty-handler) (break #t))
-  (define task* ((current-amb-maker)))
-  (define length (current-amb-length))
-  (parameterize ([current-amb-empty-handler empty-handler]
-                 [current-amb-tasks task*])
-    (define task (label))
-    (cond
-      [(not return)
-       ((current-amb-pusher) task* task)
-       (for/stream ([_ (in-naturals)])
-         #:break
-         (let/cc k (set! break k) #f)
-         (let/cc k (set! return k)
-           (fail #:empty-handler empty-handler
-                 #:tasks task*
-                 #:length length)))]
-      [else
-       ((current-amb-popper) task*)
-       (call-with-values alt (λ v* (apply return v*)))])))
-
-(define (in-amb*/do alt)
-  ;; Version of `in-amb*` that returns a do-sequence for use in
-  ;; sequence comprehensions.
-  (define continue #f)
-  (define return #f)
-  (define (empty-handler) (continue #f))
-  (define task* ((current-amb-maker)))
-  (define length (current-amb-length))
-  (parameterize ([current-amb-empty-handler empty-handler]
-                 [current-amb-tasks task*])
-    (define task (label))
-    (cond
-      [(not return)
-       ((current-amb-pusher) task* task)
-       (make-do-sequence
-        (λ ()
-          (initiate-sequence
-           #:init-pos 0
-           #:next-pos add1
-           #:continue-with-pos?
-           (λ (_)
-             (let/cc k (set! continue k) #t))
-           #:pos->element
-           (λ (_)
-             (let/cc k (set! return k)
-               (fail #:empty-handler empty-handler
-                     #:tasks task*
-                     #:length length))))))]
-      [else
-       ((current-amb-popper) task*)
-       (call-with-values alt (λ v* (apply return v*)))])))
+(define-values (in-amb* in-amb*/do)
+  (let ()
+    (define (make break-value make-sequence)
+      (define continue-value (not break-value))
+      (λ (alt)
+        ;; Convert a thunk producing multiple values into a sequence by
+        ;; repeatedly invoking it while maintaining a task queue.
+        (define break #f)
+        (define return #f)
+        (define (empty-handler) (break break-value))
+        (define task* ((current-amb-maker)))
+        (define length (current-amb-length))
+        (parameterize ([current-amb-empty-handler empty-handler]
+                       [current-amb-tasks task*])
+          (define task (label))
+          (cond
+            [(not return)
+             ((current-amb-pusher) task* task)
+             (make-sequence
+              (λ (k) (set! break k) continue-value)
+              (λ (k) (set! return k)
+                (fail #:empty-handler empty-handler
+                      #:tasks task*
+                      #:length length)))]
+            [else
+             ((current-amb-popper) task*)
+             (call-with-values alt (λ v* (apply return v*)))]))))
+    (values
+     (make #t
+       (λ (p1 p2)
+         (for/stream ([_ (in-naturals)])
+           #:break
+           (call/cc p1)
+           (call/cc p2))))
+     (make #f
+       (λ (p1 p2)
+         (make-do-sequence
+          (λ ()
+            (initiate-sequence
+             #:init-pos 0
+             #:next-pos add1
+             #:continue-with-pos? (λ (_) (call/cc p1))
+             #:pos->element (λ (_) (call/cc p2))))))))))
 
 (define-syntaxes (in-amb in-amb/do)
   ;; Macros expanding to calls to `in-amb*` or `in-amb*/do` with the
