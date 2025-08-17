@@ -41,28 +41,28 @@
   (define len (vector-length alt*))
   (define task* (current-amb-tasks))
   ((current-amb-shuffler) alt*)         ; allow user provided randomization
-  (if (zero? len)
-      (fail #:tasks task*)
-      (let* ([pos #t] [task (label)])
-        (case/eq pos
-          [(#t)
-           ;; first entry
-           (set! pos 0)
-           ((current-amb-pusher) task* task)
-           (goto (sequence-ref task* 0))]
-          [(#f)
-           ;; no more alternatives
-           (fail #:tasks task*)])
-        (define alt (vector-ref alt* pos))
-        (vector-set! alt* pos #f)
-        (set! pos (add1 pos))
-        (when (= pos len)
-          ((current-amb-popper) task*)
-          (set! alt* #f)
-          (set! pos #f))
-        (when (equal? alt amb*)
-          (goto task))
-        (alt))))
+  (when (zero? len)
+    (fail #:tasks task*))
+  (let* ([pos #t] [task (label)])
+    (case/eq pos
+      [(#t)
+       ;; first entry
+       (set! pos 0)
+       ((current-amb-pusher) task* task)
+       (goto (sequence-ref task* 0))]
+      [(#f)
+       ;; no more alternatives
+       (fail #:tasks task*)])
+    (define alt (vector-ref alt* pos))
+    (vector-set! alt* pos #f)
+    (set! pos (add1 pos))
+    (when (= pos len)
+      ((current-amb-popper) task*)
+      (set! alt* #f)
+      (set! pos #f))
+    (when (equal? alt amb*)
+      (goto task))
+    (alt)))
 
 (define (amb* . alt*)
   ;; Public-facing helper that accepts any number of thunks and
