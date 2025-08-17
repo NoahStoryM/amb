@@ -25,11 +25,11 @@
 ;; Called with a vector of choices to shuffle the search order.
 (define current-amb-shuffler (make-parameter void))
 ;; Produce a fresh collection to hold pending tasks.
-(define current-amb-maker    (make-parameter make-queue))
+(define current-amb-maker (make-parameter make-queue))
 ;; The actual task container used during search.
-(define current-amb-tasks    (make-parameter (make-queue)))
+(define current-amb-tasks (make-parameter (make-queue)))
 ;; How to determine the number of pending tasks.
-(define current-amb-length   (make-parameter queue-length))
+(define current-amb-length (make-parameter queue-length))
 ;; Add and remove tasks from the collection.
-(define current-amb-pusher   (make-parameter enqueue-front!))
-(define current-amb-popper   (make-parameter dequeue!))
+(define current-amb-pusher (make-parameter enqueue-front!))
+(define current-amb-popper (make-parameter dequeue!))
