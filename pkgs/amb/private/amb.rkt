@@ -31,9 +31,9 @@
               #:length [length (current-amb-length)])
   ;; Jump to the next pending task or trigger the empty handler when
   ;; no choices remain.
-  (if (zero? (length task*))
-      (empty-handler)
-      (goto (sequence-ref task* 0))))
+  (when (zero? (length task*))
+    (empty-handler))
+  (goto (sequence-ref task* 0)))
 
 (define (unsafe-amb* alt*)
   ;; Process a vector of thunks sequentially, using the task queue to
