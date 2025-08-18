@@ -7,6 +7,8 @@
 (require data/queue)
 (provide (all-defined-out))
 
+(define empty-mutable-vector (vector))
+
 ;; ----------------------------------------
 ;; Error definition and helper
 

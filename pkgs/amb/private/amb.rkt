@@ -59,16 +59,21 @@
   (set! pos (add1 pos))
   (when (= pos len)
     ((current-amb-popper) task*)
-    (set! alt* #())
+    (set! alt* empty-mutable-vector)
     (set! pos #f))
   (when (equal? alt amb*)
     (goto task))
   (alt))
 
-(define (amb* . alt*)
+(define amb*
   ;; Public-facing helper that accepts any number of thunks and
   ;; delegates to `unsafe-amb*` after packing them into a vector.
-  (unsafe-amb* (list->vector alt*)))
+  (case-λ
+    [() (unsafe-amb* empty-mutable-vector)]
+    [(alt) (unsafe-amb* (vector alt))]
+    [(alt1 alt2) (unsafe-amb* (vector alt1 alt2))]
+    [(alt1 alt2 alt3) (unsafe-amb* (vector alt1 alt2 alt3))]
+    [alt* (unsafe-amb* (list->vector alt*))]))
 
 (define-syntax (amb stx)
   ;; Macro form for writing `(amb expr ...)`.  Each expression is
@@ -76,6 +81,9 @@
   ;; unspecified order.
   (syntax-parse stx
     #:datum-literals ()
+    [(_)
+     (syntax/loc stx
+       (unsafe-amb* empty-mutable-vector))]
     [(_ expr ...)
      (syntax/loc stx
        (unsafe-amb* (vector (λ () expr) ...)))]))
