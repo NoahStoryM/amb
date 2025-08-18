@@ -55,11 +55,11 @@
      ;; no more alternatives
      (fail #:tasks task*)])
   (define alt (vector-ref alt* pos))
-  (vector-set! alt* pos #f)
+  (vector-set! alt* pos amb*)
   (set! pos (add1 pos))
   (when (= pos len)
     ((current-amb-popper) task*)
-    (set! alt* #f)
+    (set! alt* #())
     (set! pos #f))
   (when (equal? alt amb*)
     (goto task))
