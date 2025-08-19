@@ -25,6 +25,7 @@
           [raise-amb-error (-> none/c)]
           [current-amb-empty-handler #;(parameter/c (-> none/c)) parameter?]
           [current-amb-shuffler #;(parameter/c (-> mutable-vector? void?)) parameter?]
+          [current-amb-rotator  #;(parameter/c (-> sequence? void?)) parameter?]
           [current-amb-maker    #;(parameter/c (-> sequence?)) parameter?]
           [current-amb-tasks    #;(parameter/c sequence?) parameter?]
           [current-amb-length   #;(parameter/c (-> sequence? exact-nonnegative-integer?)) parameter?]

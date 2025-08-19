@@ -87,4 +87,14 @@
          (2 3 5) (2 3 6)
          (2 4 5) (2 4 6))))))
 
+(define (rotate-mutable-treelist! mtl)
+  (unless (mutable-treelist-empty? mtl)
+    (mutable-treelist-add! mtl (mutable-treelist-pop! mtl))))
+
+(test-case "Ratate tasks"
+  (parameterize ([current-amb-rotator rotate-mutable-treelist!])
+    (check-equal?
+     (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i)
+     '(1 a 2 b 3 c))))
+
 (load "amb.rktl")

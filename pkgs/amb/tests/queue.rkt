@@ -87,4 +87,14 @@
          (2 3 5) (2 3 6)
          (2 4 5) (2 4 6))))))
 
+(define (rotate-queue! q)
+  (when (non-empty-queue? q)
+    (enqueue! q (dequeue! q))))
+
+(test-case "Ratate tasks"
+  (parameterize ([current-amb-rotator rotate-queue!])
+    (check-equal?
+     (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i)
+     '(1 a 2 b 3 c))))
+
 (load "amb.rktl")

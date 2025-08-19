@@ -18,6 +18,7 @@
   [raise-amb-error (→ Nothing)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
+  [current-amb-rotator  (Parameter (→ SequenceTop Void))]
   [current-amb-maker    (Parameter (→ (Sequenceof Label)))]
   [current-amb-tasks    (Parameter (Sequenceof Label))]
   [current-amb-length   (Parameter (→ SequenceTop Index))]

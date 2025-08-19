@@ -14,6 +14,7 @@
          raise-amb-error
          current-amb-empty-handler
          current-amb-shuffler
+         current-amb-rotator
          current-amb-maker
          current-amb-tasks
          current-amb-length

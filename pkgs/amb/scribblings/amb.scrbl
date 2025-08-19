@@ -126,6 +126,11 @@ The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 (amb 1 2 3)
 (for/list ([(i j) (in-amb (amb (values 1 'x) (values 2 'y)))]) (cons i j))
 (amb)
+(define (rotate-queue! q)
+  (when (non-empty-queue? q)
+    (enqueue! q (dequeue! q))))
+(parameterize ([current-amb-rotator rotate-queue!])
+  (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i))
 (amb)
 (eval:error (amb))
 ]
@@ -198,6 +203,11 @@ is @racket[raise-amb-error].
 A @tech/refer{parameter} that specifies how to shuffle @tech{alternatives} before
 scheduling new @tech{amb tasks} into the current @tech{amb sequence}. The default
 value is @racket[void].
+}
+
+@defparam[current-amb-rotator rotate! (-> sequence? void?)]{
+A @tech/refer{parameter} that specifies how to rotate @tech{amb tasks} before
+running an @tech{alternative}. The default value is @racket[void].
 }
 
 @defparam[current-amb-maker make (-> sequence?)]{
