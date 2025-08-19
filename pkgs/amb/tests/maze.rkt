@@ -1,6 +1,7 @@
-#lang racket
+#lang racket/base
 
-(require "../main.rkt")
+(require "../main.rkt"
+         racket/pretty)
 
 
 (define maze

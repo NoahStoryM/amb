@@ -1,6 +1,7 @@
-#lang typed/racket
+#lang typed/racket/base
 
-(require "../../amb.rkt")
+(require "../../amb.rkt"
+         racket/pretty)
 
 
 (: maze (Listof (Listof (∪ #t #f '**))))
