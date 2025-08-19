@@ -26,7 +26,7 @@
 (define current-amb-empty-handler (make-parameter raise-amb-error))
 ;; Called with a vector of choices to shuffle the search order.
 (define current-amb-shuffler (make-parameter void))
-;; Produce a fresh collection to hold pending tasks.
+;; Produce a fresh task container to hold pending tasks.
 (define current-amb-maker (make-parameter make-queue))
 ;; The actual task container used during search.
 (define current-amb-tasks (make-parameter (make-queue)))
