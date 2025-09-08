@@ -47,23 +47,24 @@
   (define pos #t)
   (define task (label))
   (case/eq pos
+    ;; first entry
     [(#t)
-     ;; first entry
      (set! pos 0)
      ((current-amb-pusher) task* task)
      (goto (sequence-ref task* 0))]
+    ;; no more alternatives
     [(#f)
-     ;; no more alternatives
-     (fail #:tasks task*)])
+     (fail #:tasks task*)]
+    [else
+     (when (= pos len)
+       (set! pos #f)
+       ((current-amb-popper) task*)
+       (fail #:tasks task*))])
   (define alt (vector-ref alt* pos))
   (vector-set! alt* pos amb*)
   (set! pos (add1 pos))
   (when (= pos len)
-    ((current-amb-popper) task*)
-    (set! alt* empty-mutable-vector)
-    (set! pos #f)
-    (when (equal? alt amb*)
-      (fail #:tasks task*)))
+    (set! alt* empty-mutable-vector))
   (when (equal? alt amb*)
     (goto task))
   ((current-amb-rotator) task*)
