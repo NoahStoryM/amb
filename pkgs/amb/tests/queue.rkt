@@ -95,6 +95,17 @@
   (parameterize ([current-amb-rotator rotate-queue!])
     (check-equal?
      (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i)
-     '(1 a 2 b 3 c))))
+     '(1 a 2 b 3 c)))
+  (define (thk)
+    (define a '(0))
+    (define b (append a (list (amb 1 2 3))))
+    (parameterize ([current-amb-rotator rotate-queue!])
+      (define c (append b (list (amb 4 5 6))))
+      c))
+  (check-equal?
+   (for/list ([i (in-amb* thk)]) i)
+   '((0 1 4) (0 2 4) (0 3 4)
+     (0 1 5) (0 2 5) (0 3 5)
+     (0 1 6) (0 2 6) (0 3 6))))
 
 (load "amb.rktl")
