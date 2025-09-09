@@ -5,10 +5,16 @@
 ;; programs.
 
 (require (for-syntax racket/base syntax/parse)
+         racket/sequence
          typed/goto)
+(require/typed racket/base
+  [call-in-continuation
+   (∀ (a ...)
+      (case→
+       (→ (→ a ... a Nothing) (→ (Values a ... a)) Nothing)
+       (→ (→ Any * Nothing) (→ AnyValues) Nothing)))])
 
 (provide amb amb* unsafe-amb* for/amb for*/amb in-amb in-amb/do)
-
 (require/typed/provide amb/private/amb
   [amb*        (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
   [unsafe-amb* (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
@@ -45,40 +51,59 @@
       [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define (make-for/amb derived-stx)
+    (define (make-for/amb for/vector for)
       (define (parser stx)
         (syntax-parse stx
           #:datum-literals (:)
-          [(name : t1
-                 #:length n
-                 (~optional (~seq #:fill fill-expr))
-                 (clauses ...)
-                 : t2
-                 break:break-clause ...
-                 body ...+)
+          [(name
+            : t1
+            #:length n (~optional (~seq #:fill fill-expr))
+            (clauses ...)
+            : t2
+            break:break-clause ...
+            body ...+)
            #:with fill
            (if (attribute fill-expr)
                #'(ann (λ () : t2 fill-expr) (→ t1))
                #'(ann amb* (→ Nothing)))
            (quasisyntax/loc stx
              (unsafe-amb*
-              (#,derived-stx
+              (#,for/vector
                : (Mutable-Vectorof (→ t1))
-               #:length n
-               #:fill fill
+               #:length n #:fill fill
                (clauses ...)
                : (→ t2)
                break ...
                (ann (λ () : t2 body ...) (→ t1)))))]
           [(_ : t1 (clauses ...) : t2 break:break-clause ... body ...+)
            (quasisyntax/loc stx
-             (unsafe-amb*
-              (#,derived-stx
-               : (Mutable-Vectorof (→ t1))
-               (clauses ...)
-               : (→ t2)
-               break ...
-               (ann (λ () : t2 body ...) (→ t1)))))]
+             (let/cc return : t1
+               (define retry : Label goto)
+               (define length (current-amb-length))
+               (define task* (current-amb-tasks))
+               (define task : Label (label))
+               (cond
+                 [(eq? retry goto)
+                  ;; first entry
+                  (set! retry task)
+                  ((current-amb-pusher) task* task)
+                  (goto (sequence-ref task* 0))]
+                 [(not (eq? retry task))
+                  (goto retry)])
+               (#,for (clauses ...) break ...
+                (define choice : Label (label))
+                (unless (eq? retry choice)
+                  (set! retry choice)
+                  ((current-amb-rotator) task*)
+                  (call-in-continuation return (λ () : t2 body ...))))
+               ;; no more alternatives
+               ((current-amb-popper) task*)
+               (define skip : Label (label))
+               (unless (eq? retry skip)
+                 (set! retry skip))
+               (when (zero? (length task*))
+                 ((current-amb-empty-handler)))
+               (goto (sequence-ref task* 0))))]
           [(~or* (name : t0 (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+)
                  (name (~optional length:length-clause) (clauses ...) : t0 break:break-clause ... body ...+)
                  (name (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+))
@@ -86,8 +111,8 @@
            #:with (maybe-length ...) (if (attribute length) #'length #'())
            (parser (syntax/loc stx (name : t maybe-length ... (clauses ...) : t break ... body ...)))]))
       parser)
-    (values (make-for/amb #'for/vector)
-            (make-for/amb #'for*/vector))))
+    (values (make-for/amb #'for/vector  #'for)
+            (make-for/amb #'for*/vector #'for*))))
 
 
 (define-syntaxes (in-amb in-amb/do)

@@ -40,10 +40,12 @@
   ;; Process a vector of thunks sequentially, using the task queue to
   ;; backtrack whenever a thunk signals failure via `amb`.
   (define len (vector-length alt*))
+  (define length (current-amb-length))
   (define task* (current-amb-tasks))
   ((current-amb-shuffler) alt*)         ; allow user provided randomization
   (when (zero? len)
-    (fail #:tasks task*))
+    (fail #:tasks task*
+          #:length length))
   (define pos #t)
   (define task (label))
   (case/eq pos
@@ -54,12 +56,14 @@
      (goto (sequence-ref task* 0))]
     ;; no more alternatives
     [(#f)
-     (fail #:tasks task*)]
+     (fail #:tasks task*
+           #:length length)]
     [else
      (when (= pos len)
        (set! pos #f)
        ((current-amb-popper) task*)
-       (fail #:tasks task*))])
+       (fail #:tasks task*
+             #:length length))])
   (define alt (vector-ref alt* pos))
   (vector-set! alt* pos amb*)
   (set! pos (add1 pos))
@@ -96,23 +100,56 @@
 
 (define-syntaxes (for/amb for*/amb)
   ;; Variants of `for` that evaluate the body in an ambiguous
-  ;; context.  Each clause behaves like its `for/vector` equivalent
+  ;; context.  Each clause behaves like its `for` equivalent
   ;; but backtracks on `(amb)`.
   (let ()
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define ((make-for/amb derived-stx) stx)
+    (define ((make-for/amb for/vector for) stx)
       (syntax-parse stx
-        #:datum-literals ()
-        [(_ #:length n (~optional (~seq #:fill fill-expr)) (clauses ...) break:break-clause ... body ...+)
-         #:with fill (if (attribute fill-expr) #'(λ () fill-expr) #'amb*)
+        [(_ #:length n (~optional (~seq #:fill fill-expr))
+            (clauses ...) break:break-clause ...
+            body ...+)
+         #:with fill
+         (if (attribute fill-expr)
+             #'(λ () fill-expr)
+             #'amb*)
          (quasisyntax/loc stx
-           (unsafe-amb* (#,derived-stx #:length n #:fill fill (clauses ...) break ... (λ () body ...))))]
+           (unsafe-amb*
+            (#,for/vector
+             #:length n #:fill fill
+             (clauses ...) break ...
+             (λ () body ...))))]
         [(_ (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (unsafe-amb* (#,derived-stx (clauses ...) break ... (λ () body ...))))]))
-    (values (make-for/amb #'for/vector)
-            (make-for/amb #'for*/vector))))
+           (let/cc return
+             (define retry #t)
+             (define length (current-amb-length))
+             (define task* (current-amb-tasks))
+             (define task (label))
+             (cond
+               [(continuation? retry)
+                (goto retry)]
+               ;; first entry
+               [retry
+                (set! retry #f)
+                ((current-amb-pusher) task* task)
+                (goto (sequence-ref task* 0))])
+             (#,for (clauses ...) break ...
+              (define choice (label))
+              (unless (and retry (eq? retry choice))
+                (set! retry choice)
+                ((current-amb-rotator) task*)
+                (call-in-continuation return (λ () body ...))))
+             ;; no more alternatives
+             ((current-amb-popper) task*)
+             (define skip (label))
+             (unless (eq? retry skip)
+               (set! retry skip))
+             (fail #:tasks task*
+                   #:length length)))]))
+    (values (make-for/amb #'for/vector  #'for)
+            (make-for/amb #'for*/vector #'for*))))
 
 
 (define-values (in-amb* in-amb*/do)
@@ -125,8 +162,8 @@
         (define break #f)
         (define return #f)
         (define (empty-handler) (break break-value))
-        (define task* ((current-amb-maker)))
         (define length (current-amb-length))
+        (define task* ((current-amb-maker)))
         (parameterize ([current-amb-empty-handler empty-handler]
                        [current-amb-tasks task*])
           (define task (label))

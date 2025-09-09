@@ -93,9 +93,12 @@ evaluation proceeds to the next @racket[alt].
                          (for/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))]
               @defform*[((for*/amb maybe-length (for-clause ...) break-clause ... body ...+)
                          (for*/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))])]{
-The syntax of @racket[for/amb] and @racket[for*/amb] resembles that of
-@racket[for/vector] and @racket[for*/vector], but instead of evaluating the loop
-body, they wrap each iteration as a @racket[thunk] to create @deftech{alternative}s.
+Variants of @racket[for] that treat each iteration of the loop body as an
+ambiguous choice.
+
+When the @racket[#:length] clause is specified, the syntax resembles
+@racket[for/vector] and @racket[for*/vector]. The loop body for each iteration
+is wrapped in a @racket[thunk] to create a fixed number of @deftech{alternative}s.
 
 @amb-examples[
 (for/amb #:length 4 ([i #(1 2)] [j #(x y)]) (values i j))
@@ -106,6 +109,18 @@ body, they wrap each iteration as a @racket[thunk] to create @deftech{alternativ
 (amb)
 (amb)
 (eval:error (amb))
+]
+
+If the @racket[#:length] clause is omitted, a @deftech{choice point} is created
+for each iteration. After the body of one iteration is evaluated, backtracking
+via @racket[(amb)] proceeds to the next iteration. This allows for iterating over
+@tech/refer{sequences} of any size, including infinite ones.
+
+@amb-examples[
+(for/amb ([i (in-naturals)]) i)
+(amb)
+(amb)
+(amb)
 ]
 }
 

@@ -48,8 +48,19 @@
      (void)))
   (parameterize ([current-amb-tasks ((current-amb-maker))])
     (time
+     (define m 10000000)
+     (define n (for/amb ([i (in-range m)]) i))
+     (void)))
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
+    (time
      (define m 1000000)
      (define n (for/amb #:length (add1 m) ([i (in-inclusive-range 0 m)]) i))
+     (when (< n m) (amb))
+     (check-eq? n m)))
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
+    (time
+     (define m 1000000)
+     (define n (for/amb ([i (in-inclusive-range 0 m)]) i))
      (when (< n m) (amb))
      (check-eq? n m)))
   (parameterize ([current-amb-tasks ((current-amb-maker))])
@@ -62,6 +73,11 @@
     (time
      (for ([i 1000000]
            [(j k) (in-amb* (λ () (for/amb #:length 1000000 ([i 1000000]) (values i (- i)))))])
+       (list i j k))))
+  (parameterize ([current-amb-tasks ((current-amb-maker))])
+    (time
+     (for ([i 1000000]
+           [(j k) (in-amb* (λ () (for/amb ([i 1000000]) (values i (- i)))))])
        (list i j k))))
   (parameterize ([current-amb-tasks ((current-amb-maker))])
     (define (next i j) (amb (values i j) (next (add1 i) (sub1 j))))
@@ -93,8 +109,17 @@
     (define s (in-amb (for/amb #:length 1000000 ([i 1000000]) i)))
     (time (for ([i (in-stream s)]) i)))
   (parameterize ([current-amb-shuffler void])
+    (define s (in-amb (for/amb ([i 1000000]) i)))
+    (time (for ([i (in-stream s)]) i)))
+  (parameterize ([current-amb-shuffler void])
     (time (for ([i (in-amb (for/amb #:length 1000000 ([i 1000000]) i))]) i)))
+  (parameterize ([current-amb-shuffler void])
+    (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
   (let ()
     (define s (in-amb (for/amb #:length 1000000 ([i 1000000]) i)))
     (time (for ([i (in-stream s)]) i)))
-  (time (for ([i (in-amb (for/amb #:length 1000000 ([i 1000000]) i))]) i)))
+  (let ()
+    (define s (in-amb (for/amb ([i 1000000]) i)))
+    (time (for ([i (in-stream s)]) i)))
+  (time (for ([i (in-amb (for/amb #:length 1000000 ([i 1000000]) i))]) i))
+  (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
