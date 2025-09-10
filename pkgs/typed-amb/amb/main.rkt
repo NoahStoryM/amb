@@ -1,4 +1,4 @@
-#lang typed/racket/base
+#lang typed/racket/base/shallow
 
 ;; Typed front-end for `amb`.  Provides the same API as the untyped
 ;; version but with Typed Racket contracts.
