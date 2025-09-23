@@ -188,13 +188,15 @@
            (call/cc p2))))
      (make #f
        (λ (p1 p2)
+         (define (continue-with-pos? _) (call/cc p1))
+         (define (pos->element _) (call/cc p2))
          (make-do-sequence
           (λ ()
             (initiate-sequence
              #:init-pos 0
              #:next-pos add1
-             #:continue-with-pos? (λ (_) (call/cc p1))
-             #:pos->element (λ (_) (call/cc p2))))))))))
+             #:continue-with-pos? continue-with-pos?
+             #:pos->element pos->element))))))))
 
 (define-syntaxes (in-amb in-amb/do)
   ;; Macros expanding to calls to `in-amb*` or `in-amb*/do` with the
