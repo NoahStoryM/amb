@@ -46,7 +46,6 @@
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
-      #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
@@ -57,7 +56,6 @@
 
 (define-for-syntax (in-amb stx)
   (syntax-parse stx
-    #:datum-literals ()
     [(_ expr)
      (syntax/loc stx
        (-in-amb* (λ () expr)))]))
@@ -68,7 +66,6 @@
   in-amb
   (λ (stx)
     (syntax-parse stx
-      #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
@@ -79,7 +76,6 @@
   ;; Like `in-amb` but expands directly to `in-amb*/do` for use in
   ;; contexts that already expect a sequence.
   (syntax-parse stx
-    #:datum-literals ()
     [(_ expr)
      (syntax/loc stx
        (in-amb*/do (λ () expr)))]))

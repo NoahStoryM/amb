@@ -36,7 +36,6 @@
   ;; Typed version of the `amb` macro.  Each expression is delayed and
   ;; processed by the underlying implementation.
   (syntax-parse stx
-    #:datum-literals ()
     [(_ expr ...)
      (syntax/loc stx
        (amb* (λ () expr) ...))]))
@@ -121,7 +120,6 @@
   (let ()
     (define ((make derived-stx) stx)
       (syntax-parse stx
-        #:datum-literals ()
         [(_ expr)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]))

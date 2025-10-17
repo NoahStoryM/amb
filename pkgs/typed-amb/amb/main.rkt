@@ -27,7 +27,6 @@
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
-      #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
@@ -36,7 +35,6 @@
 
 (define-for-syntax (in-amb stx)
   (syntax-parse stx
-    #:datum-literals ()
     [(_ expr)
      (syntax/loc stx
        (in-amb* (λ () expr)))]))
@@ -47,7 +45,6 @@
   in-amb
   (λ (stx)
     (syntax-parse stx
-      #:datum-literals ()
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
@@ -58,7 +55,6 @@
   ;; Short-hand macro that expands to `in-amb*/do` with the given
   ;; expression wrapped in a thunk.
   (syntax-parse stx
-    #:datum-literals ()
     [(_ expr)
      (syntax/loc stx
        (in-amb*/do (λ () expr)))]))

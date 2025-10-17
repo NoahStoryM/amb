@@ -89,7 +89,6 @@
   ;; delayed, and the resulting alternatives are attempted in an
   ;; unspecified order.
   (syntax-parse stx
-    #:datum-literals ()
     [(_)
      (syntax/loc stx
        (unsafe-amb* empty-mutable-vector))]
@@ -205,7 +204,6 @@
   (let ()
     (define ((make derived-stx) stx)
       (syntax-parse stx
-        #:datum-literals ()
         [(_ expr)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]))
