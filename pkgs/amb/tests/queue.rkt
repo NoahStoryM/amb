@@ -1,6 +1,7 @@
-#lang racket/load
+#lang racket/base
 
 (require racket/contract/combinator
+         racket/include
          racket/mutable-treelist
          racket/set
          racket/stream
