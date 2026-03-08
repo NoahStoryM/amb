@@ -132,7 +132,7 @@
                ;; first entry
                [retry
                 (set! retry #f)
-t               ((current-amb-pusher) task* task)
+                ((current-amb-pusher) task* task)
                 (goto (sequence-ref task* 0))])
              (#,for (clauses ...) break ...
               (define choice (label))
