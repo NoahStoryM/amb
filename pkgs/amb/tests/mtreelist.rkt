@@ -92,7 +92,7 @@
   (unless (mutable-treelist-empty? mtl)
     (mutable-treelist-add! mtl (mutable-treelist-pop! mtl))))
 
-(test-case "Ratate tasks"
+(test-case "Rotate tasks"
   (parameterize ([current-amb-rotator rotate-mutable-treelist!])
     (check-equal?
      (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i)

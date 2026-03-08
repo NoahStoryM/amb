@@ -92,7 +92,7 @@
   (when (non-empty-queue? q)
     (enqueue! q (dequeue! q))))
 
-(test-case "Ratate tasks"
+(test-case "Rotate tasks"
   (parameterize ([current-amb-rotator rotate-queue!])
     (check-equal?
      (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i)
