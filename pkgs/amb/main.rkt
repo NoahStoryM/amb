@@ -1,8 +1,8 @@
 #lang racket/base
 
-;; Public interface for the ambiguous operator.  This module re-exports
-;; the primitives from "amb/private/amb.rkt", adds sequence syntax, and
-;; contracts for consumers.
+;; Public interface for the ambiguous operator.
+;; This module re-exports the primitives from "amb/private/amb.rkt",
+;; adds sequence syntax and contracts for consumers.
 
 (require (for-syntax racket/base syntax/parse)
          racket/contract/base)
@@ -41,8 +41,8 @@
     (in-amb* thk)))
 
 (define-sequence-syntax *in-amb*
-  ;; Sequence form used by `in-amb*`.  It wraps the provided expression
-  ;; in a thunk and verifies its contract.
+  ;; Sequence form used by `in-amb*`.  It wraps the provided
+  ;; expression in a thunk and verifies its contract.
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx

@@ -42,9 +42,9 @@
 
 
 (define-syntaxes (for/amb for*/amb)
-  ;; Typed versions of the `for/amb` and `for*/amb` macros.  They reuse
-  ;; the parser logic from the base module while preserving type
-  ;; annotations.
+  ;; Typed versions of the `for/amb` and `for*/amb` macros.
+  ;; They reuse the parser logic from the base module while preserving
+  ;; type annotations.
   (let ()
     (define-splicing-syntax-class length-clause
       [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])

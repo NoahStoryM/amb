@@ -42,7 +42,7 @@
   (define len (vector-length alt*))
   (define length (current-amb-length))
   (define task* (current-amb-tasks))
-  ((current-amb-shuffler) alt*)         ; allow user provided randomization
+  ((current-amb-shuffler) alt*)    ; allow user provided randomization
   (when (zero? len)
     (fail #:tasks task*
           #:length length))
@@ -132,7 +132,7 @@
                ;; first entry
                [retry
                 (set! retry #f)
-                ((current-amb-pusher) task* task)
+t               ((current-amb-pusher) task* task)
                 (goto (sequence-ref task* 0))])
              (#,for (clauses ...) break ...
               (define choice (label))
@@ -156,8 +156,8 @@
     (define (make break-value make-sequence)
       (define continue-value (not break-value))
       (λ (alt)
-        ;; Convert a thunk producing multiple values into a sequence by
-        ;; repeatedly invoking it while maintaining a task queue.
+        ;; Convert a thunk producing multiple values into a sequence
+        ;; by repeatedly invoking it while maintaining a task queue.
         (define break #f)
         (define return #f)
         (define (empty-handler) (break break-value))
