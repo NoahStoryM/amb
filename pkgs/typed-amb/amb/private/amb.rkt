@@ -20,8 +20,10 @@
   [unsafe-amb* (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*    (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [in-amb*/do (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
+  [amb-prompt-tag Prompt-TagTop]
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
   [raise-amb-error (→ Nothing)]
+  [current-amb-prompt-tag    (Parameter Prompt-TagTop)]
   [current-amb-empty-handler (Parameter (→ Nothing))]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
   [current-amb-rotator  (Parameter (→ SequenceTop Void))]
@@ -46,6 +48,13 @@
   ;; They reuse the parser logic from the base module while preserving
   ;; type annotations.
   (let ()
+    (define-syntax-class type
+      [pattern ((~or* (~literal Values)
+                      (~literal values))
+                t*:expr ...)
+               #:with ts #'(t* ...)]
+      [pattern t:expr
+               #:with ts #'(t)])
     (define-splicing-syntax-class length-clause
       [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])
     (define-splicing-syntax-class break-clause
@@ -53,12 +62,12 @@
     (define (make-for/amb for/vector for)
       (define (parser stx)
         (syntax-parse stx
-          #:datum-literals (:)
+          #:datum-literals (: values Values)
           [(name
-            : t1
+            : t1:type
             #:length n (~optional (~seq #:fill fill-expr))
             (clauses ...)
-            : t2
+            : t2:type
             break:break-clause ...
             body ...+)
            #:with fill
@@ -74,37 +83,42 @@
                : (→ t2)
                break ...
                (ann (λ () : t2 body ...) (→ t1)))))]
-          [(_ : t1 (clauses ...) : t2 break:break-clause ... body ...+)
+          [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
+           #:with (t1* ...) #'t1.ts
            (quasisyntax/loc stx
-             (let/cc return : t1
-               (define retry : Label goto)
-               (define length (current-amb-length))
-               (define task* (current-amb-tasks))
-               (define task : Label (label))
-               (cond
-                 [(eq? retry goto)
-                  ;; first entry
-                  (set! retry task)
-                  ((current-amb-pusher) task* task)
-                  (goto (sequence-ref task* 0))]
-                 [(not (eq? retry task))
-                  (goto retry)])
-               (#,for (clauses ...) break ...
-                (define choice : Label (label))
-                (unless (eq? retry choice)
-                  (set! retry choice)
-                  ((current-amb-rotator) task*)
-                  (call-in-continuation return (λ () : t2 body ...))))
-               ;; no more alternatives
-               ((current-amb-popper) task*)
-               (define skip : Label (label))
-               (unless (eq? retry skip)
-                 (set! retry skip))
-               (when (zero? (length task*))
-                 ((current-amb-empty-handler)))
-               (goto (sequence-ref task* 0))))]
-          [(~or* (name : t0 (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+)
-                 (name (~optional length:length-clause) (clauses ...) : t0 break:break-clause ... body ...+)
+             (call/cc
+              (ann
+               (λ (return)
+                 (define retry : Label goto)
+                 (define length (current-amb-length))
+                 (define task* (current-amb-tasks))
+                 (define task : Label (label (current-amb-prompt-tag)))
+                 (cond
+                   [(eq? retry goto)
+                    ;; first entry
+                    (set! retry task)
+                    ((current-amb-pusher) task* task)
+                    (goto (sequence-ref task* 0))]
+                   [(not (eq? retry task))
+                    (goto retry)])
+                 (#,for (clauses ...) break ...
+                  (define choice : Label (label (current-amb-prompt-tag)))
+                  (unless (eq? retry choice)
+                    (set! retry choice)
+                    ((current-amb-rotator) task*)
+                    (call-in-continuation return (λ () : t2 body ...))))
+                 ;; no more alternatives
+                 ((current-amb-popper) task*)
+                 (define skip : Label (label (current-amb-prompt-tag)))
+                 (unless (eq? retry skip)
+                   (set! retry skip))
+                 (when (zero? (length task*))
+                   ((current-amb-empty-handler)))
+                 (goto (sequence-ref task* 0)))
+               (→ (→ t1* ... Nothing) t2))
+              (current-amb-prompt-tag)))]
+          [(~or* (name : t0:type (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+)
+                 (name (~optional length:length-clause) (clauses ...) : t0:type break:break-clause ... body ...+)
                  (name (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+))
            #:with t (if (attribute t0) #'t0 #'AnyValues)
            #:with (maybe-length ...) (if (attribute length) #'length #'())
