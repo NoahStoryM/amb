@@ -10,6 +10,10 @@
 (define empty-mutable-vector (vector))
 
 ;; ----------------------------------------
+;; Continuation prompt tag
+(define amb-prompt-tag (make-continuation-prompt-tag 'amb))
+
+;; ----------------------------------------
 ;; Error definition and helper
 
 (struct exn:fail:contract:amb exn:fail:contract ()
@@ -22,7 +26,9 @@
           "amb: empty amb tasks;\n expected at least one amb task\n  in: (amb)"
           (current-continuation-marks))))
 
-;; Parameters controlling the runtime behaviour of `(amb)`.
+;; Controlling which prompt-tag `label` uses.
+(define current-amb-prompt-tag (make-parameter (default-continuation-prompt-tag)))
+;; Controlling the runtime behaviour of `(amb)`.
 (define current-amb-empty-handler (make-parameter raise-amb-error))
 ;; Called with a vector of choices to shuffle the search order.
 (define current-amb-shuffler (make-parameter void))

@@ -12,7 +12,13 @@
   (check-exn exn:fail:contract:blame? (λ () (for ([i (in-amb* 123)] [j '()]) i)))
   (define s (in-amb* thk))
   (check-equal? (for/set ([i (in-stream s)]) i) st)
-  (check-equal? (for/set ([i (in-stream s)]) i) st))
+  (check-equal? (for/set ([i (in-stream s)]) i) st)
+  (let ([p (make-parameter 0)])
+    (define s
+      (parameterize ([p 1])
+        (in-amb (amb 0 (p) 2))))
+    (check-equal? (stream->list (parameterize ([p 3]) s))
+                  '(0 1 2))))
 
 (test-case "Test multi values in amb"
   (define (thk)

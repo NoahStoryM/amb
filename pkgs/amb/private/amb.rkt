@@ -13,10 +13,12 @@
 
 (provide amb amb* unsafe-amb*
          for/amb for*/amb
+         amb-prompt-tag
          in-amb  in-amb*
          in-amb/do in-amb*/do
          (struct-out exn:fail:contract:amb)
          raise-amb-error
+         current-amb-prompt-tag
          current-amb-empty-handler
          current-amb-shuffler
          current-amb-rotator
@@ -26,6 +28,9 @@
          current-amb-pusher
          current-amb-popper)
 
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
+(define (FALSE) #f)
 
 (define (fail #:empty-handler [empty-handler (current-amb-empty-handler)]
               #:tasks [task* (current-amb-tasks)]
@@ -47,7 +52,7 @@
     (fail #:tasks task*
           #:length length))
   (define pos #t)
-  (define task (label))
+  (define task (label (current-amb-prompt-tag)))
   (case/eq pos
     ;; first entry
     [(#t)
@@ -121,36 +126,125 @@
              (λ () body ...))))]
         [(_ (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (let/cc return
-             (define retry #t)
-             (define length (current-amb-length))
-             (define task* (current-amb-tasks))
-             (define task (label))
-             (cond
-               [(continuation? retry)
-                (goto retry)]
-               ;; first entry
-               [retry
-                (set! retry #f)
-                ((current-amb-pusher) task* task)
-                (goto (sequence-ref task* 0))])
-             (#,for (clauses ...) break ...
-              (define choice (label))
-              (unless (and retry (eq? retry choice))
-                (set! retry choice)
-                ((current-amb-rotator) task*)
-                (call-in-continuation return (λ () body ...))))
-             ;; no more alternatives
-             ((current-amb-popper) task*)
-             (define skip (label))
-             (unless (eq? retry skip)
-               (set! retry skip))
-             (fail #:tasks task*
-                   #:length length)))]))
+           (call/cc
+            (λ (return)
+              (define retry #t)
+              (define length (current-amb-length))
+              (define task* (current-amb-tasks))
+              (define task (label (current-amb-prompt-tag)))
+              (cond
+                [(continuation? retry)
+                 (goto retry)]
+                ;; first entry
+                [retry
+                 (set! retry #f)
+                 ((current-amb-pusher) task* task)
+                 (goto (sequence-ref task* 0))])
+              (#,for (clauses ...) break ...
+               (define choice (label (current-amb-prompt-tag)))
+               (unless (and retry (eq? retry choice))
+                 (set! retry choice)
+                 ((current-amb-rotator) task*)
+                 (call-in-continuation return (λ () body ...))))
+              ;; no more alternatives
+              ((current-amb-popper) task*)
+              (define skip (label (current-amb-prompt-tag)))
+              (unless (eq? retry skip)
+                (set! retry skip))
+              (fail #:tasks task*
+                    #:length length))
+            (current-amb-prompt-tag)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
 
 
+(define-values (in-amb* in-amb*/do)
+  (let ()
+    (define ((make make-sequence) alt)
+      ;; Cache the most recently produced values so the sequence
+      ;; interface can retrieve them after the search step.
+      (define cache #f)
+      (define task* ((current-amb-maker)))
+      (define length (current-amb-length))
+      (define (empty-handler) (abort/cc amb-prompt-tag FALSE))
+      (define (retry)
+        (fail #:empty-handler empty-handler
+              #:tasks task*
+              #:length length))
+
+      (define (init)
+        ;; Run the user's thunk inside the parameterization that was
+        ;; in effect when `in-amb*` was called.  This ensures that
+        ;; parameters such as `current-amb-tasks` and all user-defined
+        ;; parameters are correctly scoped to this sequence,
+        ;; regardless of the parameterization in effect when the
+        ;; sequence is later consumed.
+        (parameterize ([current-amb-prompt-tag amb-prompt-tag]
+                       [current-amb-tasks task*]
+                       [current-amb-empty-handler empty-handler])
+          (call-with-values alt list)))
+
+      ;; `freeze` is a full continuation capturing the context of this
+      ;; `in-amb*` call.  It serves as the entry point into the
+      ;; search: jumping to `freeze` re-enters the function body and
+      ;; takes the `else` branch below, which runs the actual search.
+      ;;
+      ;; `resume` is set later (inside `next`) to capture the context
+      ;; of the sequence consumer waiting for a result.  It serves as
+      ;; the exit point out of the search: once a result is produced,
+      ;; control jumps back to `resume` to deliver the value.
+      (define resume #f)
+      (define freeze (label))
+      (define (next)
+        ;; Called by the sequence machinery on each step.
+        (if cache
+            ;; Subsequent calls:
+            ;; cache holds the previous result, so trigger backtracking
+            ;; via `retry` to produce the next one.
+            (call-with-values retry list)
+            ;; First call:
+            ;; no cache yet, so capture the consumer's continuation as
+            ;; `resume` and jump to `freeze` to begin search.
+            (let/cc k (set! resume k) (goto freeze))))
+
+      (cond
+        [(not resume)
+         ;; First entry: set up the sequence interace and register
+         ;; `freeze` in the queue so that backtracking from within the
+         ;; search can jump back here when needed.
+         (define (update! v*) (set! cache v*) #t)
+         (define (pos->element . _) (apply values cache))
+         (define (continue-with-pos? . _)
+           (cond
+             [(call/prompt next amb-prompt-tag) => update!]
+             [else (set! cache #f) #f]))
+         (make-sequence continue-with-pos? pos->element)]
+        [else
+         ;; Subsequent entries via `(goto freeze)`: the search is about
+         ;; to run for real.  Run `init` inside a fresh prompt so that
+         ;; any exhaustion aborts cleanly.  When `init` returns values,
+         ;; deliver them to `resume`, jumping back to the consumer.
+         (call-with-values
+          (λ ()
+            (set! resume #f)
+            (call/prompt init amb-prompt-tag))
+          resume)]))
+    (values
+     (make
+      (λ (continue-with-pos? pos->element)
+        (for/stream ([_ (in-naturals)])
+          #:break (not (continue-with-pos?))
+          (pos->element))))
+     (make
+      (λ (continue-with-pos? pos->element)
+        (make-do-sequence
+         (λ ()
+           (initiate-sequence
+            #:init-pos 0
+            #:next-pos add1
+            #:continue-with-pos? continue-with-pos?
+            #:pos->element pos->element))))))))
+#;
 (define-values (in-amb* in-amb*/do)
   (let ()
     (define (make break-value make-sequence)

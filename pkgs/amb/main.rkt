@@ -22,7 +22,9 @@
             ([message string?]
              [continuation-marks continuation-mark-set?]))
           [amb* (-> (-> any) ... any)]
+          [amb-prompt-tag continuation-prompt-tag?]
           [raise-amb-error (-> none/c)]
+          [current-amb-prompt-tag #;(parameter/c continuation-prompt-tag?) parameter?]
           [current-amb-empty-handler #;(parameter/c (-> none/c)) parameter?]
           [current-amb-shuffler #;(parameter/c (-> mutable-vector? void?)) parameter?]
           [current-amb-rotator  #;(parameter/c (-> sequence? void?)) parameter?]
