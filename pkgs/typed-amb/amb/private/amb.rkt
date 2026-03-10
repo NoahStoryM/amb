@@ -16,6 +16,7 @@
 
 (provide amb amb* unsafe-amb* for/amb for*/amb in-amb in-amb/do)
 (require/typed/provide amb/private/amb
+  [empty-mutable-vector (Mutable-Vector)]
   [amb*        (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
   [unsafe-amb* (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*    (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
@@ -76,13 +77,16 @@
                #'(ann amb* (→ Nothing)))
            (quasisyntax/loc stx
              (unsafe-amb*
-              (#,for/vector
-               : (Mutable-Vectorof (→ t1))
-               #:length n #:fill fill
-               (clauses ...)
-               : (→ t2)
-               break ...
-               (ann (λ () : t2 body ...) (→ t1)))))]
+              (let ([m n])
+                (if (zero? m)
+                    empty-mutable-vector
+                    (#,for/vector
+                     : (Mutable-Vectorof (→ t1))
+                     #:length m #:fill fill
+                     (clauses ...)
+                     : (→ t2)
+                     break ...
+                     (ann (λ () : t2 body ...) (→ t1)))))))]
           [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
            #:with (t1* ...) #'t1.ts
            (quasisyntax/loc stx

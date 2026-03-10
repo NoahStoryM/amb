@@ -11,7 +11,8 @@
          racket/stream
          goto)
 
-(provide amb amb* unsafe-amb*
+(provide empty-mutable-vector
+         amb amb* unsafe-amb*
          for/amb for*/amb
          amb-prompt-tag
          in-amb  in-amb*
@@ -120,10 +121,13 @@
              #'amb*)
          (quasisyntax/loc stx
            (unsafe-amb*
-            (#,for/vector
-             #:length n #:fill fill
-             (clauses ...) break ...
-             (λ () body ...))))]
+            (let ([m n])
+              (if (zero? m)
+                  empty-mutable-vector
+                  (#,for/vector
+                   #:length m #:fill fill
+                   (clauses ...) break ...
+                   (λ () body ...))))))]
         [(_ (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
            (call/cc
