@@ -37,9 +37,9 @@
     (stream-first (stream-rest s))
     (check-equal?
      t
-    '([2 . past]
-      [2 . values]
-      [2 . pre] [1 . past] [1 . values] [1 . pre] [0 . past] [0 . pre]))))
+     '([2 . past] [2 . values] [2 . pre]
+       [1 . past] [1 . values] [1 . pre]
+       [0 . past] [0 . pre]))))
 
 (test-case "Test multi values in amb"
   (define (thk)
