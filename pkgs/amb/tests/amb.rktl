@@ -13,6 +13,12 @@
   (define s (in-amb* thk))
   (check-equal? (for/set ([i (in-stream s)]) i) st)
   (check-equal? (for/set ([i (in-stream s)]) i) st)
+  (let ([n 0])
+    (for/list ([i (in-amb (begin0 (amb 1 2 3) (set! n (add1 n))))] [_ 2]) i)
+    (check-eqv? n 3))
+  (let ([n 0])
+    (for/list ([_ 2] [i (in-amb (begin0 (amb 1 2 3) (set! n (add1 n))))]) i)
+    (check-eqv? n 2))
   (let ([p (make-parameter 0)])
     (define s
       (parameterize ([p 1])

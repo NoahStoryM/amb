@@ -101,8 +101,8 @@ skipped, and evaluation proceeds to the next @racket[alt].
                          (for/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))]
               @defform*[((for*/amb maybe-length (for-clause ...) break-clause ... body ...+)
                          (for*/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))])]{
-Variants of @racket[for] that treat each iteration of the loop body as an
-ambiguous choice.
+Variants of @racket[for] that treat each iteration of the loop body as
+an ambiguous choice.
 
 When the @racket[#:length] clause is specified, the syntax resembles
 @racket[for/vector] and @racket[for*/vector]. The loop body for each
@@ -148,19 +148,38 @@ Constructs a @tech/refer{stream} from the results of evaluating the
 ambiguous expression @racket[expr], allowing results to be produced
 lazily.
 
+The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
+
+@amb-examples[
+(for/list ([i (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))]) i)
+]
+
+@racket[in-amb] acts as an eager @tech/refer{sequence} generator.
+To determine if the @tech/refer{sequence} continues, it must compute
+the next valid path.
+
+@amb-examples[
+(for/list ([i (in-amb (begin0 (amb 1 2 3) (displayln 'data)))] [_ 2]) i)
+(for/list ([_ 2] [i (in-amb (begin0 (amb 1 2 3) (displayln 'data)))]) i)
+]
+
 The ambiguous computation is executed in the dynamic context where
 @racket[in-amb] is called. In particular, dynamic bindings such as
 those introduced by @racket[parameterize] are preserved from the
 @tech/refer{stream}'s creation site rather than from the site where
 the @tech/refer{stream} is consumed.
 
+@amb-examples[
+(define p (make-parameter 0))
+(define s (parameterize ([p 1]) (in-amb (amb 0 (p) 2))))
+(for/list ([i (parameterize ([p 2]) s)]) i)
+]
+
 Internally, @racket[in-amb] installs the @tech/refer{parameters}
 required to run an ambiguous computation, including
 @racket[current-amb-prompt-tag], @racket[current-amb-tasks], and
 @racket[current-amb-empty-handler]. Other @tech/refer{parameters}
 retain the values they had when @racket[in-amb] was invoked.
-
-The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 
 @amb-examples[
 (amb 1 2 3)
@@ -173,10 +192,6 @@ The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
   (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i))
 (amb)
 (eval:error (amb))
-(let* ([p (make-parameter 0)]
-       [s (parameterize ([p 1]) (in-amb (amb 0 (p) 2)))])
-  (equal? (for/list ([i (parameterize ([p 3]) s)]) i)
-          '(0 1 2)))
 ]
 }
 
