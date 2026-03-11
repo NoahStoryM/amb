@@ -17,8 +17,29 @@
     (define s
       (parameterize ([p 1])
         (in-amb (amb 0 (p) 2))))
-    (check-equal? (stream->list (parameterize ([p 3]) s))
-                  '(0 1 2))))
+    (check-equal?
+     (stream->list (parameterize ([p 3]) s))
+     '(0 1 2)))
+  (let ([n 0] [t '()])
+    (define s
+      (dynamic-wind
+        (λ ()
+          (set! t (cons (cons n 'pre) t)))
+        (λ ()
+          (in-amb
+           (begin
+             (amb 0 1)
+             (set! t (cons (cons n 'values) t))
+             'data)))
+        (λ ()
+          (set! t (cons (cons n 'past) t))
+          (set! n (add1 n)))))
+    (stream-first (stream-rest s))
+    (check-equal?
+     t
+    '([2 . past]
+      [2 . values]
+      [2 . pre] [1 . past] [1 . values] [1 . pre] [0 . past] [0 . pre]))))
 
 (test-case "Test multi values in amb"
   (define (thk)

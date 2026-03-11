@@ -1,8 +1,7 @@
 #lang typed/racket/base/shallow
 
 ;; Typed wrapper around the base `amb` implementation.  All functions
-;; are re-exported with precise types for use in Typed Racket
-;; programs.
+;; are re-exported with precise types for use in Typed Racket programs.
 
 (require (for-syntax racket/base syntax/parse)
          racket/sequence
@@ -46,10 +45,24 @@
 
 (define-syntaxes (for/amb for*/amb)
   ;; Typed versions of the `for/amb` and `for*/amb` macros.
-  ;; They reuse the parser logic from the base module while preserving
-  ;; type annotations.
+  ;;
+  ;; Differences from the untyped version
+  ;; -------------------------------------
+  ;; - `retry` initial value: `goto` instead of `#t`
+  ;;   In the untyped version `retry` starts as `#t` (a boolean used
+  ;;   as a "first-entry" sentinel) and later holds a `Label`
+  ;;   continuation.  Typed Racket requires a single static type for
+  ;;   each variable, so `retry` must be `Label` from the start.
+  ;;   `goto` is used as the initial sentinel value; the first-entry
+  ;;   check becomes `(eq? retry goto)` instead of the untyped `retry`.
+  ;;   All subsequent logic is identical.
+
   (let ()
     (define-syntax-class type
+      ;; Syntax class for parsing optional `(Values t ...) / t` return
+      ;; type annotations.  Normalises multi-value `(Values t ...)` and
+      ;; single-value `t` into a uniform `.ts` attribute (a syntax list
+      ;; of the individual types).
       [pattern ((~or* (~literal Values)
                       (~literal values))
                 t*:expr ...)
@@ -73,6 +86,7 @@
             body ...+)
            #:with fill
            (if (attribute fill-expr)
+               ;; Make sure `t2` is a subtype of `t1`
                #'(ann (λ () : t2 fill-expr) (→ t1))
                #'(ann amb* (→ Nothing)))
            (quasisyntax/loc stx
@@ -121,6 +135,11 @@
                  (goto (sequence-ref task* 0)))
                (→ (→ t1* ... Nothing) t2))
               (current-amb-prompt-tag)))]
+          ;; Syntactic normalisation:
+          ;; Fold all optional-annotation variants into the fully-
+          ;; annotated form `(name : t (clauses ...) : t ...)` before
+          ;; passing to the cases above.  `AnyValues` is used as the
+          ;; default type when no annotation is supplied.
           [(~or* (name : t0:type (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+)
                  (name (~optional length:length-clause) (clauses ...) : t0:type break:break-clause ... body ...+)
                  (name (~optional length:length-clause) (clauses ...) break:break-clause ... body ...+))
