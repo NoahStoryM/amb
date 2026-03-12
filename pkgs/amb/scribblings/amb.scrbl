@@ -154,13 +154,13 @@ The form @racket[(in-amb expr)] expands to @racket[(in-amb* (λ () expr))].
 (for/list ([i (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))]) i)
 ]
 
-@racket[in-amb] acts as an eager @tech/refer{sequence} generator.
-To determine if the @tech/refer{sequence} continues, it must compute
-the next valid path.
+@racket[in-amb] acts as a one-step lookahead @tech/refer{sequence}
+generator. To determine if the @tech/refer{sequence} continues,
+it must compute the next valid path.
 
 @amb-examples[
-(for/list ([i (in-amb (begin0 (amb 1 2 3) (displayln 'data)))] [_ 2]) i)
-(for/list ([_ 2] [i (in-amb (begin0 (amb 1 2 3) (displayln 'data)))]) i)
+(for/list ([i (in-amb (begin0 (amb 1 (amb 2 3) 4) (displayln 'data)))] [_ 2]) i)
+(for/list ([_ 2] [i (in-amb (begin0 (amb 1 (amb 2 3) 4) (displayln 'data)))]) i)
 ]
 
 The ambiguous computation is executed in the dynamic context where
