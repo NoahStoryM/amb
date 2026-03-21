@@ -120,7 +120,6 @@
   ;; Give the user-provided rotator a chance to reorder the queue
   ;; before running the chosen alternative.
   ((current-amb-rotator) task*)
-
   (alt))
 
 (define amb*
@@ -303,26 +302,25 @@
       ;; `resume` is the search-context entry point.  Jumping here
       ;; re-executes the body from the `cond` dispatch onward.
       (define resume (label))
-      (cond
-        ;; First entry (`cache` is still #f):
-        ;; Build and return the sequence object.
-        [(not cache)
-         (define (pos->element . _) (apply values cache))
-         (define (continue-with-pos? . _)
-           (set! cache (label))
-           (if (continuation? cache)
-               ;; Jump into search, pass return address
-               (goto resume cache)
-               ;; Back from search, cache now holds result
-               cache))
-         (make-sequence continue-with-pos? pos->element)]
+      (when cache
         ;; Re-entry via `(goto resume cache)`:
         ;; `cache` holds the consumer's continuation (the return
         ;; address).  Run the search step inside a fresh prompt so
         ;; that `empty-handler` can abort cleanly when all choices are
         ;; exhausted.  Deliver the result (a list or `#f`) back to the
         ;; consumer by jumping to the continuation stored in `cache`
-        [else (goto resume (call/prompt next amb-prompt-tag))]))
+        (goto resume (call/prompt next amb-prompt-tag)))
+      ;; First entry (`cache` is still #f):
+      ;; Build and return the sequence object.
+      (define (pos->element . _) (apply values cache))
+      (define (continue-with-pos? . _)
+        (set! cache (label))
+        (when (continuation? cache)
+          ;; Jump into search, pass return address
+          (goto resume cache))
+        ;; Back from search, cache now holds result
+        (and cache #t))
+      (make-sequence continue-with-pos? pos->element))
 
     (values
      (make
