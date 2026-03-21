@@ -251,93 +251,79 @@
   ;; machinery; they differ only in whether they return a lazy stream
   ;; or a general sequence (via `make-do-sequence`).
   ;;
-  ;; Coroutine design
-  ;; ----------------
-  ;; The core challenge is that each element of the sequence must be
-  ;; produced inside the dynamic extent of `in-amb*`'s call site
-  ;; (so that `dynamic-wind` handlers, parameters, and other
-  ;; context-sensitive features behave correctly), but the sequence
-  ;; consumer lives in a completely different dynamic extent.
+  ;; Coroutine channel
+  ;; -----------------
+  ;; `resume` and `cache` together implement a two-way channel
+  ;; between the sequence consumer and the search engine.
   ;;
-  ;; This is solved with two full continuations that act as a
-  ;; two-way channel between the consumer and the search engine:
+  ;; `resume` is a full continuation captured at the `in-amb*`
+  ;; call site.  Jumping to it (via `(goto resume val)`) re-enters
+  ;; the search context and delivers `val` as the result of the
+  ;; `(label)` expression inside `continue-with-pos?`.
   ;;
-  ;; - `freeze`
-  ;;   continuation captured at the `in-amb*` call site.
-  ;;   Jumping here re-enters the search context.  On the
-  ;;   first jump it runs `init` (the user's thunk); on
-  ;;   subsequent jumps it runs `next` (= `retry`/`fail`)
-  ;;   to trigger backtracking.
-  ;; - `resume`
-  ;;   continuation captured inside `get`, at the point
-  ;;   where the consumer is waiting for the next value.
-  ;;   Once a result is available, control is transferred
-  ;;   back here with the packed value list.
-  ;;
-  ;; When the search is exhausted, `empty-handler` aborts to the
-  ;; `amb-prompt-tag` prompt inside `call/prompt`, which causes `get`
-  ;; `get` to return `#f`, which makes `continue-with-pos?` return `#f`
-  ;; and terminates the sequence.
-
+  ;; `cache` serves a dual role:
+  ;;   - While the consumer is waiting: holds the consumer's own
+  ;;     continuation (captured by `(label)` inside
+  ;;     `continue-with-pos?`), which is passed to `resume` so
+  ;;     the search knows where to send the result.
+  ;;   - After the search step completes: holds the packed result
+  ;;     list (or `#f` if exhausted), which `pos->element` unpacks.
   (let ()
     (define ((make make-sequence) alt)
-      ;; Cache the most recently produced value list so that
-      ;; `pos->element` can unpack it after `continue-with-pos?`
-      ;; has already returned.
-      (define cache #f)
-      ;; Fresh, isolated task queue for this sequence.
       (define task* ((current-amb-maker)))
       (define length (current-amb-length))
       (define (empty-handler)
-        ;; When all choices are exhausted, abort to the prompt inside
-        ;; `call/prompt` so it returns `#f` instead of raising an error.
         (abort/cc amb-prompt-tag FALSE))
       (define (retry)
-        ;; Trigger backtracking: jump to the next task in `task*`.
         (fail #:empty-handler empty-handler
               #:tasks task*
               #:length length))
 
-      (define (init)
-        ;; Run the user's thunk inside the parameterization that was
-        ;; active when `in-amb*` was called.
-        (parameterize ([current-amb-prompt-tag amb-prompt-tag]
-                       [current-amb-tasks task*]
-                       [current-amb-empty-handler empty-handler])
-          (call-with-values alt list)))
+      (define first? #t)
       (define (next)
-        ;; Trigger one backtracking step.
-        (call-with-values retry list))
+        ;; `next` produces the next search result as a list
+        ;; (to accommodate multiple values uniformly).
+        (cond
+          ;; First call: run `alt` inside the parameterization that was
+          ;; active when `in-amb*` was called, so that dynamic-wind
+          ;; handlers, parameters, and other context-sensitive features
+          ;; behave correctly regardless of when the consumer forces
+          ;; the element.
+          [first?
+           (set! first? #f)
+           (parameterize ([current-amb-prompt-tag amb-prompt-tag]
+                          [current-amb-tasks task*]
+                          [current-amb-empty-handler empty-handler])
+             (call-with-values alt list))]
+          ;; Subsequent calls: trigger backtracking via `retry` to
+          ;; the search to the next alternative.
+          [else (call-with-values retry list)]))
 
-      ;; `resume` and `freeze` are the two ends of the coroutine
-      ;; channel described above.
-      (define (get) (let/cc k (set! resume k) (goto freeze)))
-      (define resume #f)
-      (define freeze (label))
-
+      (define cache #f)
+      ;; `resume` is the search-context entry point.  Jumping here
+      ;; re-executes the body from the `cond` dispatch onward.
+      (define resume (label))
       (cond
-        ;; First entry (resume is still #f):
-        ;; Build and return the sequence object.  `continue-with-pos?`
-        ;; and `pos->element` are the two callbacks required by the
-        ;; underlying sequence protocol.
-        [(not resume)
-         (define (update! v*) (set! cache v*) #t)
+        ;; First entry (`cache` is still #f):
+        ;; Build and return the sequence object.
+        [(not cache)
          (define (pos->element . _) (apply values cache))
          (define (continue-with-pos? . _)
-           ;; Ask the search for the next value via `get`.
-           ;; If `get` returns a list, cache it and signal "continue".
-           ;; If `get` returns `#f`, clear cache and signal "stop".
-           (cond
-             [(get) => update!]
-             [else (set! cache #f) #f]))
+           (set! cache (label))
+           (if (continuation? cache)
+               ;; Jump into search, pass return address
+               (goto resume cache)
+               ;; Back from search, cache now holds result
+               cache))
          (make-sequence continue-with-pos? pos->element)]
-        ;; Re-entry via `(goto freeze)`:
-        ;; We are now running inside the search context.  Run the
-        ;; actual search step under the amb prompt so that
-        ;; `empty-handler` can abort cleanly.  Deliver the result
-        ;; (or `#f`) back to the waiting consumer via `resume`.
-        [else
-         (resume (call/prompt (if cache next init) amb-prompt-tag))]))
+        ;; Re-entry via `(goto resume cache)`:
+        ;; `cache` holds the consumer's continuation (the return
+        ;; address).  Run the search step inside a fresh prompt so
+        ;; that `empty-handler` can abort cleanly when all choices are
+        ;; exhausted.  Deliver the result (a list or `#f`) back to the
+        ;; consumer by jumping to the continuation stored in `cache`
+        [else (goto resume (call/prompt next amb-prompt-tag))]))
+
     (values
      (make
       (λ (continue-with-pos? pos->element)
