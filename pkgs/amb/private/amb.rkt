@@ -299,9 +299,7 @@
           [else (call-with-values retry list)]))
 
       (define cache #f)
-      ;; `resume` is the search-context entry point.  Jumping here
-      ;; re-executes the body from the `cond` dispatch onward.
-      (define resume (label))
+      (define resume (label))        ; the search-context entry point.
       (when cache
         ;; Re-entry via `(goto resume cache)`:
         ;; `cache` holds the consumer's continuation (the return
