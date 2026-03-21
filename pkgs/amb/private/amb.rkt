@@ -311,9 +311,9 @@
 
       ;; `resume` and `freeze` are the two ends of the coroutine
       ;; channel described above.
+      (define (get) (let/cc k (set! resume k) (goto freeze)))
       (define resume #f)
       (define freeze (label))
-      (define (get) (let/cc k (set! resume k) (goto freeze)))
 
       (cond
         ;; First entry (resume is still #f):
