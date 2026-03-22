@@ -11,6 +11,7 @@
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          (struct-out exn:fail:contract:amb)
+         amb-prompt-tag
          raise-amb-error
          current-amb-empty-handler
          current-amb-shuffler
