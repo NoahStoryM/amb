@@ -7,8 +7,12 @@
 
 (provide (all-defined-out))
 
-(define (make-amb-eval) (make-base-eval #:lang 'racket/base '(require amb data/queue)))
-(define-syntax-rule (amb-examples body ...) (examples #:eval (make-amb-eval) body ...))
+(define (make-amb-eval)
+  (make-base-eval
+   #:lang 'racket/base
+   '(require amb data/queue racket/stream racket/sequence)))
+(define-syntax-rule (amb-examples body ...)
+  (examples #:eval (make-amb-eval) body ...))
 
 (define-syntax (define-tech stx)
   (syntax-parse stx

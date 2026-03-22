@@ -195,14 +195,17 @@ retain the values they had when @racket[in-amb] was invoked.
 ]
 }
 
-@defproc[(in-amb* [thk (-> any)]) stream?]{
+@defproc[(in-amb* [alt (-> any)]) stream?]{
 The backend of @racket[in-amb].
+
+If @racket[alt] is @racket[amb*], @racket[empty-stream] is returned.
 
 @amb-examples[
 (define (make)
   (parameterize ([current-amb-pusher enqueue!])
     (let g () (amb 0 1 (cons (g) (g))))))
 (for/list ([x (in-amb* make)] [_ 10]) x)
+(eq? (in-amb* amb*) empty-stream)
 ]
 }
 
@@ -211,8 +214,14 @@ Similar to @racket[in-amb], except that a @tech/refer{sequence} is
 returned instead of a @tech/refer{stream}.
 }
 
-@defproc[(in-amb*/do [thk (-> any)]) sequence?]{
+@defproc[(in-amb*/do [alt (-> any)]) sequence?]{
 The backend of @racket[in-amb/do].
+
+If @racket[alt] is @racket[amb*], @racket[empty-sequence] is returned.
+
+@amb-examples[
+(eq? (in-amb*/do amb*) empty-sequence)
+]
 }
 
 @section{Exception Type}

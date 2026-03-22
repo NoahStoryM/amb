@@ -4,6 +4,7 @@
          racket/include
          racket/mutable-treelist
          racket/set
+         racket/sequence
          racket/stream
          data/queue
          rackunit)

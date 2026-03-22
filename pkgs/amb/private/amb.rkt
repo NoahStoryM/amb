@@ -274,75 +274,79 @@
   ;;   - After the search step completes: holds the packed result
   ;;     list (or `#f` if exhausted), which `pos->element` unpacks.
   (let ()
-    (define ((make make-sequence) alt)
-      (define task* ((current-amb-maker)))
-      (define length (current-amb-length))
-      (define (empty-handler)
-        (abort/cc amb-prompt-tag FALSE))
-      (define (retry)
-        (fail #:empty-handler empty-handler
-              #:tasks task*
-              #:length length))
+    (define ((make empty-sequence make-sequence) alt)
+      (if (equal? alt amb*)
+          empty-sequence
+          (let ([first? #t])
+            (define task* ((current-amb-maker)))
+            (define length (current-amb-length))
+            (define (empty-handler)
+              (abort/cc amb-prompt-tag FALSE))
+            (define (retry)
+              (fail #:empty-handler empty-handler
+                    #:tasks task*
+                    #:length length))
 
-      (define first? #t)
-      (define (next)
-        ;; `next` produces the next search result as a list
-        ;; (to accommodate multiple values uniformly).
-        (cond
-          ;; First call: run `alt` inside the parameterization that was
-          ;; active when `in-amb*` was called, so that dynamic-wind
-          ;; handlers, parameters, and other context-sensitive features
-          ;; behave correctly regardless of when the consumer forces
-          ;; the element.
-          [first?
-           (set! first? #f)
-           (parameterize ([current-amb-prompt-tag amb-prompt-tag]
-                          [current-amb-tasks task*]
-                          [current-amb-empty-handler empty-handler])
-             (call-with-values alt list))]
-          ;; Subsequent calls: trigger backtracking via `retry` to
-          ;; the search to the next alternative.
-          [else (call-with-values retry list)]))
+            (define (next)
+              ;; `next` produces the next search result as a list
+              ;; (to accommodate multiple values uniformly).
+              (cond
+                ;; First call: run `alt` inside the parameterization
+                ;; that was active when `in-amb*` was called, so that
+                ;; `dynamic-wind`handlers, parameters, and other
+                ;; context-sensitive features behave correctly
+                ;; regardless of when the consumer forces the element.
+                [first?
+                 (set! first? #f)
+                 (parameterize ([current-amb-prompt-tag amb-prompt-tag]
+                                [current-amb-tasks task*]
+                                [current-amb-empty-handler empty-handler])
+                   (call-with-values alt list))]
+                ;; Subsequent calls: trigger backtracking via `retry`
+                ;; to the search to the next alternative.
+                [else (call-with-values retry list)]))
 
-      #;(: cache  (∪    (Option (Listof Any))     (¬ (Option (Listof Any))) ))
-      #;(: resume (∪ (¬ (Option (Listof Any))) (¬ (¬ (Option (Listof Any))))))
-      (define cache #f)
-      (define resume (label))        ; the search-context entry point.
-      (when cache
-        ;; `cache`  : `(¬ (Option (Listof Any)))`
-        ;; `resume` : `(¬ (Option (Listof Any)))`
-        ;; Re-entry via `(goto resume cache)`:
-        ;; `cache` holds the consumer's continuation (the return
-        ;; address).  Run the search step inside a fresh prompt so
-        ;; that `empty-handler` can abort cleanly when all choices are
-        ;; exhausted.  Deliver the result (a list or `#f`) back to the
-        ;; consumer by jumping to the continuation stored in `cache`
-        (goto resume (call/prompt next amb-prompt-tag)))
-      ;; `cache`  : `False`
-      ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
-      ;; First entry:
-      ;; Build and return the sequence object.
-      (define (pos->element . _)
-        ;; `cache` : `(Listof Any)`
-        (apply values cache))
-      (define (continue-with-pos? . _)
-        (set! cache (label))
-        (when (continuation? cache)
-          ;; `cache` : `(¬ (Option (Listof Any)))`
-          ;; Jump into search, pass return address
-          (goto resume cache))
-        ;; `cache` : `(Option (Listof Any))`
-        ;; Back from search, cache now holds result
-        (and cache #t))
-      (make-sequence continue-with-pos? pos->element))
-
+            #;(: cache  (∪    (Option (Listof Any))     (¬ (Option (Listof Any))) ))
+            #;(: resume (∪ (¬ (Option (Listof Any))) (¬ (¬ (Option (Listof Any))))))
+            (define cache #f)
+            (define resume (label))  ; the search-context entry point.
+            (when cache
+              ;; `cache`  : `(¬ (Option (Listof Any)))`
+              ;; `resume` : `(¬ (Option (Listof Any)))`
+              ;; Re-entry via `(goto resume cache)`:
+              ;; `cache` holds the consumer's continuation
+              ;; (the return address).  Run the search step inside
+              ;; a fresh prompt so that `empty-handler` can abort
+              ;; cleanly when all choices are exhausted.  Deliver the
+              ;; result (a list or `#f`) back to the consumer by
+              ;; jumping to the continuation stored in `cache`.
+              (goto resume (call/prompt next amb-prompt-tag)))
+            ;; `cache`  : `False`
+            ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
+            ;; First entry:
+            ;; Build and return the sequence object.
+            (define (pos->element . _)
+              ;; `cache` : `(Listof Any)`
+              (apply values cache))
+            (define (continue-with-pos? . _)
+              (set! cache (label))
+              (when (continuation? cache)
+                ;; `cache` : `(¬ (Option (Listof Any)))`
+                ;; Jump into search, pass return address
+                (goto resume cache))
+              ;; `cache` : `(Option (Listof Any))`
+              ;; Back from search, cache now holds result
+              (and cache #t))
+            (make-sequence continue-with-pos? pos->element))))
     (values
      (make
+      empty-stream
       (λ (continue-with-pos? pos->element)
         (for/stream ([_ (in-naturals)])
           #:break (not (continue-with-pos?))
           (pos->element))))
      (make
+      empty-sequence
       (λ (continue-with-pos? pos->element)
         (make-do-sequence
          (λ ()
@@ -356,39 +360,43 @@
 #;
 (define-values (in-amb* in-amb*/do)
   (let ()
-    (define (make break-value make-sequence)
+    (define (make break-value make-sequence empty-sequence)
       (define continue-value (not break-value))
       (λ (alt)
-        ;; Convert a thunk producing multiple values into a sequence
-        ;; by repeatedly invoking it while maintaining a task queue.
-        (define break #f)
-        (define return #f)
-        (define (empty-handler) (break break-value))
-        (define length (current-amb-length))
-        (define task* ((current-amb-maker)))
-        (parameterize ([current-amb-empty-handler empty-handler]
-                       [current-amb-tasks task*])
-          (define task (label))
-          (cond
-            [(not return)
-             ((current-amb-pusher) task* task)
-             (make-sequence
-              (λ (k) (set! break k) continue-value)
-              (λ (k) (set! return k)
-                (fail #:empty-handler empty-handler
-                      #:tasks task*
-                      #:length length)))]
-            [else
-             ((current-amb-popper) task*)
-             (call-with-values alt (λ v* (apply return v*)))]))))
+        (if (equal? alt amb*)
+            empty-sequence
+            (let ([break #f] [return #f])
+              ;; Convert a thunk producing multiple values into
+              ;; a sequence by repeatedly invoking it while
+              ;; maintaining a task queue.
+              (define (empty-handler) (break break-value))
+              (define length (current-amb-length))
+              (define task* ((current-amb-maker)))
+              (parameterize ([current-amb-empty-handler empty-handler]
+                             [current-amb-tasks task*])
+                (define task (label))
+                (cond
+                  [(not return)
+                   ((current-amb-pusher) task* task)
+                   (make-sequence
+                    (λ (k) (set! break k) continue-value)
+                    (λ (k) (set! return k)
+                      (fail #:empty-handler empty-handler
+                            #:tasks task*
+                            #:length length)))]
+                  [else
+                   ((current-amb-popper) task*)
+                   (call-with-values alt (λ v* (apply return v*)))]))))))
     (values
      (make #t
+       empty-stream
        (λ (p1 p2)
          (for/stream ([_ (in-naturals)])
            #:break
            (call/cc p1)
            (call/cc p2))))
      (make #f
+       empty-sequence
        (λ (p1 p2)
          (define (continue-with-pos? _) (call/cc p1))
          (define (pos->element _) (call/cc p2))
