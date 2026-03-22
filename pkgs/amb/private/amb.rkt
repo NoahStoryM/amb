@@ -110,7 +110,7 @@
     ;; Once `pos` reaches the end we no longer need the vector `alt*`;
     ;; drop the reference so the thunks can be GC'd.
     (set! alt* empty-mutable-vector))
-  (when (equal? alt amb*)
+  (when (eq? alt amb*)
     ;; If the slot held the sentinel `amb*`, skip it and jump back to
     ;; pick the next one.
     (goto task))
@@ -275,7 +275,7 @@
   ;;     list (or `#f` if exhausted), which `pos->element` unpacks.
   (let ()
     (define ((make empty-sequence make-sequence) alt)
-      (if (equal? alt amb*)
+      (if (eq? alt amb*)
           empty-sequence
           (let ([first? #t])
             (define task* ((current-amb-maker)))

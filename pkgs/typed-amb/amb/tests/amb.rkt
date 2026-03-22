@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(require typed/rackunit)
+(require racket/sequence typed/rackunit)
 (require "../../amb.rkt")
 
 (displayln "Test `amb.rkt'")
@@ -58,6 +58,8 @@
       (check-equal? (list x y) '(2 9)))))
 
 (test-case "Test in-amb[*]"
+  (check-true (eq? (in-amb* amb*) (in-amb* amb*)))
+  (check-true (eq? (in-amb*/do amb*) empty-sequence))
   (parameterize ([current-amb-tasks ((current-amb-maker))])
     (check-equal?
      (for/list : (Listof Any) ([i (in-amb (amb 1 2 (amb 3 'x) 'y))]) i)
