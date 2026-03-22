@@ -51,22 +51,31 @@
   ;; Typed versions of the `for/amb` and `for*/amb` macros.
   ;;
   ;; Differences from the untyped version
-  ;; -------------------------------------
-  ;; - `retry` initial value: `goto` instead of `#t`
-  ;;   In the untyped version `retry` starts as `#t` (a boolean used
-  ;;   as a "first-entry" sentinel) and later holds a `Label`
-  ;;   continuation.  Typed Racket requires a single static type for
-  ;;   each variable, so `retry` must be `Label` from the start.
-  ;;   `goto` is used as the initial sentinel value; the first-entry
-  ;;   check becomes `(eq? retry goto)` instead of the untyped `retry`.
-  ;;   All subsequent logic is identical.
+  ;; ------------------------------------
+  ;; The untyped version uses `call/prompt` and `abort/cc` to return
+  ;; results from the loop. However, Typed Racket's `Prompt-Tagof` and
+  ;; `call/prompt` type signatures do not support multiple values.
+  ;;
+  ;; `call/prompt` :
+  ;; - : (∀ (a b d c ...)
+  ;;        (case→
+  ;;         (→ (→ b) (Prompt-Tagof b (→ (→ d) d)) (∪ b d))
+  ;;         (→ (→ b) (Prompt-Tagof b (→ c ... c d)) (→ c ... c d) (∪ b d))
+  ;;         (→ (→ b) Any)))
+  ;;
+  ;; Type variables (like `b` and `d` in the TR signature) only
+  ;; instantiate to single types, not `(Values t ...)`.
+  ;;
+  ;; To work around this limitation, the typed version uses delimited
+  ;; `call/cc` (bounded by `current-amb-prompt-tag`) to explicitly
+  ;; capture the return continuation.
 
   (let ()
     (define-syntax-class type
-      ;; Syntax class for parsing optional `(Values t ...) / t` return
-      ;; type annotations.  Normalises multi-value `(Values t ...)` and
-      ;; single-value `t` into a uniform `.ts` attribute (a syntax list
-      ;; of the individual types).
+      ;; Syntax class for parsing optional `(Values t ...)` / `t`
+      ;; return type annotations.  Normalises multi-value
+      ;; `(Values t ...)` and single-value `t` into a uniform `.ts`
+      ;; attribute (a syntax list of the individual types).
       [pattern ((~or* (~literal Values)
                       (~literal values))
                 t*:expr ...)
@@ -112,30 +121,29 @@
              (call/cc
               (ann
                (λ (return)
-                 (define retry : Label goto)
                  (define length (current-amb-length))
                  (define task* (current-amb-tasks))
+                 (define first? : Boolean #t)
+                 (define retry : (∪ False (¬ False)) #f)
                  (define task : Label (label (current-amb-prompt-tag)))
-                 (when (eq? retry goto)
-                   ;; first entry
-                   (set! retry task)
+                 (let ([retry retry])
+                   (when retry (goto retry #f)))
+                 (when first?
+                   (set! first? #f)
                    ((current-amb-pusher) task* task)
                    (goto (sequence-ref task* 0)))
-                 (unless (eq? retry task)
-                   (goto retry))
 
                  (#,for (clauses ...) break ...
-                  (define choice : Label (label (current-amb-prompt-tag)))
-                  (unless (eq? retry choice)
+                  (define choice : (∪ False (¬ False)) (label (current-amb-prompt-tag)))
+                  (when choice
                     (define (alt) : t2 body ...)
                     (set! retry choice)
                     ((current-amb-rotator) task*)
                     (call-in-continuation return alt)))
 
-                 ;; no more alternatives
                  ((current-amb-popper) task*)
-                 (define skip : Label (label (current-amb-prompt-tag)))
-                 (unless (eq? retry skip) (set! retry skip))
+                 (define skip : (∪ False (¬ False)) (label (current-amb-prompt-tag)))
+                 (when skip (set! retry skip))
                  (fail #:tasks task*
                        #:length length))
                (→ (→ t1* ... Nothing) t2))

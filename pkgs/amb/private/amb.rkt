@@ -6,7 +6,6 @@
 
 (require "utils.rkt"
          (for-syntax racket/base syntax/parse)
-         racket/case
          racket/sequence
          racket/stream
          goto)
@@ -80,30 +79,25 @@
     (fail #:tasks task*
           #:length length))
 
-  (define pos #t)
+  (define first? #t)
+  (define pos 0)
   ;; Capture the current continuation delimited by
   ;; `current-amb-prompt-tag`.  Every subsequent backtrack jump lands
   ;; here and re-runs the dispatch below.
   (define task (label (current-amb-prompt-tag)))
-  (case/eq pos
+  (when first?
     ;; First entry: register this choice point and hand control to
     ;; whatever task is at the front of the queue.
-    [(#t)
-     (set! pos 0)
-     ((current-amb-pusher) task* task)
-     (goto (sequence-ref task* 0))]
-    ;; All alternatives exhausted: remove this choice point and
-    ;; propagate failure outward.
-    [(#f)
-     (fail #:tasks task*
-           #:length length)]
+    (set! first? #f)
+    ((current-amb-pusher) task* task)
+     (goto (sequence-ref task* 0)))
+  (when (= pos len)
     ;; Re-entry: fall through to the alternative-dispatch code below.
-    [else
-     (when (= pos len)
-       (set! pos #f)
-       ((current-amb-popper) task*)
-       (fail #:tasks task*
-             #:length length))])
+    (set! pos #f)
+    ((current-amb-popper) task*))
+  (unless pos
+    (fail #:tasks task*
+          #:length length))
 
   ;; Pick the current alternative and advance the position for the
   ;; next re-entry.
@@ -198,27 +192,27 @@
               ;;   jumping here re-enters the for loop from the start,
               ;;   but `retry` tells us which iteration to resume.
               ;; - `retry`:
-              ;;   starts as `#t` (first entry), then holds the
+              ;;   starts as `#f` (first entry), then holds the
               ;;   continuation of the most recently started iteration
               ;;   (`choice`), and finally a sentinel (`skip`) once
               ;;   the loop has finished.
-              #;(: retry (∪ True False (¬ False)))
-              (define retry #t)
+              (define first? #t)
+              #;(: retry (∪ False (¬ False)))
+              (define retry #f)
               ;; `task` is the re-entry point for this group of
               ;; choices.  Backtracking jumps here and then
               ;; `(goto retry #f)` forwards control to the specific
               ;; iteration that should run next.
               (define task (label (current-amb-prompt-tag)))
-              (when (continuation? retry)
+              (when retry
                 ;; `retry` : `(¬ False)`
                 ;; Re-entry: `retry` now holds the continuation of
                 ;; the iteration to resume; jump directly there.
                 (goto retry #f))
-              (when retry
-                ;; `retry` : `True`
+              (when first?
                 ;; First entry: register `task` and yield to any
                 ;; earlier choice point in the queue.
-                (set! retry #f)
+                (set! first? #f)
                 ((current-amb-pusher) task* task)
                 (goto (sequence-ref task* 0)))
 
