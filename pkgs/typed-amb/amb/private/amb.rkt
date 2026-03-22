@@ -109,32 +109,36 @@
           [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
            #:with (t1* ...) #'t1.ts
            (quasisyntax/loc stx
-             (let/cc return : t1
-               (define retry : Label goto)
-               (define length (current-amb-length))
-               (define task* (current-amb-tasks))
-               (define task : Label (label (current-amb-prompt-tag)))
-               (when (eq? retry goto)
-                 ;; first entry
-                 (set! retry task)
-                 ((current-amb-pusher) task* task)
-                 (goto (sequence-ref task* 0)))
-               (unless (eq? retry task)
-                 (goto retry))
+             (call/cc
+              (ann
+               (λ (return)
+                 (define retry : Label goto)
+                 (define length (current-amb-length))
+                 (define task* (current-amb-tasks))
+                 (define task : Label (label (current-amb-prompt-tag)))
+                 (when (eq? retry goto)
+                   ;; first entry
+                   (set! retry task)
+                   ((current-amb-pusher) task* task)
+                   (goto (sequence-ref task* 0)))
+                 (unless (eq? retry task)
+                   (goto retry))
 
-               (#,for (clauses ...) break ...
-                (define choice : Label (label))
-                (unless (eq? retry choice)
-                  (set! retry choice)
-                  ((current-amb-rotator) task*)
-                  (call-in-continuation return (λ () : t2 body ...))))
+                 (#,for (clauses ...) break ...
+                  (define choice : Label (label (current-amb-prompt-tag)))
+                  (unless (eq? retry choice)
+                    (set! retry choice)
+                    ((current-amb-rotator) task*)
+                    (call-in-continuation return (λ () : t2 body ...))))
 
-               ;; no more alternatives
-               ((current-amb-popper) task*)
-               (define skip : Label (label))
-               (unless (eq? retry skip) (set! retry skip))
-               (fail #:tasks task*
-                     #:length length)))]
+                 ;; no more alternatives
+                 ((current-amb-popper) task*)
+                 (define skip : Label (label (current-amb-prompt-tag)))
+                 (unless (eq? retry skip) (set! retry skip))
+                 (fail #:tasks task*
+                       #:length length))
+               (→ (→ t1* ... Nothing) t2))
+              (current-amb-prompt-tag)))]
           ;; Syntactic normalisation:
           ;; Fold all optional-annotation variants into the fully-
           ;; annotated form `(name : t (clauses ...) : t ...)` before
