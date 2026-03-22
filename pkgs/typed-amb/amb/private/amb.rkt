@@ -120,8 +120,8 @@
              (call/cc
               (ann
                (λ (return)
-                 (define length (current-amb-length))
                  (define task* (current-amb-tasks))
+                 (define length (current-amb-length))
                  (define first? : Boolean #t)
                  (define retry : (∪ False (¬ False)) #f)
                  (define task : Label (label (current-amb-prompt-tag)))
