@@ -12,8 +12,10 @@
          goto)
 
 (provide empty-mutable-vector
+         fail
          amb amb* unsafe-amb*
          for/amb for*/amb
+         return-prompt-tag
          amb-prompt-tag
          in-amb  in-amb*
          in-amb/do in-amb*/do
@@ -31,6 +33,7 @@
 
 (define call/prompt call-with-continuation-prompt)
 (define abort/cc abort-current-continuation)
+(define return-prompt-tag (make-continuation-prompt-tag 'return))
 (define (FALSE) #f)
 
 (define (fail #:empty-handler [empty-handler (current-amb-empty-handler)]
@@ -182,65 +185,66 @@
         ;;   choice point on the fly, so the sequence may be infinite.
         [(_ (clauses ...) break:break-clause ... body ...+)
          (quasisyntax/loc stx
-           (call/cc
-            (λ (return)
+           (call/prompt
+            (λ (task* length)
               ;; Control-flow overview
               ;; ---------------------
+              ;; - `return-prompt-tag`:
+              ;;   used to deliver a result to the caller without
+              ;;   running the rest of the loop.
               ;; - `task`:
-              ;;   continuation at the top of the `call/cc` body;
+              ;;   continuation at the top of the `call/prompt` body;
               ;;   jumping here re-enters the for loop from the start,
               ;;   but `retry` tells us which iteration to resume.
-              ;; - `return`:
-              ;;   escape continuation out of the `call/cc`; used to
-              ;;   deliver a result to the caller without running the
-              ;;   rest of the loop.
               ;; - `retry`:
-              ;;   starts as #t (first entry), then holds the
+              ;;   starts as `#t` (first entry), then holds the
               ;;   continuation of the most recently started iteration
               ;;   (`choice`), and finally a sentinel (`skip`) once
               ;;   the loop has finished.
+              #;(: retry (∪ True False (¬ False)))
               (define retry #t)
-              (define length (current-amb-length))
-              (define task* (current-amb-tasks))
               ;; `task` is the re-entry point for this group of
               ;; choices.  Backtracking jumps here and then
-              ;; `(goto retry)` forwards control to the specific
+              ;; `(goto retry #f)` forwards control to the specific
               ;; iteration that should run next.
               (define task (label (current-amb-prompt-tag)))
-              (cond
+              (when (continuation? retry)
                 ;; Re-entry: `retry` now holds the continuation of
                 ;; the iteration to resume; jump directly there.
-                [(continuation? retry)
-                 (goto retry)]
+                (goto retry #f))
+              (when retry
                 ;; First entry: register `task` and yield to any
                 ;; earlier choice point in the queue.
-                [retry
-                 (set! retry #f)
-                 ((current-amb-pusher) task* task)
-                 (goto (sequence-ref task* 0))])
+                (set! retry #f)
+                ((current-amb-pusher) task* task)
+                (goto (sequence-ref task* 0)))
 
               (#,for (clauses ...) break ...
                ;; Capture the continuation of this iteration so
                ;; that backtracking can resume the loop here.
-               (define choice (label (current-amb-prompt-tag)))
-               (unless (and retry (eq? retry choice))
+               #;(: choice (∪ False (¬ False)))
+               (define choice (label return-prompt-tag))
+               (when choice
                  (set! retry choice)
                  ((current-amb-rotator) task*)
-                 ;; Deliver the body result to `return`, suspending
+                 ;; Deliver the body result to the caller, suspending
                  ;; the loop until the next backtrack.
-                 (call-in-continuation return (λ () body ...))))
+                 (abort/cc return-prompt-tag (λ () body ...))))
 
               ;; The loop has run all iterations.  Deregister `task`,
               ;; record the "done" point so a stale jump to `task`
-              ;; followed by `(goto retry)` ends up here harmlessly,
+              ;; followed by `(goto retry #f)` ends up here harmlessly,
               ;; and propagate failure outward.
               ((current-amb-popper) task*)
-              (define skip (label (current-amb-prompt-tag)))
-              (unless (eq? retry skip)
-                (set! retry skip))
+              #;(: skip (∪ False (¬ False)))
+              (define skip (label return-prompt-tag))
+              (when skip (set! retry skip))
               (fail #:tasks task*
                     #:length length))
-            (current-amb-prompt-tag)))]))
+            return-prompt-tag
+            #f
+            (current-amb-tasks)
+            (current-amb-length)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
 
@@ -298,9 +302,13 @@
           ;; the search to the next alternative.
           [else (call-with-values retry list)]))
 
+      #;(: cache  (∪    (Option (Listof Any))     (¬ (Option (Listof Any))) ))
+      #;(: resume (∪ (¬ (Option (Listof Any))) (¬ (¬ (Option (Listof Any))))))
       (define cache #f)
       (define resume (label))        ; the search-context entry point.
       (when cache
+        ;; `cache`  : `(¬ (Option (Listof Any)))`
+        ;; `resume` : `(¬ (Option (Listof Any)))`
         ;; Re-entry via `(goto resume cache)`:
         ;; `cache` holds the consumer's continuation (the return
         ;; address).  Run the search step inside a fresh prompt so
@@ -308,14 +316,18 @@
         ;; exhausted.  Deliver the result (a list or `#f`) back to the
         ;; consumer by jumping to the continuation stored in `cache`
         (goto resume (call/prompt next amb-prompt-tag)))
-      ;; First entry (`cache` is still #f):
+      ;; `cache`  : `False`
+      ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
+      ;; First entry:
       ;; Build and return the sequence object.
       (define (pos->element . _) (apply values cache))
       (define (continue-with-pos? . _)
         (set! cache (label))
         (when (continuation? cache)
+          ;; `cache` : `(¬ (Option (Listof Any)))`
           ;; Jump into search, pass return address
           (goto resume cache))
+        ;; `cache` : `(Option (Listof Any))`
         ;; Back from search, cache now holds result
         (and cache #t))
       (make-sequence continue-with-pos? pos->element))

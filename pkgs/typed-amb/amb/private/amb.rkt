@@ -10,21 +10,23 @@
   [call-in-continuation
    (∀ (a ...)
       (case→
-       (→ (→ a ... a Nothing) (→ (Values a ... a)) Nothing)
-       (→ (→ Any * Nothing) (→ AnyValues) Nothing)))])
+       (→ (→ a ... a ⊥) (→ (Values a ... a)) ⊥)
+       (→ (→ Any * ⊥) (→ AnyValues) ⊥)))])
 
 (provide amb amb* unsafe-amb* for/amb for*/amb in-amb in-amb/do)
 (require/typed/provide amb/private/amb
   [empty-mutable-vector (Mutable-Vector)]
-  [amb*        (∀ (a ...) (case→ (→                  Nothing) (→                   (→ (Values a ... a)) * (Values a ... a))))]
-  [unsafe-amb* (∀ (a ...) (case→ (→ (Mutable-Vector) Nothing) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
+  [fail (→* () (#:empty-handler (→ ⊥) #:tasks (Sequenceof Label) #:length (→ SequenceTop Index)) ⊥)]
+  [amb*        (∀ (a ...) (case→ (→                  ⊥) (→                   (→ (Values a ... a)) * (Values a ... a))))]
+  [unsafe-amb* (∀ (a ...) (case→ (→ (Mutable-Vector) ⊥) (→ (Mutable-Vectorof (→ (Values a ... a)))  (Values a ... a))))]
   [in-amb*    (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
   [in-amb*/do (∀ (a ...) (→ (→ (Values a ... a)) (Sequenceof a ... a)))]
-  [amb-prompt-tag Prompt-TagTop]
+  [amb-prompt-tag    Prompt-TagTop]
+  [return-prompt-tag Prompt-TagTop]
   [#:struct (exn:fail:contract:amb exn:fail:contract) ()]
-  [raise-amb-error (→ Nothing)]
+  [raise-amb-error (→ ⊥)]
   [current-amb-prompt-tag    (Parameter Prompt-TagTop)]
-  [current-amb-empty-handler (Parameter (→ Nothing))]
+  [current-amb-empty-handler (Parameter (→ ⊥))]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
   [current-amb-rotator  (Parameter (→ SequenceTop Void))]
   [current-amb-maker    (Parameter (→ (Sequenceof Label)))]
@@ -32,6 +34,9 @@
   [current-amb-length   (Parameter (→ SequenceTop Index))]
   [current-amb-pusher   (Parameter (∀ (a) (→ (Sequenceof a) a Void)))]
   [current-amb-popper   (Parameter (∀ (a) (→ (Sequenceof a) a)))])
+
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
 
 
 (define-syntax (amb stx)
@@ -88,7 +93,7 @@
            (if (attribute fill-expr)
                ;; Make sure `t2` is a subtype of `t1`
                #'(ann (λ () : t2 fill-expr) (→ t1))
-               #'(ann amb* (→ Nothing)))
+               #'(ann amb* (→ ⊥)))
            (quasisyntax/loc stx
              (unsafe-amb*
               (let ([m n])
@@ -104,37 +109,32 @@
           [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
            #:with (t1* ...) #'t1.ts
            (quasisyntax/loc stx
-             (call/cc
-              (ann
-               (λ (return)
-                 (define retry : Label goto)
-                 (define length (current-amb-length))
-                 (define task* (current-amb-tasks))
-                 (define task : Label (label (current-amb-prompt-tag)))
-                 (cond
-                   [(eq? retry goto)
-                    ;; first entry
-                    (set! retry task)
-                    ((current-amb-pusher) task* task)
-                    (goto (sequence-ref task* 0))]
-                   [(not (eq? retry task))
-                    (goto retry)])
-                 (#,for (clauses ...) break ...
-                  (define choice : Label (label (current-amb-prompt-tag)))
-                  (unless (eq? retry choice)
-                    (set! retry choice)
-                    ((current-amb-rotator) task*)
-                    (call-in-continuation return (λ () : t2 body ...))))
-                 ;; no more alternatives
-                 ((current-amb-popper) task*)
-                 (define skip : Label (label (current-amb-prompt-tag)))
-                 (unless (eq? retry skip)
-                   (set! retry skip))
-                 (when (zero? (length task*))
-                   ((current-amb-empty-handler)))
+             (let/cc return : t1
+               (define retry : Label goto)
+               (define length (current-amb-length))
+               (define task* (current-amb-tasks))
+               (define task : Label (label (current-amb-prompt-tag)))
+               (when (eq? retry goto)
+                 ;; first entry
+                 (set! retry task)
+                 ((current-amb-pusher) task* task)
                  (goto (sequence-ref task* 0)))
-               (→ (→ t1* ... Nothing) t2))
-              (current-amb-prompt-tag)))]
+               (unless (eq? retry task)
+                 (goto retry))
+
+               (#,for (clauses ...) break ...
+                (define choice : Label (label))
+                (unless (eq? retry choice)
+                  (set! retry choice)
+                  ((current-amb-rotator) task*)
+                  (call-in-continuation return (λ () : t2 body ...))))
+
+               ;; no more alternatives
+               ((current-amb-popper) task*)
+               (define skip : Label (label))
+               (unless (eq? retry skip) (set! retry skip))
+               (fail #:tasks task*
+                     #:length length)))]
           ;; Syntactic normalisation:
           ;; Fold all optional-annotation variants into the fully-
           ;; annotated form `(name : t (clauses ...) : t ...)` before
