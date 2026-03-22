@@ -49,27 +49,6 @@
 
 (define-syntaxes (for/amb for*/amb)
   ;; Typed versions of the `for/amb` and `for*/amb` macros.
-  ;;
-  ;; Differences from the untyped version
-  ;; ------------------------------------
-  ;; The untyped version uses `call/prompt` and `abort/cc` to return
-  ;; results from the loop. However, Typed Racket's `Prompt-Tagof` and
-  ;; `call/prompt` type signatures do not support multiple values.
-  ;;
-  ;; `call/prompt` :
-  ;; - : (∀ (a b d c ...)
-  ;;        (case→
-  ;;         (→ (→ b) (Prompt-Tagof b (→ (→ d) d)) (∪ b d))
-  ;;         (→ (→ b) (Prompt-Tagof b (→ c ... c d)) (→ c ... c d) (∪ b d))
-  ;;         (→ (→ b) Any)))
-  ;;
-  ;; Type variables (like `b` and `d` in the TR signature) only
-  ;; instantiate to single types, not `(Values t ...)`.
-  ;;
-  ;; To work around this limitation, the typed version uses delimited
-  ;; `call/cc` (bounded by `current-amb-prompt-tag`) to explicitly
-  ;; capture the return continuation.
-
   (let ()
     (define-syntax-class type
       ;; Syntax class for parsing optional `(Values t ...)` / `t`
@@ -115,6 +94,26 @@
                      break ...
                      (define (alt) : t2 body ...)
                      (ann alt (→ t1)))))))]
+          ;; Differences from the untyped version
+          ;; ------------------------------------
+          ;; The untyped version uses `call/prompt` and `abort/cc` to
+          ;; return results from the loop. However, Typed Racket's
+          ;; `Prompt-Tagof` and `call/prompt` type signatures do not
+          ;; support multiple values.
+          ;;
+          ;; `call/prompt` :
+          ;; - : (∀ (a b d c ...)
+          ;;        (case→
+          ;;         (→ (→ b) (Prompt-Tagof b (→ (→ d) d)) (∪ b d))
+          ;;         (→ (→ b) (Prompt-Tagof b (→ c ... c d)) (→ c ... c d) (∪ b d))
+          ;;         (→ (→ b) Any)))
+          ;;
+          ;; Type variables (like `b` and `d` in the TR signature)
+          ;; only instantiate to single types, not `(Values t ...)`.
+          ;;
+          ;; To work around this limitation, the typed version uses
+          ;; delimited `call/cc` (bounded by `current-amb-prompt-tag`)
+          ;; to explicitly capture the return continuation.
           [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
            #:with (t1* ...) #'t1.ts
            (quasisyntax/loc stx
