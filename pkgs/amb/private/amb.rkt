@@ -209,22 +209,26 @@
               ;; iteration that should run next.
               (define task (label (current-amb-prompt-tag)))
               (when (continuation? retry)
+                ;; `retry` : `(¬ False)`
                 ;; Re-entry: `retry` now holds the continuation of
                 ;; the iteration to resume; jump directly there.
                 (goto retry #f))
               (when retry
+                ;; `retry` : `True`
                 ;; First entry: register `task` and yield to any
                 ;; earlier choice point in the queue.
                 (set! retry #f)
                 ((current-amb-pusher) task* task)
                 (goto (sequence-ref task* 0)))
 
+              ;; `retry` : `False`
               (#,for (clauses ...) break ...
                ;; Capture the continuation of this iteration so
                ;; that backtracking can resume the loop here.
                #;(: choice (∪ False (¬ False)))
                (define choice (label return-prompt-tag))
                (when choice
+                 ;; `choice` : `(¬ False)`
                  (set! retry choice)
                  ((current-amb-rotator) task*)
                  ;; Deliver the body result to the caller, suspending
@@ -238,7 +242,9 @@
               ((current-amb-popper) task*)
               #;(: skip (∪ False (¬ False)))
               (define skip (label return-prompt-tag))
-              (when skip (set! retry skip))
+              (when skip
+                ;; `skip` : `(¬ False)`
+                (set! retry skip))
               (fail #:tasks task*
                     #:length length))
             return-prompt-tag
@@ -320,7 +326,9 @@
       ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
       ;; First entry:
       ;; Build and return the sequence object.
-      (define (pos->element . _) (apply values cache))
+      (define (pos->element . _)
+        ;; `cache` : `(Listof Any)`
+        (apply values cache))
       (define (continue-with-pos? . _)
         (set! cache (label))
         (when (continuation? cache)

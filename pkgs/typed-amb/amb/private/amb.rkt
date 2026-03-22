@@ -12,6 +12,8 @@
       (case→
        (→ (→ a ... a ⊥) (→ (Values a ... a)) ⊥)
        (→ (→ Any * ⊥) (→ AnyValues) ⊥)))])
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
 
 (provide amb amb* unsafe-amb* for/amb for*/amb in-amb in-amb/do)
 (require/typed/provide amb/private/amb
@@ -34,9 +36,6 @@
   [current-amb-length   (Parameter (→ SequenceTop Index))]
   [current-amb-pusher   (Parameter (∀ (a) (→ (Sequenceof a) a Void)))]
   [current-amb-popper   (Parameter (∀ (a) (→ (Sequenceof a) a)))])
-
-(define call/prompt call-with-continuation-prompt)
-(define abort/cc abort-current-continuation)
 
 
 (define-syntax (amb stx)
