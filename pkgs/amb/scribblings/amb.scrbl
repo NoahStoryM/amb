@@ -3,6 +3,7 @@
 @(require (for-label racket/base
                      racket/function
                      racket/contract/base
+                     racket/sequence
                      racket/stream
                      racket/mutability
                      syntax/parse
