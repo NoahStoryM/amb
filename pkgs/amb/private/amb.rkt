@@ -179,7 +179,8 @@
                   (#,for/vector
                    #:length m #:fill fill
                    (clauses ...) break ...
-                   (λ () body ...))))))]
+                   (define (alt) body ...)
+                   alt)))))]
         ;; Without `#:length n` (the general case)
         ;;   The loop runs eagerly but each iteration is turned into a
         ;;   choice point on the fly, so the sequence may be infinite.
@@ -229,11 +230,12 @@
                (define choice (label return-prompt-tag))
                (when choice
                  ;; `choice` : `(¬ False)`
+                 (define (alt) body ...)
                  (set! retry choice)
                  ((current-amb-rotator) task*)
                  ;; Deliver the body result to the caller, suspending
                  ;; the loop until the next backtrack.
-                 (abort/cc return-prompt-tag (λ () body ...))))
+                 (abort/cc return-prompt-tag alt)))
 
               ;; The loop has run all iterations.  Deregister `task`,
               ;; record the "done" point so a stale jump to `task`

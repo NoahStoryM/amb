@@ -104,7 +104,8 @@
                      (clauses ...)
                      : (→ t2)
                      break ...
-                     (ann (λ () : t2 body ...) (→ t1)))))))]
+                     (define (alt) : t2 body ...)
+                     (ann alt (→ t1)))))))]
           [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
            #:with (t1* ...) #'t1.ts
            (quasisyntax/loc stx
@@ -126,9 +127,10 @@
                  (#,for (clauses ...) break ...
                   (define choice : Label (label (current-amb-prompt-tag)))
                   (unless (eq? retry choice)
+                    (define (alt) : t2 body ...)
                     (set! retry choice)
                     ((current-amb-rotator) task*)
-                    (call-in-continuation return (λ () : t2 body ...))))
+                    (call-in-continuation return alt)))
 
                  ;; no more alternatives
                  ((current-amb-popper) task*)
