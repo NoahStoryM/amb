@@ -145,7 +145,7 @@
                  (when skip (set! retry skip))
                  (fail #:tasks task*
                        #:length length))
-               (→ (→ t1* ... Nothing) t2))
+               (→ (→ t1* ... ⊥) t2))
               (current-amb-prompt-tag)))]
           ;; Syntactic normalisation:
           ;; Fold all optional-annotation variants into the fully-
