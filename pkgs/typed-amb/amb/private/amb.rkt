@@ -124,16 +124,16 @@
                  (define length (current-amb-length))
                  (define first? : Boolean #t)
                  (define retry : (∪ False (¬ False)) #f)
-                 (define task : Label (label (current-amb-prompt-tag)))
+                 (define task (label (current-amb-prompt-tag)))
                  (let ([retry retry])
-                   (when retry (goto retry #f)))
+                   (when retry (cc retry #f)))
                  (when first?
                    (set! first? #f)
                    ((current-amb-pusher) task* task)
                    (goto (sequence-ref task* 0)))
 
                  (#,for (clauses ...) break ...
-                  (define choice : (∪ False (¬ False)) (label (current-amb-prompt-tag)))
+                  (define choice : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
                   (when choice
                     (define (alt) : t2 body ...)
                     (set! retry choice)
@@ -141,7 +141,7 @@
                     (call-in-continuation return alt)))
 
                  ((current-amb-popper) task*)
-                 (define skip : (∪ False (¬ False)) (label (current-amb-prompt-tag)))
+                 (define skip : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
                  (when skip (set! retry skip))
                  (fail #:tasks task*
                        #:length length))

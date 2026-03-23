@@ -201,14 +201,14 @@
               (define retry #f)
               ;; `task` is the re-entry point for this group of
               ;; choices.  Backtracking jumps here and then
-              ;; `(goto retry #f)` forwards control to the specific
+              ;; `(cc retry #f)` forwards control to the specific
               ;; iteration that should run next.
               (define task (label (current-amb-prompt-tag)))
               (when retry
                 ;; `retry` : `(¬ False)`
                 ;; Re-entry: `retry` now holds the continuation of
                 ;; the iteration to resume; jump directly there.
-                (goto retry #f))
+                (cc retry #f))
               (when first?
                 ;; First entry: register `task` and yield to any
                 ;; earlier choice point in the queue.
@@ -221,7 +221,7 @@
                ;; Capture the continuation of this iteration so
                ;; that backtracking can resume the loop here.
                #;(: choice (∪ False (¬ False)))
-               (define choice (label return-prompt-tag))
+               (define choice (cc return-prompt-tag))
                (when choice
                  ;; `choice` : `(¬ False)`
                  (define (alt) body ...)
@@ -233,11 +233,11 @@
 
               ;; The loop has run all iterations.  Deregister `task`,
               ;; record the "done" point so a stale jump to `task`
-              ;; followed by `(goto retry #f)` ends up here harmlessly,
+              ;; followed by `(cc retry #f)` ends up here harmlessly,
               ;; and propagate failure outward.
               ((current-amb-popper) task*)
               #;(: skip (∪ False (¬ False)))
-              (define skip (label return-prompt-tag))
+              (define skip (cc return-prompt-tag))
               (when skip
                 ;; `skip` : `(¬ False)`
                 (set! retry skip))
@@ -262,15 +262,15 @@
   ;; between the sequence consumer and the search engine.
   ;;
   ;; `resume` is a full continuation captured at the `in-amb*`
-  ;; call site.  Jumping to it (via `(goto resume val)`) re-enters
+  ;; call site.  Jumping to it (via `(cc resume val)`) re-enters
   ;; the search context and delivers `val` as the result of the
-  ;; `(label)` expression inside `continue-with-pos?`.
+  ;; `(cc)` expression inside `continue-with-pos?`.
   ;;
   ;; `cache` serves a dual role:
   ;;   - While the consumer is waiting: holds the consumer's own
-  ;;     continuation (captured by `(label)` inside
-  ;;     `continue-with-pos?`), which is passed to `resume` so
-  ;;     the search knows where to send the result.
+  ;;     continuation (captured by `(cc)` inside `continue-with-pos?`),
+  ;;     which is passed to `resume` so the search knows where to send
+  ;;     the result.
   ;;   - After the search step completes: holds the packed result
   ;;     list (or `#f` if exhausted), which `pos->element` unpacks.
   (let ()
@@ -309,18 +309,18 @@
             #;(: cache  (∪    (Option (Listof Any))     (¬ (Option (Listof Any))) ))
             #;(: resume (∪ (¬ (Option (Listof Any))) (¬ (¬ (Option (Listof Any))))))
             (define cache #f)
-            (define resume (label))  ; the search-context entry point.
+            (define resume (cc))     ; the search-context entry point.
             (when cache
               ;; `cache`  : `(¬ (Option (Listof Any)))`
               ;; `resume` : `(¬ (Option (Listof Any)))`
-              ;; Re-entry via `(goto resume cache)`:
+              ;; Re-entry via `(cc resume cache)`:
               ;; `cache` holds the consumer's continuation
               ;; (the return address).  Run the search step inside
               ;; a fresh prompt so that `empty-handler` can abort
               ;; cleanly when all choices are exhausted.  Deliver the
               ;; result (a list or `#f`) back to the consumer by
               ;; jumping to the continuation stored in `cache`.
-              (goto resume (call/prompt next amb-prompt-tag)))
+              (cc resume (call/prompt next amb-prompt-tag)))
             ;; `cache`  : `False`
             ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
             ;; First entry:
@@ -329,11 +329,11 @@
               ;; `cache` : `(Listof Any)`
               (apply values cache))
             (define (continue-with-pos? . _)
-              (set! cache (label))
+              (set! cache (cc))
               (when (continuation? cache)
                 ;; `cache` : `(¬ (Option (Listof Any)))`
                 ;; Jump into search, pass return address
-                (goto resume cache))
+                (cc resume cache))
               ;; `cache` : `(Option (Listof Any))`
               ;; Back from search, cache now holds result
               (and cache #t))

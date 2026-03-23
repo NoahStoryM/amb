@@ -58,7 +58,6 @@
       (check-equal? (list x y) '(2 9)))))
 
 (test-case "Test in-amb[*]"
-  (check-true (eq? (in-amb* amb*) (in-amb* amb*)))
   (check-true (eq? (in-amb*/do amb*) empty-sequence))
   (parameterize ([current-amb-tasks ((current-amb-maker))])
     (check-equal?

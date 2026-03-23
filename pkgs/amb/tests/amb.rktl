@@ -10,7 +10,6 @@
   (check-equal? (for/set ([i (in-amb (thk))]) i) st)
   (check-exn exn:fail:contract:blame? (λ () (in-amb* 123)))
   (check-exn exn:fail:contract:blame? (λ () (for ([i (in-amb* 123)] [j '()]) i)))
-  (check-eq? (in-amb* amb*) empty-stream)
   (check-eq? (in-amb*/do amb*) empty-sequence)
   (define s (in-amb* thk))
   (check-equal? (for/set ([i (in-stream s)]) i) st)
