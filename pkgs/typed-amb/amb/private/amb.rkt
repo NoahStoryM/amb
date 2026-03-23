@@ -5,7 +5,7 @@
 
 (require (for-syntax racket/base syntax/parse)
          racket/sequence
-         goto)
+         control/context)
 (require/typed racket/base
   [call-in-continuation
    (∀ (a ...)

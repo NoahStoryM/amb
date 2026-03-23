@@ -8,7 +8,7 @@
          (for-syntax racket/base syntax/parse)
          racket/sequence
          racket/stream
-         goto)
+         control/context)
 
 (provide empty-mutable-vector
          fail
