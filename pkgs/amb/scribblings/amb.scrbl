@@ -8,7 +8,7 @@
                      racket/mutability
                      syntax/parse
                      data/queue
-                     goto
+                     control/context
                      amb)
           "utils.rkt")
 
