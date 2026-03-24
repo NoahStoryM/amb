@@ -320,9 +320,9 @@
               ;; back to the consumer by jumping back to
               ;; `(set! cache ...)`.
               (cc resume (call/prompt next amb-prompt-tag)))
+            (set! cache '())
             ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
             ;; First entry:
-            (set! cache '())
             ;; Build and return the sequence object.
             (define (pos->element . _)
               ;; `cache` : `(Listof Any)`
