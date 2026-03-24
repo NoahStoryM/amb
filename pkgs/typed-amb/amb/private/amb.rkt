@@ -6,12 +6,6 @@
 (require (for-syntax racket/base syntax/parse)
          racket/sequence
          control/context)
-(require/typed racket/base
-  [call-in-continuation
-   (∀ (a ...)
-      (case→
-       (→ (→ a ... a ⊥) (→ (Values a ... a)) ⊥)
-       (→ (→ Any * ⊥) (→ AnyValues) ⊥)))])
 (define call/prompt call-with-continuation-prompt)
 (define abort/cc abort-current-continuation)
 
@@ -115,38 +109,34 @@
           ;; delimited `call/cc` (bounded by `current-amb-prompt-tag`)
           ;; to explicitly capture the return continuation.
           [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
-           #:with (t1* ...) #'t1.ts
            (quasisyntax/loc stx
-             (call/cc
-              (ann
-               (λ (return)
-                 (define task* (current-amb-tasks))
-                 (define length (current-amb-length))
-                 (define first? : Boolean #t)
-                 (define retry : (∪ False (¬ False)) #f)
-                 (define task (label (current-amb-prompt-tag)))
-                 (let ([retry retry])
-                   (when retry (cc retry #f)))
-                 (when first?
-                   (set! first? #f)
-                   ((current-amb-pusher) task* task)
-                   (goto (sequence-ref task* 0)))
+             (let ([alt* ((inst cc (List (→ t1))) (current-amb-prompt-tag))])
+               (if (pair? alt*)
+                   ((car alt*))
+                   (let ([task* (current-amb-tasks)]
+                         [length (current-amb-length)]
+                         [first? : Boolean #t]
+                         [retry : (∪ False (¬ False)) #f])
+                     (define task (label (current-amb-prompt-tag)))
+                     (let ([retry retry])
+                       (when retry (cc retry #f)))
+                     (when first?
+                       (set! first? #f)
+                       ((current-amb-pusher) task* task)
+                       (goto (sequence-ref task* 0)))
 
-                 (#,for (clauses ...) break ...
-                  (define choice : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
-                  (when choice
-                    (define (alt) : t2 body ...)
-                    (set! retry choice)
-                    ((current-amb-rotator) task*)
-                    (call-in-continuation return alt)))
+                     (#,for (clauses ...) break ...
+                      (define choice : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
+                      (when choice
+                        (set! retry choice)
+                        ((current-amb-rotator) task*)
+                        (cc alt* (list (λ () : t2 body ...)))))
 
-                 ((current-amb-popper) task*)
-                 (define skip : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
-                 (when skip (set! retry skip))
-                 (fail #:tasks task*
-                       #:length length))
-               (→ (→ t1* ... ⊥) t2))
-              (current-amb-prompt-tag)))]
+                     ((current-amb-popper) task*)
+                     (define skip : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
+                     (when skip (set! retry skip))
+                     (fail #:tasks task*
+                           #:length length)))))]
           ;; Syntactic normalisation:
           ;; Fold all optional-annotation variants into the fully-
           ;; annotated form `(name : t (clauses ...) : t ...)` before

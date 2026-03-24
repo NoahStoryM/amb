@@ -9,6 +9,8 @@
          racket/sequence
          racket/stream
          control/context)
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
 
 (provide empty-mutable-vector
          fail
@@ -30,8 +32,6 @@
          current-amb-pusher
          current-amb-popper)
 
-(define call/prompt call-with-continuation-prompt)
-(define abort/cc abort-current-continuation)
 (define return-prompt-tag (make-continuation-prompt-tag 'return))
 (define (FALSE) #f)
 
