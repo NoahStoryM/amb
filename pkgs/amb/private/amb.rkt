@@ -306,35 +306,32 @@
                 ;; to the search to the next alternative.
                 [else (call-with-values retry list)]))
 
-            #;(: cache  (∪    (Option (Listof Any))     (¬ (Option (Listof Any))) ))
+            #;(: cache  (Option (Listof Any)))
             #;(: resume (∪ (¬ (Option (Listof Any))) (¬ (¬ (Option (Listof Any))))))
             (define cache #f)
             (define resume (cc))     ; the search-context entry point.
             (when cache
-              ;; `cache`  : `(¬ (Option (Listof Any)))`
+              ;; `cache`  : `(Listof Any)`
               ;; `resume` : `(¬ (Option (Listof Any)))`
-              ;; Re-entry via `(cc resume cache)`:
-              ;; `cache` holds the consumer's continuation
-              ;; (the return address).  Run the search step inside
-              ;; a fresh prompt so that `empty-handler` can abort
-              ;; cleanly when all choices are exhausted.  Deliver the
-              ;; result (a list or `#f`) back to the consumer by
-              ;; jumping to the continuation stored in `cache`.
+              ;; Re-entry via `(call/cc resume)`:
+              ;; Run the search step inside a fresh prompt so that
+              ;; `empty-handler` can abort cleanly when all choices
+              ;; are exhausted.  Deliver the result (a list or `#f`)
+              ;; back to the consumer by jumping back to
+              ;; `(set! cache ...)`.
               (cc resume (call/prompt next amb-prompt-tag)))
-            ;; `cache`  : `False`
             ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
             ;; First entry:
+            (set! cache '())
             ;; Build and return the sequence object.
             (define (pos->element . _)
               ;; `cache` : `(Listof Any)`
               (apply values cache))
             (define (continue-with-pos? . _)
-              (set! cache (cc))
-              (when (continuation? cache)
-                ;; `cache` : `(¬ (Option (Listof Any)))`
-                ;; Jump into search, pass return address
-                (cc resume cache))
-              ;; `cache` : `(Option (Listof Any))`
+              ;; `cache`   : `(Option (Listof Any))`
+              ;; `resume`  : `(¬ (¬ (Option (Listof Any))))`
+              ;; `call/cc` : `(∀ (a) (→ (¬ (¬ a)) a))`
+              (set! cache (call/cc resume))
               ;; Back from search, cache now holds result
               (and cache #t))
             (make-sequence continue-with-pos? pos->element))))
