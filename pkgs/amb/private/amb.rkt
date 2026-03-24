@@ -332,7 +332,7 @@
               ;; `resume`  : `(¬ (¬ (Option (Listof Any))))`
               ;; `call/cc` : `(∀ (a) (→ (¬ (¬ a)) a))`
               (set! cache (call/cc resume))
-              ;; Back from search, cache now holds result
+              ;; Back from search, cache now holds result.
               (and cache #t))
             (make-sequence continue-with-pos? pos->element))))
     (values
