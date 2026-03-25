@@ -255,24 +255,6 @@
   ;; Both `in-amb*` and `in-amb*/do` wrap the same coroutine
   ;; machinery; they differ only in whether they return a lazy stream
   ;; or a general sequence (via `make-do-sequence`).
-  ;;
-  ;; Coroutine channel
-  ;; -----------------
-  ;; `resume` and `cache` together implement a two-way channel
-  ;; between the sequence consumer and the search engine.
-  ;;
-  ;; `resume` is a full continuation captured at the `in-amb*`
-  ;; call site.  Jumping to it (via `(cc resume val)`) re-enters
-  ;; the search context and delivers `val` as the result of the
-  ;; `(cc)` expression inside `continue-with-pos?`.
-  ;;
-  ;; `cache` serves a dual role:
-  ;;   - While the consumer is waiting: holds the consumer's own
-  ;;     continuation (captured by `(cc)` inside `continue-with-pos?`),
-  ;;     which is passed to `resume` so the search knows where to send
-  ;;     the result.
-  ;;   - After the search step completes: holds the packed result
-  ;;     list (or `#f` if exhausted), which `pos->element` unpacks.
   (let ()
     (define ((make empty-sequence make-sequence) alt)
       (if (eq? alt amb*)
@@ -307,32 +289,12 @@
                 [else (call-with-values retry list)]))
 
             #;(: cache  (Option (Listof Any)))
-            #;(: resume (∪ (¬ (Option (Listof Any))) (¬ (¬ (Option (Listof Any))))))
+            #;(: resume (¬ (¬ (Option (Listof Any)))))
             (define cache #f)
-            (define resume (cc))     ; the search-context entry point.
-            (when cache
-              ;; `cache`  : `(Listof Any)`
-              ;; `resume` : `(¬ (Option (Listof Any)))`
-              ;; Re-entry via `(call/cc resume)`:
-              ;; Run the search step inside a fresh prompt so that
-              ;; `empty-handler` can abort cleanly when all choices
-              ;; are exhausted.  Deliver the result (a list or `#f`)
-              ;; back to the consumer by jumping back to
-              ;; `(set! cache ...)`.
-              (cc resume (call/prompt next amb-prompt-tag)))
-            (set! cache '())
-            ;; `resume` : `(¬ (¬ (Option (Listof Any))))`
-            ;; First entry:
-            ;; Build and return the sequence object.
-            (define (pos->element . _)
-              ;; `cache` : `(Listof Any)`
-              (apply values cache))
+            (define resume (return/cc (λ () (call/prompt next amb-prompt-tag))))
+            (define (pos->element . _) (apply values cache))
             (define (continue-with-pos? . _)
-              ;; `cache`   : `(Option (Listof Any))`
-              ;; `resume`  : `(¬ (¬ (Option (Listof Any))))`
-              ;; `call/cc` : `(∀ (a) (→ (¬ (¬ a)) a))`
               (set! cache (call/cc resume))
-              ;; Back from search, cache now holds result.
               (and cache #t))
             (make-sequence continue-with-pos? pos->element))))
     (values
