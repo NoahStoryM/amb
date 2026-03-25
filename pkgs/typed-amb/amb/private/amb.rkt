@@ -119,7 +119,7 @@
                          [retry : (∪ False (¬ False)) #f])
                      (define task (label (current-amb-prompt-tag)))
                      (let ([retry retry])
-                       (when retry (cc retry #f)))
+                       (when retry (retry #f)))
                      (when first?
                        (set! first? #f)
                        ((current-amb-pusher) task* task)
@@ -130,7 +130,7 @@
                       (when choice
                         (set! retry choice)
                         ((current-amb-rotator) task*)
-                        (cc alt* (list (λ () : t2 body ...)))))
+                        (alt* (list (λ () : t2 body ...)))))
 
                      ((current-amb-popper) task*)
                      (define skip : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))

@@ -201,14 +201,14 @@
               (define retry #f)
               ;; `task` is the re-entry point for this group of
               ;; choices.  Backtracking jumps here and then
-              ;; `(cc retry #f)` forwards control to the specific
+              ;; `(retry #f)` forwards control to the specific
               ;; iteration that should run next.
               (define task (label (current-amb-prompt-tag)))
               (when retry
                 ;; `retry` : `(¬ False)`
                 ;; Re-entry: `retry` now holds the continuation of
                 ;; the iteration to resume; jump directly there.
-                (cc retry #f))
+                (retry #f))
               (when first?
                 ;; First entry: register `task` and yield to any
                 ;; earlier choice point in the queue.
@@ -233,7 +233,7 @@
 
               ;; The loop has run all iterations.  Deregister `task`,
               ;; record the "done" point so a stale jump to `task`
-              ;; followed by `(cc retry #f)` ends up here harmlessly,
+              ;; followed by `(retry #f)` ends up here harmlessly,
               ;; and propagate failure outward.
               ((current-amb-popper) task*)
               #;(: skip (∪ False (¬ False)))
