@@ -110,14 +110,15 @@
           ;; to explicitly capture the return continuation.
           [(_ : t1:type (clauses ...) : t2:type break:break-clause ... body ...+)
            (quasisyntax/loc stx
-             (let ([alt* ((inst cc (List (→ t1))) (current-amb-prompt-tag))])
+             (let* ([prompt-tag (current-amb-prompt-tag)]
+                    [alt* ((inst cc (List (→ t1))) prompt-tag)])
                (if (pair? alt*)
                    ((car alt*))
                    (let ([task* (current-amb-tasks)]
                          [length (current-amb-length)]
                          [first? : Boolean #t]
                          [retry : (∪ False (¬ False)) #f])
-                     (define task (label (current-amb-prompt-tag)))
+                     (define task (label prompt-tag))
                      (let ([retry retry])
                        (when retry (retry #f)))
                      (when first?
@@ -126,14 +127,14 @@
                        (goto (sequence-ref task* 0)))
 
                      (#,for (clauses ...) break ...
-                      (define choice : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
+                      (define choice : (∪ False (¬ False)) (cc prompt-tag))
                       (when choice
                         (set! retry choice)
                         ((current-amb-rotator) task*)
                         (alt* (list (λ () : t2 body ...)))))
 
                      ((current-amb-popper) task*)
-                     (define skip : (∪ False (¬ False)) (cc (current-amb-prompt-tag)))
+                     (define skip : (∪ False (¬ False)) (cc prompt-tag))
                      (when skip (set! retry skip))
                      (fail #:tasks task*
                            #:length length)))))]
