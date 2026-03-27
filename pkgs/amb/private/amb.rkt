@@ -33,7 +33,8 @@
          current-amb-popper)
 
 (define return-prompt-tag (make-continuation-prompt-tag 'return))
-(define (FALSE) #f)
+(define (any?  . _) #t)
+(define (none? . _) #f)
 
 (define (fail #:empty-handler [empty-handler (current-amb-empty-handler)]
               #:tasks [task* (current-amb-tasks)]
@@ -263,7 +264,7 @@
             (define task* ((current-amb-maker)))
             (define length (current-amb-length))
             (define (empty-handler)
-              (abort/cc amb-prompt-tag FALSE))
+              (abort/cc amb-prompt-tag none?))
             (define (retry)
               (fail #:empty-handler empty-handler
                     #:tasks task*
@@ -291,7 +292,11 @@
             #;(: cache  (Option (Listof Any)))
             #;(: resume (¬ (¬ (Option (Listof Any)))))
             (define cache #f)
-            (define resume (return/cc (λ () (call/prompt next amb-prompt-tag))))
+            (define resume
+              (wait/fc
+               (λ (k)
+                 (with-handlers ([any? (λ (e) (call-in-continuation k (λ () (raise e))))])
+                   (call/prompt next amb-prompt-tag)))))
             (define (pos->element . _) (apply values cache))
             (define (continue-with-pos? . _)
               (set! cache (call/cc resume))
