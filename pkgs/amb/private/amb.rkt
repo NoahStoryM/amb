@@ -295,7 +295,9 @@
             (define resume
               (wait/fc
                (λ (k)
-                 (with-handlers ([any? (λ (e) (call-in-continuation k (λ () (raise e))))])
+                 ;; If any value is raised during the search, we safely
+                 ;; raise it back to the consumer's context using `k`.
+                 (with-handlers ([any? (λ (v) (call-in-continuation k (λ () (raise v))))])
                    (call/prompt next amb-prompt-tag)))))
             (define (pos->element . _) (apply values cache))
             (define (continue-with-pos? . _)
