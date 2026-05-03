@@ -2,11 +2,11 @@
 
 (define license 'MIT)
 (define collection "typed")
-(define version "1.3")
+(define version "2.0")
 
 (define pkg-desc "Typed Ambiguous Operator")
 
-(define deps '("base" "typed-racket-lib" ["amb" #:version "1.3"] "control-context"))
+(define deps '("base" "typed-racket-lib" ["amb" #:version "2.0"]))
 (define build-deps '("rackunit-typed"))
 (define implies '("amb"))
 

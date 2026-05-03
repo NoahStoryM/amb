@@ -3,10 +3,93 @@
 #+EMAIL: noahstorym@gmail.com
 
 * Table of Contents                                       :TOC_5_gh:noexport:
-- [[#raco-pkg-install-amb][raco pkg install amb]]
+- [[#introduction][Introduction]]
+- [[#usage][Usage]]
+  - [[#basic-choice][Basic Choice]]
+  - [[#pruning-with-amb][Pruning with =(amb)=]]
+  - [[#iteration-with-foramb][Iteration with =for/amb=]]
+  - [[#search-strategy][Search Strategy]]
+- [[#implementation][Implementation]]
+- [[#documentation][Documentation]]
+- [[#license][License]]
 
-* raco pkg install amb
+* Introduction
+
+John McCarthy's ambiguous operator for Racket.
+
+All =amb= operations must occur within the dynamic extent of =in-amb=,
+which delimits the search tree and lazily produces results as a stream.
+
+* Usage
 
 #+begin_src racket
 (require amb)
 #+end_src
+
+** Basic Choice
+
+#+begin_src racket
+(for/list ([x (in-amb (amb 1 2 3))])
+  x)
+;; => '(1 2 3)
+#+end_src
+
+** Pruning with =(amb)=
+
+Calling =amb= with no arguments signals failure, causing the search
+to backtrack.  Use it to prune branches that violate constraints:
+
+#+begin_src racket
+(for/list ([x (in-amb (let ([n (amb 1 2 3 4 5)])
+                        (unless (odd? n) (amb))
+                        (* n n)))])
+  x)
+;; => '(1 9 25)
+#+end_src
+
+** Iteration with =for/amb=
+
+=for/amb= treats each iteration of the loop body as an ambiguous
+choice:
+
+#+begin_src racket
+(for/list ([x (in-amb (for/amb ([c "hello"]) c))])
+  x)
+;; => '(#\h #\e #\l #\l #\o)
+#+end_src
+
+** Search Strategy
+
+Two parameters control the search order.  Both are captured per-tree,
+so different parts of a computation can use different strategies via
+=parameterize=:
+
+#+begin_src racket
+;; DFS (default) vs BFS
+(for/list ([x (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))])
+  x)
+;; => '(1 2 3 4 5 6 7 8)
+
+(parameterize ([current-amb-depth-first? #f])
+  (for/list ([x (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))])
+    x))
+;; => '(1 7 8 2 3 4 5 6)
+#+end_src
+
+* Implementation
+
+The search tree is driven by composable continuations (=shift=/=reset=)
+with an immutable double-ended queue as the frontier.  Each =amb= or
+=for/amb= captures a composable continuation delimited by
+=amb-prompt-tag= and packages it into an =amb-tree= struct that also
+records the search strategy parameters in effect at capture time.
+
+* Documentation
+
+#+begin_src sh
+raco docs amb
+#+end_src
+
+* License
+
+MIT. See [[file:LICENSE]].

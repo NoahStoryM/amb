@@ -10,7 +10,11 @@
 (define (make-amb-eval)
   (make-base-eval
    #:lang 'racket/base
-   '(require amb data/queue racket/stream racket/sequence)))
+   '(require racket/sequence
+             racket/stream
+             amb
+             (only-in amb/private/data/stream
+                      stream-flatten))))
 (define-syntax-rule (amb-examples body ...)
   (examples #:eval (make-amb-eval) body ...))
 

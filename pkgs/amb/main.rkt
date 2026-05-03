@@ -1,16 +1,33 @@
 #lang racket/base
 
-;; Public interface for the ambiguous operator.
-;; This module re-exports the primitives from "amb/private/amb.rkt",
-;; adds sequence syntax and contracts for consumers.
+;; ===================================================================
+;; Public API for the `amb` library
+;; ===================================================================
+;;
+;; This module re-exports the core primitives from the private
+;; implementation and wraps them with contracts, input validation,
+;; and `define-sequence-syntax` optimizations for use in `for`
+;; comprehensions.
+;;
+;; The two layers of sequence syntax (`in-amb` and `in-amb*`)
+;; each have a dual role:
+;;
+;;   - As an expression (outside `for`): returns a lazy stream
+;;     via `in-amb*` from the private module.
+;;
+;;   - Inside a `for` clause: expands directly to the more efficient
+;;     `in-amb*/do` (a `make-do-sequence`-based sequence) to avoid
+;;     the overhead of stream construction.
 
 (require (for-syntax racket/base syntax/parse)
-         racket/contract/base)
-(require (rename-in "private/amb.rkt"
+         racket/contract/base
+         racket/stream
+         racket/mutability
+         (rename-in "private/amb.rkt"
                     [in-amb*    -in-amb*]
                     [in-amb*/do -in-amb*/do])
          (contract-in "private/amb.rkt"
-                      [in-amb*    (-> (-> any) sequence?)]
+                      [in-amb*    (-> (-> any) stream?)]
                       [in-amb*/do (-> (-> any) sequence?)]))
 
 (provide amb
@@ -18,33 +35,29 @@
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          (contract-out
-          (struct exn:fail:contract:amb
-            ([message string?]
-             [continuation-marks continuation-mark-set?]))
-          [amb* (-> (-> any) ... any)]
-          [amb-prompt-tag continuation-prompt-tag?]
-          [raise-amb-error (-> none/c)]
-          [current-amb-prompt-tag #;(parameter/c continuation-prompt-tag?) parameter?]
-          [current-amb-empty-handler #;(parameter/c (-> none/c)) parameter?]
-          [current-amb-shuffler #;(parameter/c (-> mutable-vector? void?)) parameter?]
-          [current-amb-rotator  #;(parameter/c (-> sequence? void?)) parameter?]
-          [current-amb-maker    #;(parameter/c (-> sequence?)) parameter?]
-          [current-amb-tasks    #;(parameter/c sequence?) parameter?]
-          [current-amb-length   #;(parameter/c (-> sequence? exact-nonnegative-integer?)) parameter?]
-          [current-amb-pusher   #;(parameter/c (-> sequence? amb-task? void?)) parameter?]
-          [current-amb-popper   #;(parameter/c (-> sequence? amb-task?)) parameter?]))
+          [make-amb (-> (-> boolean?) (-> any) any)]
+          [current-amb-depth-first? (parameter/c boolean?)]
+          [current-amb-fair?        (parameter/c boolean?)]
+          [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
 
 
+;; ---- in-amb* (function form) ----
+
+;; Validate that the argument is a zero-arity procedure before
+;; calling the private `in-amb*`.  If it is not, delegate to the
+;; contracted `in-amb*` which will raise a proper contract error.
 (define (check-thk thk)
-  ;; Ensure `thk` is a zero-argument thunk.  Used to guard the
-  ;; contract for `in-amb*`.
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
-    ;; intentionally violate the contract
     (in-amb* thk)))
 
+;; `*in-amb*` is the public binding for `in-amb*`.
+;;
+;; As an expression: falls through to the contracted `in-amb*`,
+;; returning a lazy stream.
+;;
+;; Inside a `for` clause: validates the thunk, then dispatches to
+;; `-in-amb*/do` for direct `make-do-sequence` iteration.
 (define-sequence-syntax *in-amb*
-  ;; Sequence form used by `in-amb*`.  It wraps the provided
-  ;; expression in a thunk and verifies its contract.
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
@@ -56,15 +69,24 @@
             (-in-amb*/do thk))])])))
 
 
+;; ---- in-amb (macro form) ----
+
+;; Transformer for the expression position: wraps the body in a thunk
+;; and calls the private `in-amb*`.
 (define-for-syntax (in-amb stx)
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx
        (-in-amb* (λ () expr)))]))
 
+;; `*in-amb` is the public binding for `in-amb`.
+;;
+;; As an expression: expands via `in-amb` above, returning
+;; a lazy stream.
+;;
+;; Inside a `for` clause: wraps the body in a thunk and dispatches
+;; directly to `-in-amb*/do`, bypassing stream construction entirely.
 (define-sequence-syntax *in-amb
-  ;; Sequence form for `(in-amb expr)` where the expression is wrapped
-  ;; in a thunk before passing to `in-amb*/do`.
   in-amb
   (λ (stx)
     (syntax-parse stx
@@ -74,9 +96,13 @@
           (-in-amb*/do (λ () expr))])])))
 
 
+;; ---- in-amb/do (macro form, sequence only) ----
+
+;; Unlike `in-amb`, this form always produces a `make-do-sequence`
+;; sequence (never a stream).  It is intended for use cases where
+;; the caller only needs `for`-style iteration and wants to avoid
+;; the overhead of lazy stream construction.
 (define-syntax (in-amb/do stx)
-  ;; Like `in-amb` but expands directly to `in-amb*/do` for use in
-  ;; contexts that already expect a sequence.
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx

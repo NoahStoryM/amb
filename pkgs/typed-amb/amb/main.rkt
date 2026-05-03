@@ -1,30 +1,48 @@
 #lang typed/racket/base/shallow
 
-;; Typed front-end for `amb`.  Provides the same API as the untyped
-;; version but with Typed Racket contracts.
+;; ===================================================================
+;; Public API for `typed-amb` library
+;; ===================================================================
+;;
+;; This module re-exports the typed core from `typed/amb/private/amb`
+;; and adds `define-sequence-syntax` wrappers so that `in-amb` and
+;; `in-amb*` work efficiently inside `for` comprehensions.
+;;
+;; The dual-role pattern is the same as in the untyped `amb/main`:
+;;
+;;   - As an expression (outside `for`): returns a lazy stream
+;;     via `in-amb*`.
+;;
+;;   - Inside a `for` clause: expands directly to `in-amb*/do`
+;;     (a `make-do-sequence`-based sequence), bypassing stream
+;;     construction entirely.
+;;
+;; Unlike the untyped version, no runtime `check-thk` validation
+;; is needed — Typed Racket's type system enforces the thunk
+;; contract statically.
 
 (require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
-(provide amb amb*
-         for/amb for*/amb
+(provide make-amb
+         amb for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
-         (struct-out exn:fail:contract:amb)
-         amb-prompt-tag
-         raise-amb-error
-         current-amb-empty-handler
-         current-amb-shuffler
-         current-amb-rotator
-         current-amb-maker
-         current-amb-tasks
-         current-amb-length
-         current-amb-pusher
-         current-amb-popper)
+         current-amb-depth-first?
+         current-amb-fair?
+         current-amb-shuffler)
 
 
+;; ---- in-amb* (function form) ----
+
+;; `*in-amb*` is the public binding for `in-amb*`.
+;;
+;; As an expression: falls through to `in-amb*`, returning a
+;; lazy stream.
+;;
+;; Inside a `for` clause: dispatches to `in-amb*/do` for direct
+;; `make-do-sequence` iteration, avoiding stream overhead.
 (define-sequence-syntax *in-amb*
-  ;; Typed variant of `*in-amb*` that directly uses the typed core.
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
@@ -34,15 +52,24 @@
           (in-amb*/do expr)])])))
 
 
+;; ---- in-amb (macro form) ----
+
+;; Transformer for the expression position: wraps the body in a thunk
+;; and calls `in-amb*`.
 (define-for-syntax (in-amb stx)
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx
        (in-amb* (λ () expr)))]))
 
+;; `*in-amb` is the public binding for `in-amb`.
+;;
+;; As an expression: expands via `in-amb` above, returning a
+;; lazy stream.
+;;
+;; Inside a `for` clause: wraps the body in a thunk
+;; and dispatches directly to `in-amb*/do`.
 (define-sequence-syntax *in-amb
-  ;; Equivalent of `*in-amb` from the base module but working with
-  ;; typed functions.
   in-amb
   (λ (stx)
     (syntax-parse stx
@@ -52,9 +79,11 @@
           (in-amb*/do (λ () expr))])])))
 
 
+;; ---- in-amb/do (macro form, sequence only) ----
+
+;; Always produces a `make-do-sequence` sequence (never a stream).
+;; Intended for cases where only `for`-style iteration is needed.
 (define-syntax (in-amb/do stx)
-  ;; Short-hand macro that expands to `in-amb*/do` with the given
-  ;; expression wrapped in a thunk.
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx

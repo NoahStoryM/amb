@@ -3,10 +3,47 @@
 #+EMAIL: noahstorym@gmail.com
 
 * Table of Contents                                       :TOC_5_gh:noexport:
-- [[#raco-pkg-install-typed-amb][raco pkg install typed-amb]]
+- [[#introduction][Introduction]]
+- [[#usage][Usage]]
+- [[#dependencies][Dependencies]]
+- [[#license][License]]
 
-* raco pkg install typed-amb
+* Introduction
+
+Typed Racket interface for the [[https://docs.racket-lang.org/amb/index.html][amb]] library.
+
+Provides the same API as the untyped =amb= package with Typed Racket
+annotations.  Uses =typed/racket/base/shallow= for lower contract
+overhead at the typed-untyped boundary.
+
+* Usage
 
 #+begin_src racket
 (require typed/amb)
 #+end_src
+
+All forms (=amb=, =for/amb=, =in-amb=, etc.) work the same as in the
+untyped version.  =for/amb= additionally accepts optional type
+annotations:
+
+#+begin_src racket
+(for/list ([x (in-amb (amb 1 2 3))])
+  x)
+;; => '(1 2 3)
+
+(for/list ([x (in-amb (for/amb : Integer ([i (in-range 1 6)]) i))])
+  x)
+;; => '(1 2 3 4 5)
+#+end_src
+
+* Dependencies
+
+This package depends on =amb=.  Install both:
+
+#+begin_src sh
+raco pkg install amb typed-amb
+#+end_src
+
+* License
+
+MIT. See [[file:LICENSE]].

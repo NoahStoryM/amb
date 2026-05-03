@@ -4,6 +4,8 @@
          racket/pretty)
 
 
+(define-predicate direction? (∪ 'up 'down 'left 'right))
+
 (: maze (Listof (Listof (∪ #t #f '**))))
 (define maze
   '((#t #t #t #t #t #t #t #t #t #t)
@@ -36,7 +38,8 @@
                          (values 'down  (add1 x) y)
                          (values 'left  x (sub1 y))
                          (values 'right x (add1 y)))])
-        (solve-maze x y (cons pos path) (cons dir dir*)))))
+        (let ([dir (assert dir direction?)])
+          (solve-maze x y (cons pos path) (cons dir dir*))))))
 
 
 (for ([ans (in-amb (solve-maze 0 0 '() '()))])

@@ -2,12 +2,17 @@
 
 (define license 'MIT)
 (define collection "amb")
-(define version "1.3")
+(define version "2.0")
 
 (define pkg-desc "Ambiguous Operator")
 
-(define deps '("base" "control-context"))
-(define build-deps '("scribble-lib" "rackunit-lib" "racket-doc" "data-doc"))
+(define deps '("base"))
+(define build-deps
+  '("scribble-lib"
+    "rackunit-lib"
+    "racket-doc"
+    "srfi-lib"
+    "srfi-doc"))
 
 (define scribblings '(("scribblings/amb.scrbl")))
 
