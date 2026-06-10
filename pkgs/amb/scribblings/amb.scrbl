@@ -139,11 +139,10 @@ corresponds to @racket[for*/stream] composed with
 (code:comment "Sequential amb in let* form — the monadic bind —")
 (code:comment "for*/stream with stream-flatten at each level:")
 (stream->list
- (stream-flatten
-  (for*/stream ([x (stream-flatten (stream 1 2))]
-                [y (stream-flatten (stream 'a 'b))]
-                [z (stream-flatten (stream x y))])
-    z)))
+ (for*/stream ([x (stream-flatten (stream 1 2))]
+               [y (stream-flatten (stream 'a 'b))]
+               [z (stream-flatten (stream x y))])
+   z))
 ]
 
 The translation extends to realistic programs.  Whereas @racket[in-amb]
@@ -178,7 +177,7 @@ at each level.  Intermediate bindings use @racket[#:do], and
   (printf "pythagorean ~a:\n" n)
   (printf "  stream: ")
   (define stream:sol*
-    (time (stream->list (stream-flatten (stream:pythagorean n)))))
+    (time (stream->list (stream:pythagorean n))))
   (printf "     amb: ")
   (define amb:sol*
     (time (stream->list (in-amb (amb:pythagorean n)))))
