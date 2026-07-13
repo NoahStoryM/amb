@@ -289,16 +289,18 @@ works.
   (cons a b))
 ]
 
-If the optional @racket[#:length] clause is omitted, the syntax
-resembles @racket[for/stream] and @racket[for*/stream].  Each iteration
-is lazily evaluated into a @tech/refer{stream}, which is then unpacked
-via @racket[sequence-generate] and delegated to @racket[make-amb].
-Since the body is evaluated on demand, this works with
-@tech/refer{sequences} of any size, including infinite ones.
+If the optional @racket[#:length] clause is omitted, the number of
+iterations is unknown, so each loop @racket[body] is deferred to a
+@racket[thunk] and produced one at a time by driving the @racket[for]
+loop as a coroutine: a captured continuation resumes the loop to yield
+the next @tech{alternative} on demand.  Because the @racket[body] is
+evaluated lazily, this works with @tech/refer{sequences} of any size,
+including infinite ones.
 
 @amb-examples[
 (for/list ([x (in-amb (for/amb ([i (in-naturals)]) i))] [_ 5]) x)
 (for/list ([x (in-amb (for/amb ([c "hello"]) c))]) x)
+(for/list ([x (in-amb (for/amb ([x '(1 2)]) (amb x (- x))))]) x)
 ]
 }
 
