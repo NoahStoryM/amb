@@ -143,8 +143,12 @@
 (define (unsafe-fail) (abort/cc amb-prompt-tag none?))
 
 ;; `fail` aborts with the `any?` sentinel, which returns #t.
-;; The search driver does not treat #t as a leaf, branch, or dead end,
-;; so the calling tree is simply discarded and the search continues.
+;; The search driver does not treat #t as a leaf, branch, or dead
+;; end: it pushes the calling tree back onto the frontier (respecting
+;; its `fair?` field) and continues searching.  This is precisely what
+;; lets a single failed alternative fail without discarding its parent
+;; — e.g. `(amb (amb) 5)` still yields 5, because the inner `(amb)`
+;; fails but the parent tree survives to produce 5.
 ;; `fail` is also used as a sentinel value in the thunk vector of
 ;; `unsafe-amb*` to mark consumed slots.
 (define (fail) (abort/cc amb-prompt-tag any?))
@@ -172,8 +176,18 @@
 ;; `pos` reaches `len`, `thk*` is replaced with an empty one to free
 ;; the whole allocation.
 ;;
-;; If all entries of the vector are `fail`, `fail` is called directly
-;; without creating a tree.
+;; PRECONDITION: on entry, `fail` sentinels are contiguous at the tail
+;; of `thk*` (equivalently, the live thunks form a prefix).  Both call
+;; sites uphold this — the `amb` macro builds an all-live vector, and
+;; `for/amb #:length` fills only the unused *trailing* slots with
+;; `fail` via `#:fill`.  This precondition is why testing slot 0 alone
+;; suffices to detect a wholly-dead vector: if `thk*[0]` is `fail`,
+;; then by tail-contiguity every slot is `fail`.  (Note this holds
+;; only at entry; once the shuffler runs, `fail`s may be scattered,
+;; which is what the re-compaction scan below handles.)
+;;
+;; If the vector is empty or wholly dead, `fail` is called directly
+;; (which pushes the parent tree back) without creating a tree.
 ;;
 ;; Two compaction passes keep the vector dense and its memory
 ;; footprint low:
@@ -286,15 +300,24 @@
 ;;    then delegate to `unsafe-amb*`.
 ;;
 ;; 2. Without `#:length` — the iteration count is unknown, so we
-;;    use `for/stream` to lazily evaluate the body of each iteration
-;;    into a stream, then use `sequence-generate` to obtain a
-;;    `more?`/`get` pair and delegate to `make-amb`.
+;;    run the `for` loop as a coroutine: a per-site prompt tag lets
+;;    each iteration `abort` out with a single body thunk, and a
+;;    saved escape continuation (`retry`) re-enters the loop to
+;;    resume iteration on the next resumption.  This avoids the
+;;    per-element stream-cons allocation that a `for/stream` +
+;;    `sequence-generate` pipeline would incur, and matches the
+;;    mechanism used by the typed front-end (which lacks `for/stream`).
+;;
+;;    Because the body is deferred to the `alt` thunk and only
+;;    invoked *after* the abort has left the loop's dynamic extent,
+;;    a nested `amb` in the body captures a clean continuation and
+;;    does not corrupt the loop state.
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define ((make-for/amb for/vector for/stream) stx)
+    (define ((make-for/amb for/vector for) stx)
       (syntax-parse stx
         [(_ #:length n (~optional (~seq #:fill fill-expr))
             (clauses ...) break-expr:break-clause ... body ...+)
@@ -323,13 +346,25 @@
                               (syntax->list #'(break-expr ...))))
                 '()))]
          (quasisyntax/loc stx
-           (let-values
-               ([(more? get)
-                 (sequence-generate
-                  (#,for/stream (clauses ...) #,@break body ...))])
-            (make-amb more? get)))]))
-    (values (make-for/amb #'for/vector  #'for/stream)
-            (make-for/amb #'for*/vector #'for*/stream))))
+           ((let ([prompt-tag (make-continuation-prompt-tag)])
+              (call-with-continuation-prompt
+               (λ ()
+                 (define retry #f)
+                 (make-amb-tree)
+                 (let ([retry retry])
+                   (when retry (retry #f)))
+                 (#,for (clauses ...) #,@break
+                  (define choice (call/cc values prompt-tag))
+                  (when choice
+                    (define (alt) body ...)
+                    (set! retry choice)
+                    (abort/cc prompt-tag alt)))
+                 (set! retry #f)
+                 (unsafe-fail))
+               prompt-tag
+               values))))]))
+    (values (make-for/amb #'for/vector  #'for)
+            (make-for/amb #'for*/vector #'for*))))
 
 
 ;; ---- Search Driver ----
