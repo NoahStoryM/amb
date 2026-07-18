@@ -346,23 +346,21 @@
                               (syntax->list #'(break-expr ...))))
                 '()))]
          (quasisyntax/loc stx
-           ((let ([prompt-tag (make-continuation-prompt-tag)])
-              (call-with-continuation-prompt
-               (λ ()
-                 (define retry #f)
-                 (make-amb-tree)
-                 (let ([retry retry])
-                   (when retry (retry #f)))
-                 (#,for (clauses ...) #,@break
-                  (define choice (call/cc values prompt-tag))
-                  (when choice
-                    (define (alt) body ...)
-                    (set! retry choice)
-                    (abort/cc prompt-tag alt)))
-                 (set! retry #f)
-                 (unsafe-fail))
-               prompt-tag
-               values))))]))
+           (let ([prompt-tag (make-continuation-prompt-tag)])
+             (call-with-continuation-prompt
+              (λ ()
+                (define retry #f)
+                (make-amb-tree)
+                (when retry (retry #f))
+                (#,for (clauses ...) #,@break
+                 (define choice (call/cc values prompt-tag))
+                 (when choice
+                   (define (alt) body ...)
+                   (set! retry choice)
+                   (abort/cc prompt-tag alt)))
+                (set! retry #f)
+                (unsafe-fail))
+              prompt-tag)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
 
