@@ -1,14 +1,16 @@
 name: CI
 
 on:
+  push:
+    branches: [master]
   pull_request:
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: Bogdanp/setup-racket@v1.14
+      - uses: actions/checkout@v7
+      - uses: Bogdanp/setup-racket@v1.16
         with:
           version: stable
           distribution: full
