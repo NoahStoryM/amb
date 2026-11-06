@@ -94,6 +94,11 @@
 ;; `fail`, and `make-amb-root` communicates through this prompt.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
 
+;; Experimental driver access; not part of either public front-end.
+;; Keeping this in a submodule leaves the flat driver's hot path unchanged.
+(module+ hierarchical-protocol
+  (provide amb-prompt-tag amb-tree? make-amb-root))
+
 
 ;; ---- Tree Construction ----
 

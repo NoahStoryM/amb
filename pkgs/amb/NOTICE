@@ -1,0 +1,42 @@
+Experimental hierarchical-search reference tests
+
+tests/hierarchical.rkt adapts the stream merge/bind rules of microKanren
+and the once/ifte rules of TRS2 as an independent test oracle, following
+the Typed Racket rewrites in https://github.com/NoahStoryM/miniKanren-typed.
+The oracle removes types and interprets a small generated expression
+language instead of substitutions. The tests do not reproduce book prose.
+
+Sources:
+https://github.com/jasonhemann/microKanren (microKanren.scm)
+https://github.com/TheReasonedSchemer2ndEd/CodeFromTheReasonedSchemer2ndEd
+(trs2-impl.scm)
+
+The private hierarchical driver expresses these scheduling rules using
+explicit events and amb's captured continuations, with lazy mature tails.
+
+MIT License
+
+Copyright (C) 2013 Jason Hemann and Daniel P. Friedman
+Copyright (c) 2018 Daniel P. Friedman, William E. Byrd, Oleg Kiselyov,
+and Jason Hemann
+Copyright (c) 2025 Noah Ma (Typed Racket adaptations)
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
