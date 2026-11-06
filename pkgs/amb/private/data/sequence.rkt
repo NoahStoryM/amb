@@ -10,12 +10,19 @@
 
 (define (generate*->generate next0)
   (define v0* #f)
+  (define done? #f)
+  ;; Once exhausted, `more?` keeps returning #f without calling `next0`
+  ;; again, as other single-pass sequences (such as `in-port`) do.  This
+  ;; matters when several generators share the same underlying sequence.
   (define (more? . _)
-    (or (and v0* #t)
-        (let-values ([(v1* next1) (next0)])
-          (set! v0* v1*)
-          (set! next0 next1)
-          (and v0* #t))))
+    (cond
+      [v0* #t]
+      [done? #f]
+      [else
+       (let-values ([(v1* next1) (next0)])
+         (cond
+           [v1* (set! v0* v1*) (set! next0 next1) #t]
+           [else (set! done? #t) #f]))]))
   (define (get . _)
     (if (more?)
         (let ([v1* v0*])

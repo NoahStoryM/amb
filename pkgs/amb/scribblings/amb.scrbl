@@ -369,7 +369,11 @@ The procedural backend of @racket[in-amb].
 
 @defform[(in-amb/do expr)]{
 Similar to @racket[in-amb], but returns a generic @tech/refer{sequence}
-rather than specifically a lazy @tech/refer{stream}.
+rather than specifically a lazy @tech/refer{stream}.  The sequence is
+single-pass: results are not retained, so iterating it consumes them,
+and once every result has been consumed the sequence is empty.  This
+makes it cheaper than @racket[in-amb] when the results are needed only
+once.
 }
 
 @defproc[(in-amb*/do [thk (-> any)]) sequence?]{
