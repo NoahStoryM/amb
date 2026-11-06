@@ -15,14 +15,13 @@
   ;; again, as other single-pass sequences (such as `in-port`) do.  This
   ;; matters when several generators share the same underlying sequence.
   (define (more? . _)
-    (cond
-      [v0* #t]
-      [done? #f]
-      [else
-       (let-values ([(v1* next1) (next0)])
-         (cond
-           [v1* (set! v0* v1*) (set! next0 next1) #t]
-           [else (set! done? #t) #f]))]))
+    (or (and v0* #t)
+        (and (not done?)
+             (let-values ([(v1* next1) (next0)])
+               (set! v0* v1*)
+               (set! next0 next1)
+               (set! done? (not v1*))
+               (and v1* #t)))))
   (define (get . _)
     (if (more?)
         (let ([v1* v0*])
