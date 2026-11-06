@@ -304,3 +304,16 @@
     (time (for ([i (in-stream s)]) i)))
   (time (for ([i (in-amb (for/amb #:length 1000000 ([i 1000000]) i))]) i))
   (time (for ([i (in-amb (for/amb ([i 1000000]) i))]) i)))
+
+;; `in-amb/do` is single-pass: once exhausted, it stays empty, also when
+;; it is generated again or shared by several generators.
+(let ()
+  (define s (in-amb/do (amb 1 2)))
+  (define-values (more1? get1) (sequence-generate s))
+  (define-values (more2? get2) (sequence-generate s))
+  (check-equal? (get1) 1)
+  (check-equal? (get2) 2)
+  (check-false (more1?))
+  (check-false (more2?))
+  (check-false (more1?))
+  (check-equal? (for/list ([x s]) x) '()))
