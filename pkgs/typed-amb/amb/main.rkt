@@ -24,12 +24,13 @@
 (require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
-(provide make-amb
+(provide make-amb amb-local amb-suspend
          amb for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
+         current-amb-search-strategy
          current-amb-shuffler)
 
 

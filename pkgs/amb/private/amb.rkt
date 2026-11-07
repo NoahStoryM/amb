@@ -56,6 +56,7 @@
 
 (require (for-syntax racket/base syntax/parse)
          racket/control
+         racket/runtime-path
          "contract/base.rkt"
          "data/mutable-vector.rkt"
          "data/sequence.rkt"
@@ -68,6 +69,7 @@
          in-amb* in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
+         current-amb-search-strategy
          current-amb-shuffler)
 (provide unsafe-fail fail make-amb-tree thunks unsafe-amb*)
 
@@ -86,6 +88,23 @@
 (define current-amb-depth-first? (make-parameter #t  ))
 (define current-amb-fair?        (make-parameter #f  ))
 (define current-amb-shuffler     (make-parameter void))
+(define current-amb-search-strategy
+  (make-parameter
+   'flat
+   (λ (strategy)
+     (unless (memq strategy '(flat hierarchical))
+       (raise-argument-error 'current-amb-search-strategy
+                             "(or/c 'flat 'hierarchical)" strategy))
+     strategy)))
+
+(define-runtime-path hierarchical-module "hierarchical.rkt")
+(define hierarchical-maker #f)
+(define (get-hierarchical-maker)
+  (or hierarchical-maker
+      (begin
+        (set! hierarchical-maker
+              (dynamic-require hierarchical-module 'make-hierarchical-sequence))
+        hierarchical-maker)))
 
 
 ;; ---- Prompt Tags ----
@@ -93,6 +112,11 @@
 ;; `amb-prompt-tag` delimits the leaf-labeled tree.  Every `shift-at`,
 ;; `fail`, and `make-amb-root` communicates through this prompt.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
+
+;; Experimental driver access; not part of either public front-end.
+;; Keeping this in a submodule leaves the flat driver's hot path unchanged.
+(module+ hierarchical-protocol
+  (provide amb-prompt-tag amb-tree? make-amb-root))
 
 
 ;; ---- Tree Construction ----
@@ -405,13 +429,16 @@
                           (values tree1 frontier)
                           (search frontier))))))))
     (define ((make make-sequence empty-sequence raise-empty-sequence-error) thk)
-      (if (equal? thk fail)
-          empty-sequence
-          (make-sequence
-           (λ ()
-             (let loop ([frontier (ideque (make-amb-root thk))])
-               (let-values ([(v* frontier) (search frontier)])
-                 (values v* (if v* (λ () (loop frontier)) raise-empty-sequence-error))))))))
+      (cond
+        [(equal? thk fail) empty-sequence]
+        [(eq? (current-amb-search-strategy) 'hierarchical)
+         ((get-hierarchical-maker) thk make-sequence raise-empty-sequence-error)]
+        [else
+         (make-sequence
+          (λ ()
+            (let loop ([frontier (ideque (make-amb-root thk))])
+              (let-values ([(v* frontier) (search frontier)])
+                (values v* (if v* (λ () (loop frontier)) raise-empty-sequence-error))))))]))
     (values (make make-stream   empty-stream   raise-empty-stream-error)
             (make make-sequence empty-sequence raise-empty-sequence-error))))
 

@@ -23,6 +23,8 @@
          racket/contract/base
          racket/stream
          racket/mutability
+         (only-in "private/hierarchical.rkt"
+                  call-with-local-search call-with-local-default [suspend amb-suspend])
          (rename-in "private/amb.rkt"
                     [in-amb*    -in-amb*]
                     [in-amb*/do -in-amb*/do])
@@ -30,15 +32,27 @@
                       [in-amb*    (-> (-> any) stream?)]
                       [in-amb*/do (-> (-> any) sequence?)]))
 
-(provide amb
+(provide amb amb-local
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          (contract-out
           [make-amb (-> (-> boolean?) (-> any) any)]
+          [amb-suspend (-> void?)]
+          [current-amb-search-strategy (parameter/c (or/c 'flat 'hierarchical))]
           [current-amb-depth-first? (parameter/c boolean?)]
           [current-amb-fair?        (parameter/c boolean?)]
           [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
+
+;; Provisional local search boundary; documentation follows API stabilization.
+(define-syntax amb-local
+  (syntax-rules ()
+    [(_ #:limit n #:default fallback expr)
+     (call-with-local-default (λ () expr) (λ () fallback) n)]
+    [(_ #:limit n expr) (call-with-local-search (λ () expr) n)]
+    [(_ #:default fallback expr)
+     (call-with-local-default (λ () expr) (λ () fallback))]
+    [(_ expr) (call-with-local-search (λ () expr))]))
 
 
 ;; ---- in-amb* (function form) ----

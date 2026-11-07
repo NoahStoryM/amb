@@ -13,9 +13,11 @@
 ;; Uses `typed/racket/base/shallow` for lower contract overhead at the
 ;; typed-untyped boundary.
 
-(require (for-syntax racket/base syntax/parse))
+(require (for-syntax racket/base syntax/parse)
+         (only-in "hierarchical.rkt"
+                  call-with-local-search call-with-local-default [suspend amb-suspend]))
 
-(provide amb
+(provide amb amb-local amb-suspend
          for/amb for*/amb
          in-amb  in-amb/do)
 
@@ -69,6 +71,7 @@
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
+  [current-amb-search-strategy (Parameter (U 'flat 'hierarchical))]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
   [fail        (→ ⊥)]
@@ -87,6 +90,15 @@
 
 (define call/prompt call-with-continuation-prompt)
 (define abort/cc abort-current-continuation)
+
+(define-syntax amb-local
+  (syntax-rules ()
+    [(_ #:limit n #:default fallback expr)
+     (call-with-local-default (λ () expr) (λ () fallback) n)]
+    [(_ #:limit n expr) (call-with-local-search (λ () expr) n)]
+    [(_ #:default fallback expr)
+     (call-with-local-default (λ () expr) (λ () fallback))]
+    [(_ expr) (call-with-local-search (λ () expr))]))
 
 
 ;; ---- amb Syntax ----
