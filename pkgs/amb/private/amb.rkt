@@ -17,7 +17,7 @@
 ;; A *tree* is a struct bundling a suspended continuation `k` with the
 ;; search strategy that was in effect when the tree was created:
 ;;
-;;   (struct amb-tree (k depth-first? fair? info))
+;;   (struct amb-tree (k info depth-first? fair?))
 ;;
 ;; Thanks to `prop:procedure`, an `amb-tree` `t` is directly callable:
 ;; `(t)` invokes `(k)` and returns one of:
@@ -111,7 +111,7 @@
 ;; strategy parameters that were in effect at capture time.
 ;; `prop:procedure` makes the struct callable — `(t)` invokes `(k)`,
 ;; returning the next result in the tree protocol.
-(struct amb-tree (k depth-first? fair? info)
+(struct amb-tree (k info depth-first? fair?)
   #:property prop:procedure
   (λ (self)
     (parameterize ([current-amb-info (amb-tree-info self)])
@@ -143,7 +143,7 @@
       (and first?
            (begin (set! first? #f)
                   (call-with-values thk list)))))
-  (amb-tree k depth-first? fair? #f))
+  (amb-tree k #f depth-first? fair?))
 
 
 ;; ---- Failure ----
