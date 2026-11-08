@@ -32,7 +32,14 @@
 ;;                  push parent back, enqueue child, and continue
 ;;                  searching
 ;;
-;; The optional `info` field is opaque to the search driver. During a\n;; node's procedure call, `current-amb-info` is parameterized to this\n;; field so the resumed computation can inspect its choice metadata.\n;; As with any parameter, an inner parameterization captured by the\n;; continuation can shadow the node binding. The binding is restored\n;; after the call; it is not an answer-to-metadata side channel.\n;;\n;; The `depth-first?` and `fair?` fields record the values of
+;; The optional `info` field is opaque to the search driver. During a
+;; node's procedure call, `current-amb-info` is parameterized to this
+;; field so the resumed computation can inspect its choice metadata.
+;; As with any parameter, an inner parameterization captured by the
+;; continuation can shadow the node binding. The binding is restored
+;; after the call; it is not an answer-to-metadata side channel.
+;;
+;; The `depth-first?` and `fair?` fields record the values of
 ;; `current-amb-depth-first?` and `current-amb-fair?` at the point
 ;; where `make-amb-tree` was called.  The search driver reads these
 ;; fields to decide where to insert child and parent trees in the
@@ -167,7 +174,9 @@
 ;; as an `amb-tree`, then on each resumption calls `(more?)` to check
 ;; for remaining alternatives and `(get)` to produce the next value.
 ;; When `(more?)` returns #f, it calls `unsafe-fail` to signal a
-;; dead end. Optional `info` is metadata for this choice generator,\n;; installed as `current-amb-info` when its amb-tree is resumed.\n(define (make-amb more? get [info #f])
+;; dead end. Optional `info` is metadata for this choice generator,
+;; installed as `current-amb-info` when its amb-tree is resumed.
+(define (make-amb more? get [info #f])
   (make-amb-tree info)
   (if (more?) (get) (unsafe-fail)))
 
