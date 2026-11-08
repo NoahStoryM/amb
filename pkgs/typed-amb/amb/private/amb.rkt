@@ -53,8 +53,9 @@
                 (Values a ... a))))]
   [make-amb
    (∀ (a ...)
-      (→ (→ Boolean) (→ (Values a ... a))
-         (Values a ... a)))]
+      (→* ((→ Boolean) (→ (Values a ... a)))
+          (Any)
+          (Values a ... a)))]
   [in-amb*
    (∀ (a ...)
       (case→ (→ (→ ⊥)
@@ -70,9 +71,10 @@
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
+  [current-amb-info (Parameter Any)]
   [unsafe-fail (→ ⊥)]
   [fail        (→ ⊥)]
-  [make-amb-tree (→ (Values))])
+  [make-amb-tree (→* () (Any) (Values))])
 
 (require/typed/provide amb/private/data/mutable-vector
   [empty-mutable-vector (Mutable-Vector)])
