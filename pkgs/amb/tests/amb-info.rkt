@@ -86,3 +86,14 @@
       (make-amb (λ () #f) (λ () 'unreachable) 'failed)
       (tagged-choice 'live '(42)))))
    '((42 live))))
+
+;; Racket continuation capture also captures parameterizations.  This
+;; distinguishes node-scoped metadata from parameterize in user code:
+;; the inner lexical binding should prevail while its continuation runs.
+(test-case "an explicitly captured inner parameterization shadows node info"
+  (check-equal?
+   (stream->list
+    (in-amb
+     (parameterize ([current-amb-info 'lexical])
+       (tagged-choice 'node '(7)))))
+   '((7 lexical))))
