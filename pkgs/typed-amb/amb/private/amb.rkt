@@ -70,8 +70,8 @@
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
+  [current-amb-info         (Parameter Any)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
-  [current-amb-info (Parameter Any)]
   [unsafe-fail (→ ⊥)]
   [fail        (→ ⊥)]
   [make-amb-tree (→* () (Any) (Values))])

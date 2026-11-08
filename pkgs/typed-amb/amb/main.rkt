@@ -30,6 +30,7 @@
          in-amb/do in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
+         current-amb-info
          current-amb-shuffler)
 
 
