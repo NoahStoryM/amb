@@ -73,10 +73,10 @@
          amb for/amb for*/amb
          in-amb  in-amb/do
          in-amb* in-amb*/do
+         current-amb-info
          current-amb-depth-first?
          current-amb-fair?
-         current-amb-shuffler
-         current-amb-info)
+         current-amb-shuffler)
 (provide unsafe-fail fail make-amb-tree thunks unsafe-amb*)
 
 
@@ -91,11 +91,11 @@
 
 ;; ---- Parameters ----
 
+;; Metadata supplied by the resumed choice node; scoped to that resumption.
+(define current-amb-info         (make-parameter #f  ))
 (define current-amb-depth-first? (make-parameter #t  ))
 (define current-amb-fair?        (make-parameter #f  ))
 (define current-amb-shuffler     (make-parameter void))
-;; Metadata supplied by the resumed choice node; scoped to that resumption.
-(define current-amb-info         (make-parameter #f))
 
 
 ;; ---- Prompt Tags ----
@@ -128,7 +128,7 @@
 (define (make-amb-tree [info #f])
   (define depth-first? (current-amb-depth-first?))
   (define fair? (current-amb-fair?))
-  (shift-at amb-prompt-tag k (amb-tree k depth-first? fair? info)))
+  (shift-at amb-prompt-tag k (amb-tree k info depth-first? fair?)))
 
 ;; `make-amb-root` constructs the root `amb-tree` of a leaf-labeled
 ;; tree directly.  The `first?` flag produces exactly one leaf on the

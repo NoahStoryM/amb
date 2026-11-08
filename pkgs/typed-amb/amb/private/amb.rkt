@@ -68,9 +68,9 @@
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
                 (Sequenceof a ... a))))]
+  [current-amb-info         (Parameter Any)]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
-  [current-amb-info         (Parameter Any)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
   [fail        (→ ⊥)]

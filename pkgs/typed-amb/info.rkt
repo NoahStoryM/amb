@@ -2,7 +2,7 @@
 
 (define license 'MIT)
 (define collection "typed")
-(define version "2.0")
+(define version "2.1")
 
 (define pkg-desc "Typed Ambiguous Operator")
 
