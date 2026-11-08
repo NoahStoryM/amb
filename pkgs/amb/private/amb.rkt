@@ -17,7 +17,7 @@
 ;; A *tree* is a struct bundling a suspended continuation `k` with the
 ;; search strategy that was in effect when the tree was created:
 ;;
-;;   (struct amb-tree (k depth-first? fair?))
+;;   (struct amb-tree (k depth-first? fair? info))
 ;;
 ;; Thanks to `prop:procedure`, an `amb-tree` `t` is directly callable:
 ;; `(t)` invokes `(k)` and returns one of:
@@ -68,7 +68,8 @@
          in-amb* in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
-         current-amb-shuffler)
+         current-amb-shuffler
+         current-amb-info)
 (provide unsafe-fail fail make-amb-tree thunks unsafe-amb*)
 
 
@@ -86,6 +87,8 @@
 (define current-amb-depth-first? (make-parameter #t  ))
 (define current-amb-fair?        (make-parameter #f  ))
 (define current-amb-shuffler     (make-parameter void))
+;; Metadata supplied by the resumed choice node; scoped to that resumption.
+(define current-amb-info         (make-parameter #f))
 
 
 ;; ---- Prompt Tags ----
@@ -101,8 +104,11 @@
 ;; strategy parameters that were in effect at capture time.
 ;; `prop:procedure` makes the struct callable — `(t)` invokes `(k)`,
 ;; returning the next result in the tree protocol.
-(struct amb-tree (k depth-first? fair?)
-  #:property prop:procedure (struct-field-index k))
+(struct amb-tree (k depth-first? fair? info)
+  #:property prop:procedure
+  (λ (self)
+    (parameterize ([current-amb-info (amb-tree-info self)])
+      ((amb-tree-k self)))))
 
 ;; `make-amb-tree` snapshots the current strategy parameters and uses
 ;; `shift-at` to capture the continuation, packaging everything into
@@ -112,10 +118,10 @@
 ;; When the search driver later calls `(t)` on this tree, the captured
 ;; continuation resumes from the point after `shift-at`, under a fresh
 ;; prompt.
-(define (make-amb-tree)
+(define (make-amb-tree [info #f])
   (define depth-first? (current-amb-depth-first?))
   (define fair? (current-amb-fair?))
-  (shift-at amb-prompt-tag k (amb-tree k depth-first? fair?)))
+  (shift-at amb-prompt-tag k (amb-tree k depth-first? fair? info)))
 
 ;; `make-amb-root` constructs the root `amb-tree` of a leaf-labeled
 ;; tree directly.  The `first?` flag produces exactly one leaf on the
@@ -130,7 +136,7 @@
       (and first?
            (begin (set! first? #f)
                   (call-with-values thk list)))))
-  (amb-tree k depth-first? fair?))
+  (amb-tree k depth-first? fair? #f))
 
 
 ;; ---- Failure ----
@@ -162,8 +168,8 @@
 ;; for remaining alternatives and `(get)` to produce the next value.
 ;; When `(more?)` returns #f, it calls `unsafe-fail` to signal a
 ;; dead end.
-(define (make-amb more? get)
-  (make-amb-tree)
+(define (make-amb more? get [info #f])
+  (make-amb-tree info)
   (if (more?) (get) (unsafe-fail)))
 
 ;; `unsafe-amb*` walks a mutable vector of thunks via `make-amb`,
