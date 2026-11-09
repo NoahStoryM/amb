@@ -66,6 +66,7 @@
          amb for/amb for*/amb
          in-amb  in-amb/do
          in-amb* in-amb*/do
+         pause amb-paused in-amb/pause in-amb*/pause
          current-amb-depth-first?
          current-amb-fair?
          current-amb-shuffler)
@@ -152,6 +153,33 @@
 ;; `fail` is also used as a sentinel value in the thunk vector of
 ;; `unsafe-amb*` to mark consumed slots.
 (define (fail) (abort/cc amb-prompt-tag any?))
+
+
+;; ---- Observable Pause (RESEARCH, ambKanren issue #14) ----
+;;
+;; `pause` gives up control without producing a value and without
+;; losing the rest of the computation: it creates a two-way choice
+;; point whose first alternative aborts to the nearest amb prompt with
+;; the `amb-paused` event and whose second alternative returns, i.e.
+;; continues the caller.
+;;
+;; The existing drivers already treat any value other than #f, a leaf
+;; list or an amb-tree as "nothing produced": the choice point is
+;; pushed back (per its `fair?`) and searching continues.  So under
+;; `in-amb` / `in-amb/do` `pause` is invisible (it only reschedules),
+;; and it never escapes the search that contains it, because it uses
+;; the same prompt tag as every other amb operation.
+;;
+;; `in-amb*/pause` (and `in-amb/pause`) is a do-sequence driver that
+;; additionally reports each pause event as the element `amb-paused`
+;; and returns control to its consumer at that point.  With the
+;; default strategy (depth-first, unfair) the next step resumes the
+;; paused computation first.
+(define amb-paused (string->uninterned-symbol "amb-paused"))
+(define (paused) amb-paused)
+(define (pause)
+  (when (unsafe-amb* (thunks (λ () #t) (λ () #f)))
+    (abort/cc amb-prompt-tag paused)))
 
 
 ;; ---- Ambiguous Operator ----
@@ -370,7 +398,7 @@
 ;; `in-amb*` and `in-amb*/do` convert a nondeterministic computation
 ;; into a lazy stream or a do-sequence respectively.
 
-(define-values (in-amb* in-amb*/do)
+(define-values (in-amb* in-amb*/do in-amb*/pause)
   (let ([pop ideque-pop-front])
     ;; The `search` function walks the frontier deque until a leaf is
     ;; found or the deque is empty.  For each dequeued tree `tree0`,
@@ -384,13 +412,13 @@
     ;;   amb-tree? → branch; push `tree0` back (per its `fair?` field),
     ;;               enqueue `tree1` (per `tree0`'s `depth-first?` field),
     ;;               and continue searching
-    (define (search frontier)
+    (define (search frontier [observe-pause? #f])
       (if (ideque-empty? frontier)
           (values #f frontier)
           (let-values ([(tree0 frontier) (pop frontier)])
             (define tree1 (tree0))
             (if (not tree1)
-                (search frontier)
+                (search frontier observe-pause?)
                 (let* ([push (if (amb-tree-fair? tree0)
                                  ideque-add-back
                                  ideque-add-front)]
@@ -400,23 +428,29 @@
                                        ideque-add-front
                                        ideque-add-back)]
                              [frontier (push frontier tree1)])
-                        (search frontier))
-                      (if (or (pair? tree1) (null? tree1))
-                          (values tree1 frontier)
-                          (search frontier))))))))
-    (define ((make make-sequence empty-sequence raise-empty-sequence-error) thk)
+                        (search frontier observe-pause?))
+                      (cond
+                        [(or (pair? tree1) (null? tree1))
+                         (values tree1 frontier)]
+                        [(and observe-pause? (eq? tree1 amb-paused))
+                         (values (list amb-paused) frontier)]
+                        [else (search frontier observe-pause?)])))))))
+    (define ((make make-sequence empty-sequence raise-empty-sequence-error
+                   [observe-pause? #f])
+             thk)
       (if (equal? thk fail)
           empty-sequence
           (make-sequence
            (λ ()
              (let loop ([frontier (ideque (make-amb-root thk))])
-               (let-values ([(v* frontier) (search frontier)])
+               (let-values ([(v* frontier) (search frontier observe-pause?)])
                  (values v* (if v* (λ () (loop frontier)) raise-empty-sequence-error))))))))
     (values (make make-stream   empty-stream   raise-empty-stream-error)
-            (make make-sequence empty-sequence raise-empty-sequence-error))))
+            (make make-sequence empty-sequence raise-empty-sequence-error)
+            (make make-sequence empty-sequence raise-empty-sequence-error #t))))
 
 ;; Syntax forms: wrap the expression in a thunk.
-(define-syntaxes (in-amb in-amb/do)
+(define-syntaxes (in-amb in-amb/do in-amb/pause)
   (let ()
     (define ((make derived-stx) stx)
       (syntax-parse stx
@@ -424,4 +458,5 @@
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]))
     (values (make #'in-amb*)
-            (make #'in-amb*/do))))
+            (make #'in-amb*/do)
+            (make #'in-amb*/pause))))

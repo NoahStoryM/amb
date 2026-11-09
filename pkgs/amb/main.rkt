@@ -34,6 +34,8 @@
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
+         ;; RESEARCH (ambKanren #14): observable pause
+         pause amb-paused in-amb/pause in-amb*/pause
          (contract-out
           [make-amb (-> (-> boolean?) (-> any) any)]
           [current-amb-depth-first? (parameter/c boolean?)]

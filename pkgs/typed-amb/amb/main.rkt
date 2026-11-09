@@ -28,6 +28,7 @@
          amb for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
+         pause amb-paused in-amb/pause in-amb*/pause
          current-amb-depth-first?
          current-amb-fair?
          current-amb-shuffler)

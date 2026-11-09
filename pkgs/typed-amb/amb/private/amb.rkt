@@ -17,7 +17,7 @@
 
 (provide amb
          for/amb for*/amb
-         in-amb  in-amb/do)
+         in-amb  in-amb/do in-amb/pause)
 
 
 ;; ---- Typed Re-Exports from the Untyped Core ----
@@ -72,7 +72,11 @@
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
   [fail        (→ ⊥)]
-  [make-amb-tree (→ (Values))])
+  [make-amb-tree (→ (Values))]
+  ;; RESEARCH (ambKanren #14): observable pause
+  [pause (→ Void)]
+  [amb-paused Symbol]
+  [in-amb*/pause (∀ (a) (→ (→ a) (Sequenceof (U a Symbol))))])
 
 (require/typed/provide amb/private/data/mutable-vector
   [empty-mutable-vector (Mutable-Vector)])
@@ -247,7 +251,7 @@
 ;; Wrap the expression in a thunk and delegate to `in-amb*` or
 ;; `in-amb*/do`.  Identical to the untyped versions; defined here
 ;; so that they expand in a typed context.
-(define-syntaxes (in-amb in-amb/do)
+(define-syntaxes (in-amb in-amb/do in-amb/pause)
   (let ()
     (define ((make derived-stx) stx)
       (syntax-parse stx
@@ -255,4 +259,5 @@
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]))
     (values (make #'in-amb*)
-            (make #'in-amb*/do))))
+            (make #'in-amb*/do)
+            (make #'in-amb*/pause))))
