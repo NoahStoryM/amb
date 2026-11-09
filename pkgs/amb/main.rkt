@@ -25,10 +25,15 @@
          racket/mutability
          (rename-in "private/amb.rkt"
                     [in-amb*    -in-amb*]
-                    [in-amb*/do -in-amb*/do])
-         (contract-in "private/amb.rkt"
-                      [in-amb*    (->* ((-> any)) ((or/c #f list?)) stream?)]
-                      [in-amb*/do (->* ((-> any)) ((or/c #f list?)) sequence?)]))
+                    [in-amb*/do -in-amb*/do]))
+
+;; Module-boundary contracts (rather than `contract-in`): the module
+;; that uses `in-amb*` / `in-amb*/do` -- including through the `for`
+;; clause expansion below -- is the one blamed for a bad argument.
+(define-module-boundary-contract in-amb*
+  -in-amb*    (->* ((-> any)) ((or/c #f list?)) stream?))
+(define-module-boundary-contract in-amb*/do
+  -in-amb*/do (->* ((-> any)) ((or/c #f list?)) sequence?))
 
 (provide amb
          for/amb for*/amb
@@ -47,23 +52,29 @@
 
 ;; Validate the arguments before calling the private `in-amb*/do`:
 ;; `thk` must be a zero-arity procedure and `vs` (the empty values)
-;; must be #f or a list.  The call to the contracted `in-amb*` is only
-;; for error reporting: when an argument is invalid its contract raises
-;; the proper error (with blame) before the body runs, so nothing is
-;; executed twice.  When the arguments are valid, nothing is called.
-(define (check-args thk [vs #f])
-  (unless (and (procedure? thk)
-               (procedure-arity-includes? thk 0)
-               (or (not vs) (list? vs)))
-    (in-amb* thk vs)))
+;; must be #f or a list.  If they are not, call the contracted
+;; `in-amb*` only to raise its contract error; it never runs the search.
+;;
+;; `check-args` is a macro, not a function, so that the contracted call
+;; is part of the expansion at the use site: the module using `in-amb*`
+;; is blamed, not this module.
+(define-syntax check-args
+  (syntax-rules ()
+    [(_ thk) (check-args thk #f)]
+    [(_ thk vs)
+     (unless (and (procedure? thk)
+                  (procedure-arity-includes? thk 0)
+                  (or (not vs) (list? vs)))
+       (in-amb* thk vs))]))
 
 ;; `*in-amb*` is the public binding for `in-amb*`.
 ;;
 ;; As an expression: falls through to the contracted `in-amb*`,
 ;; returning a lazy stream.
 ;;
-;; Inside a `for` clause: validates the arguments, then dispatches to
-;; `-in-amb*/do` for direct `make-do-sequence` iteration.
+;; Inside a `for` clause: validates the arguments (blaming the
+;; caller), then dispatches to `-in-amb*/do` for direct
+;; `make-do-sequence` iteration.
 (define-sequence-syntax *in-amb*
   (λ () #'in-amb*)
   (λ (stx)
