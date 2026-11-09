@@ -197,8 +197,10 @@
                                 (syntax->list #'(break-expr ...))))
                   '()))]
            (quasisyntax/loc stx
-             (let ([m n])
-               (unsafe-amb*
+             (unsafe-amb*
+              (let ([m n])
+                (if (zero? m)
+                    (ann empty-mutable-vector (Mutable-Vectorof (→ t1)))
                     (#,for/vector
                      : (Mutable-Vectorof (→ t1))
                      #:length m #:fill fill
@@ -206,7 +208,7 @@
                      : (→ t2)
                      #,@break
                      (define (alt) : t2 body ...)
-                     (ann alt (→ t1))))))]
+                     (ann alt (→ t1)))))))]
           [(_ : t1:type (clauses ...) : t2:type break-expr:break-clause ... body ...+)
            #:do
            [(define break

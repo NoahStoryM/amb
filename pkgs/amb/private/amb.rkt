@@ -352,8 +352,11 @@
                 '()))]
          (quasisyntax/loc stx
            (unsafe-amb*
-            (#,for/vector #:length n #:fill fill
-             (clauses ...) #,@break (λ () body ...))))]
+            (let ([m n])
+              (if (zero? m)
+                  empty-mutable-vector
+                  (#,for/vector #:length m #:fill fill
+                   (clauses ...) #,@break (λ () body ...))))))]
         [(_ (clauses ...) break-expr:break-clause ... body ...+)
          #:do
          [(define break
