@@ -56,23 +56,36 @@
       (→ (→ Boolean) (→ (Values a ... a))
          (Values a ... a)))]
   [in-amb*
-   (∀ (a ...)
+   ;; With empty values (RESEARCH, ambKanren #14): the sequence type is
+   ;; the union of the body's type and the declared empty values' type.
+   (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
+                (Sequenceof a ... a))
+             (→ (→ c) (List d) (Sequenceof (U c d)))
+             (→ (→ c) (Option (List c)) (Sequenceof c))
+             (→ (→ (Values a ... a)) (Option (List a ... a))
                 (Sequenceof a ... a))))]
   [in-amb*/do
-   (∀ (a ...)
+   ;; With empty values (RESEARCH, ambKanren #14): the sequence type is
+   ;; the union of the body's type and the declared empty values' type.
+   (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
+                (Sequenceof a ... a))
+             (→ (→ c) (List d) (Sequenceof (U c d)))
+             (→ (→ c) (Option (List c)) (Sequenceof c))
+             (→ (→ (Values a ... a)) (Option (List a ... a))
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
   ;; RESEARCH (ambKanren #14)
-  [amb-abort   (→* () ((Option (Listof Any))) ⊥)]
+  [amb-fail    (→ ⊥)]
+  [amb-empty   (→ ⊥)]
   [make-amb-tree (→ (Values))])
 
 (require/typed/provide amb/private/data/mutable-vector
@@ -176,7 +189,7 @@
            #:with fill
            (if (attribute fill-expr)
                #'(ann (λ () : t2 fill-expr) (→ t1)) ; ensure `t2 <: t1`
-               #'amb-abort)
+               #'amb-fail)
            #:do
            [(define break
               (if (attribute break-expr)
@@ -252,6 +265,9 @@
       (syntax-parse stx
         [(_ expr)
          (quasisyntax/loc stx
-           (#,derived-stx (λ () expr)))]))
+           (#,derived-stx (λ () expr)))]
+        [(_ expr #:empty-values vs)
+         (quasisyntax/loc stx
+           (#,derived-stx (λ () expr) vs))]))
     (values (make #'in-amb*)
             (make #'in-amb*/do))))

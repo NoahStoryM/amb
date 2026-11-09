@@ -27,16 +27,17 @@
                     [in-amb*    -in-amb*]
                     [in-amb*/do -in-amb*/do])
          (contract-in "private/amb.rkt"
-                      [in-amb*    (-> (-> any) stream?)]
-                      [in-amb*/do (-> (-> any) sequence?)]))
+                      [in-amb*    (->* ((-> any)) ((or/c #f list?)) stream?)]
+                      [in-amb*/do (->* ((-> any)) ((or/c #f list?)) sequence?)]))
 
 (provide amb
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
+         ;; RESEARCH (ambKanren #14)
+         amb-fail amb-empty
          (contract-out
           [make-amb (-> (-> boolean?) (-> any) any)]
-          [amb-abort (->* () ((or/c #f list?)) any)]
           [current-amb-depth-first? (parameter/c boolean?)]
           [current-amb-fair?        (parameter/c boolean?)]
           [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
@@ -67,7 +68,14 @@
          [(id ...)
           (let ([thk expr])
             (check-thk thk)
-            (-in-amb*/do thk))])])))
+            (-in-amb*/do thk))])]
+      [[(id:id ...) (_ expr vs-expr)]
+       (syntax/loc stx
+         [(id ...)
+          (let ([thk expr] [vs vs-expr])
+            (check-thk thk)
+            (unless (or (not vs) (list? vs)) (in-amb*/do thk vs))
+            (-in-amb*/do thk vs))])])))
 
 
 ;; ---- in-amb (macro form) ----
@@ -78,7 +86,10 @@
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx
-       (-in-amb* (λ () expr)))]))
+       (-in-amb* (λ () expr)))]
+    [(_ expr #:empty-values vs)
+     (syntax/loc stx
+       (in-amb* (λ () expr) vs))]))
 
 ;; `*in-amb` is the public binding for `in-amb`.
 ;;
@@ -94,7 +105,11 @@
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
-          (-in-amb*/do (λ () expr))])])))
+          (-in-amb*/do (λ () expr))])]
+      [[(id:id ...) (_ expr #:empty-values vs)]
+       (syntax/loc stx
+         [(id ...)
+          (in-amb*/do (λ () expr) vs)])])))
 
 
 ;; ---- in-amb/do (macro form, sequence only) ----
@@ -107,4 +122,7 @@
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx
-       (in-amb*/do (λ () expr)))]))
+       (in-amb*/do (λ () expr)))]
+    [(_ expr #:empty-values vs)
+     (syntax/loc stx
+       (in-amb*/do (λ () expr) vs))]))
