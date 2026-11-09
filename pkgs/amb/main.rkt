@@ -38,6 +38,7 @@
           [make-amb (-> (-> boolean?) (-> any) any)]
           [current-amb-depth-first? (parameter/c boolean?)]
           [current-amb-fair?        (parameter/c boolean?)]
+          [current-amb-empty-values (parameter/c (or/c #f list?))]
           [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
 
 

@@ -68,8 +68,9 @@
          in-amb* in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
+         current-amb-empty-values
          current-amb-shuffler)
-(provide unsafe-fail fail make-amb-tree thunks unsafe-amb*)
+(provide unsafe-fail fail empty-amb make-amb-tree thunks unsafe-amb*)
 
 
 ;; ---- Aliases ----
@@ -85,6 +86,8 @@
 
 (define current-amb-depth-first? (make-parameter #t  ))
 (define current-amb-fair?        (make-parameter #f  ))
+;; RESEARCH (ambKanren #14): see `empty-amb`.
+(define current-amb-empty-values (make-parameter #f  ))
 (define current-amb-shuffler     (make-parameter void))
 
 
@@ -152,6 +155,24 @@
 ;; `fail` is also used as a sentinel value in the thunk vector of
 ;; `unsafe-amb*` to mark consumed slots.
 (define (fail) (abort/cc amb-prompt-tag any?))
+
+;; `empty-amb` is what `(amb)` expands to (RESEARCH, ambKanren #14).
+;;
+;; When `current-amb-empty-values` is #f (the default) it is `fail`.
+;; When it is a list `vs`, `(amb)` does not fail: it creates a two-way
+;; choice point whose first alternative aborts to the amb prompt with
+;; the leaf `vs` — so the enclosing `in-amb` / `in-amb/do` outputs
+;; `(apply values vs)` once, through the ordinary leaf protocol — and
+;; whose second alternative returns, continuing after `(amb)`.  The
+;; parameter is read once, when `(amb)` is called.  Other failure
+;; primitives (`fail`, `unsafe-fail`, `make-amb`, an empty `amb*`
+;; vector, `for/amb` with no iterations) are not affected.
+(define (empty-amb)
+  (define vs (current-amb-empty-values))
+  (if vs
+      (when (unsafe-amb* (thunks (λ () #t) (λ () #f)))
+        (abort/cc amb-prompt-tag (λ () vs)))
+      (fail)))
 
 
 ;; ---- Ambiguous Operator ----
@@ -286,7 +307,7 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     [(_)
-     (syntax/loc stx (fail))]
+     (syntax/loc stx (empty-amb))]
     [(_ expr* ...)
      (syntax/loc stx (unsafe-amb* (thunks (λ () expr*) ...)))]))
 
