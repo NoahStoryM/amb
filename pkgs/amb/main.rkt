@@ -45,19 +45,24 @@
 
 ;; ---- in-amb* (function form) ----
 
-;; Validate that the argument is a zero-arity procedure before
-;; calling the private `in-amb*`.  If it is not, delegate to the
-;; contracted `in-amb*` which will raise a proper contract error.
-(define (check-thk thk)
-  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
-    (in-amb* thk)))
+;; Validate the arguments before calling the private `in-amb*/do`:
+;; `thk` must be a zero-arity procedure and `vs` (the empty values)
+;; must be #f or a list.  The call to the contracted `in-amb*` is only
+;; for error reporting: when an argument is invalid its contract raises
+;; the proper error (with blame) before the body runs, so nothing is
+;; executed twice.  When the arguments are valid, nothing is called.
+(define (check-args thk [vs #f])
+  (unless (and (procedure? thk)
+               (procedure-arity-includes? thk 0)
+               (or (not vs) (list? vs)))
+    (in-amb* thk vs)))
 
 ;; `*in-amb*` is the public binding for `in-amb*`.
 ;;
 ;; As an expression: falls through to the contracted `in-amb*`,
 ;; returning a lazy stream.
 ;;
-;; Inside a `for` clause: validates the thunk, then dispatches to
+;; Inside a `for` clause: validates the arguments, then dispatches to
 ;; `-in-amb*/do` for direct `make-do-sequence` iteration.
 (define-sequence-syntax *in-amb*
   (λ () #'in-amb*)
@@ -67,14 +72,13 @@
        (syntax/loc stx
          [(id ...)
           (let ([thk expr])
-            (check-thk thk)
+            (check-args thk)
             (-in-amb*/do thk))])]
       [[(id:id ...) (_ expr vs-expr)]
        (syntax/loc stx
          [(id ...)
           (let ([thk expr] [vs vs-expr])
-            (check-thk thk)
-            (unless (or (not vs) (list? vs)) (in-amb*/do thk vs))
+            (check-args thk vs)
             (-in-amb*/do thk vs))])])))
 
 
