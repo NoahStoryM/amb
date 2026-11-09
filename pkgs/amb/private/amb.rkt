@@ -22,10 +22,11 @@
 ;; Thanks to `prop:procedure`, an `amb-tree` `t` is directly callable:
 ;; `(t)` invokes `(k)` and returns one of:
 ;;
-;;     #f         — dead end (all alternatives exhausted);
-;;                  discard and continue searching
-;;     #t         — nothing produced; push parent back and continue
-;;                  searching
+;;     dead       — dead end (all alternatives exhausted); a private
+;;                  value only `unsafe-fail` produces; discard and
+;;                  continue searching
+;;     #f         — nothing produced (`amb-abort`, `(amb)`); push
+;;                  parent back and continue searching
 ;;     (list ...) — leaf (computation produced values);
 ;;                  push parent back and suspend searching
 ;;     amb-tree   — branch (child tree to be enqueued);
@@ -56,7 +57,6 @@
 
 (require (for-syntax racket/base syntax/parse)
          racket/control
-         "contract/base.rkt"
          "data/mutable-vector.rkt"
          "data/sequence.rkt"
          "data/stream.rkt"
@@ -69,7 +69,8 @@
          current-amb-depth-first?
          current-amb-fair?
          current-amb-shuffler)
-(provide unsafe-fail fail make-amb-tree thunks unsafe-amb*)
+(provide amb-abort)
+(provide unsafe-fail make-amb-tree thunks unsafe-amb*)
 
 
 ;; ---- Aliases ----
@@ -91,7 +92,7 @@
 ;; ---- Prompt Tags ----
 
 ;; `amb-prompt-tag` delimits the leaf-labeled tree.  Every `shift-at`,
-;; `fail`, and `make-amb-root` communicates through this prompt.
+;; `amb-abort`, and `make-amb-root` communicates through this prompt.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
 
 
@@ -119,7 +120,7 @@
 
 ;; `make-amb-root` constructs the root `amb-tree` of a leaf-labeled
 ;; tree directly.  The `first?` flag produces exactly one leaf on the
-;; first invocation and returns #f (dead end) on the second, so the
+;; first invocation and returns `dead` on the second, so the
 ;; root is naturally discarded from the frontier after its sole result.
 (define (make-amb-root thk)
   (define first? #t)
@@ -127,31 +128,46 @@
   (define fair? (current-amb-fair?))
   (define (k)
     (reset-at amb-prompt-tag
-      (and first?
-           (begin (set! first? #f)
-                  (call-with-values thk list)))))
+      (if first?
+          (begin (set! first? #f)
+                 (call-with-values thk list))
+          dead)))
   (amb-tree k depth-first? fair?))
 
 
 ;; ---- Failure ----
 
-;; `unsafe-fail` aborts with the `none?` sentinel, signalling that the
+;; `unsafe-fail` aborts with the private `dead` value, signalling that the
 ;; current branch has no (more) solutions.  Unlike `make-amb-tree`,
 ;; `unsafe-fail` does not capture a continuation or produce an
-;; `amb-tree` struct — `none?` returns #f directly, which the search
-;; driver recognizes as a dead end.
-(define (unsafe-fail) (abort/cc amb-prompt-tag none?))
+;; `amb-tree` struct; the search driver recognizes `dead` as a dead
+;; end and discards the tree being resumed.
+;; `dead` is private: no user code can produce it, so only the
+;; library's own generators can drop a tree from the frontier.
+(define dead (string->uninterned-symbol "dead"))
+(define (dead-thunk) dead)
+(define (unsafe-fail) (abort/cc amb-prompt-tag dead-thunk))
 
-;; `fail` aborts with the `any?` sentinel, which returns #t.
-;; The search driver does not treat #t as a leaf, branch, or dead
-;; end: it pushes the calling tree back onto the frontier (respecting
-;; its `fair?` field) and continues searching.  This is precisely what
-;; lets a single failed alternative fail without discarding its parent
-;; — e.g. `(amb (amb) 5)` still yields 5, because the inner `(amb)`
-;; fails but the parent tree survives to produce 5.
-;; `fail` is also used as a sentinel value in the thunk vector of
-;; `unsafe-amb*` to mark consumed slots.
-(define (fail) (abort/cc amb-prompt-tag any?))
+;; `(amb-abort)` is failure: it aborts with #f, which the search
+;; driver treats as "nothing produced": it pushes the calling tree
+;; back onto the frontier (respecting its `fair?` field) and continues
+;; searching.  This is precisely what lets a single failed alternative
+;; fail without discarding its parent — e.g. `(amb (amb) 5)` still
+;; yields 5, because the inner `(amb)` fails but the parent tree
+;; survives to produce 5.
+;; `amb-abort` (RESEARCH, ambKanren #14) ends the current resumption.
+;;   (amb-abort)      / (amb-abort #f)  nothing produced: the tree being
+;;                                      resumed is pushed back and the
+;;                                      search continues (`amb-abort`);
+;;   (amb-abort vs)   with a list vs    the enclosing in-amb / in-amb/do
+;;                                      outputs (apply values vs) once.
+;; Either way the tree being resumed is pushed back (per its `fair?`).
+;; It never returns.  `amb-abort` itself is also the sentinel marking
+;; consumed slots in the thunk vector of `unsafe-amb*`: as a thunk it
+;; fails.  A pause is (when (amb #t #f) (amb-abort (list v ...))).
+(define (amb-abort [v* #f])
+  (abort/cc amb-prompt-tag (if v* (λ () v*) false-thunk)))
+(define (false-thunk) #f)
 
 
 ;; ---- Ambiguous Operator ----
@@ -170,54 +186,53 @@
 ;; one alternative per slot.
 ;;
 ;; The `more?` / `get` closures maintain a position `pos` into the
-;; vector `thk*`.  Each consumed slot is overwritten with `fail` to
+;; vector `thk*`.  Each consumed slot is overwritten with `amb-abort` to
 ;; release the thunk for GC and to mark it as consumed.  When `get`
 ;; encounters a consumed slot, it advances to the next one.  When
 ;; `pos` reaches `len`, `thk*` is replaced with an empty one to free
 ;; the whole allocation.
 ;;
-;; PRECONDITION: on entry, `fail` sentinels are contiguous at the tail
+;; PRECONDITION: on entry, `amb-abort` sentinels are contiguous at the tail
 ;; of `thk*` (equivalently, the live thunks form a prefix).  Both call
 ;; sites uphold this — the `amb` macro builds an all-live vector, and
 ;; `for/amb #:length` fills only the unused *trailing* slots with
-;; `fail` via `#:fill`.  This precondition is why testing slot 0 alone
-;; suffices to detect a wholly-dead vector: if `thk*[0]` is `fail`,
-;; then by tail-contiguity every slot is `fail`.  (Note this holds
-;; only at entry; once the shuffler runs, `fail`s may be scattered,
+;; `amb-abort` via `#:fill`.  This precondition is why testing slot 0 alone
+;; suffices to detect a wholly-dead vector: if `thk*[0]` is `amb-abort`,
+;; then by tail-contiguity every slot is `amb-abort`.  (Note this holds
+;; only at entry; once the shuffler runs, `amb-abort`s may be scattered,
 ;; which is what the re-compaction scan below handles.)
 ;;
-;; If the vector is empty or wholly dead, `fail` is called directly
+;; If the vector is empty or wholly dead, `amb-abort` is called directly
 ;; (which pushes the parent tree back) without creating a tree.
 ;;
 ;; Two compaction passes keep the vector dense and its memory
 ;; footprint low:
 ;;
 ;;   Initial compaction — before the shuffler runs, binary search
-;;   locates the first `fail` (contiguous at the tail).  The index is
+;;   locates the first `amb-abort` (contiguous at the tail).  The index is
 ;;   the length of the live prefix.  If it is 0 everything is dead; if
 ;;   it is >3/4 of the original length compaction isn't worthwhile;
 ;;   otherwise the live prefix is copied into a fresh vector.
 ;;
 ;;   Re-compaction — once at least half the entries have been
 ;;   consumed, the first re-compaction scans right-to-left to
-;;   consolidate scattered `fail`s from shuffling at the front, then
-;;   sets `pos` to the first non-`fail` entry.  Subsequent
+;;   consolidate scattered `amb-abort`s from shuffling at the front, then
+;;   sets `pos` to the first non-`amb-abort` entry.  Subsequent
 ;;   re-compactions use `vector-copy` from `pos` to `len`, since
-;;   `fail`s are guaranteed contiguous at the head.
+;;   `amb-abort`s are guaranteed contiguous at the head.
 (define (unsafe-amb* thk*)
   (define len (vector-length thk*))
 
-  (when (or (zero? len) (equal? (vector-ref thk* 0) fail))
+  (when (or (zero? len) (equal? (vector-ref thk* 0) amb-abort))
     (set! thk* empty-mutable-vector)
-    #;
     ((current-amb-shuffler) thk*)
-    (fail))
+    (amb-abort))
 
   (define compacted? #f)
-  (if (equal? (vector-ref thk* (sub1 len)) fail)
+  (if (equal? (vector-ref thk* (sub1 len)) amb-abort)
       (when (> len #xFF)
-        ;; Binary search for the first `fail` — the boundary between
-        ;; the live prefix and the dead suffix.  `fail`s are contiguous
+        ;; Binary search for the first `amb-abort` — the boundary between
+        ;; the live prefix and the dead suffix.  `amb-abort`s are contiguous
         ;; at the tail before shuffling.
         (let loop ([lo 0] [hi len])
           (if (= lo hi)
@@ -226,7 +241,7 @@
                 (set! thk* (vector-copy thk* 0 len))
                 (set! compacted? #t))
               (let ([mid (arithmetic-shift (+ lo hi) -1)])
-                (if (equal? (vector-ref thk* mid) fail)
+                (if (equal? (vector-ref thk* mid) amb-abort)
                     (loop lo mid)
                     (loop (add1 mid) hi))))))
       (set! compacted? #t))
@@ -236,10 +251,10 @@
   (define (more?) (not (= pos len)))
   (define (get)
     (define thk (vector-ref thk* pos))
-    (vector-set! thk* pos fail)
+    (vector-set! thk* pos amb-abort)
     (set! pos (add1 pos))
     (cond
-      [(equal? thk fail)
+      [(equal? thk amb-abort)
        (unless (more?)
          (set! thk* empty-mutable-vector)
          (unsafe-fail))
@@ -248,23 +263,23 @@
        (if (more?)
            (when (and (> len #xFF) (> (* pos 2) len))
              (cond
-               ;; `fail`s are contiguous at the head; just slice the
+               ;; `amb-abort`s are contiguous at the head; just slice the
                ;; live suffix.
                [compacted?
                 (set! thk* (vector-copy thk* pos len))
                 (set! len (vector-length thk*))
                 (set! pos 0)]
-               ;; First re-compaction: scattered `fail`s from shuffling
+               ;; First re-compaction: scattered `amb-abort`s from shuffling
                ;; must be weeded out by a right-to-left scan.
                [else
                 (define new-len (- len pos))
-                (define new-thk* (make-vector new-len fail))
+                (define new-thk* (make-vector new-len amb-abort))
                 (let loop ([i (sub1 len)] [j (sub1 new-len)])
                   (cond
                     [(>= i pos)
                      (define thk (vector-ref thk* i))
                      (cond
-                       [(equal? thk fail)
+                       [(equal? thk amb-abort)
                         (loop (sub1 i) j)]
                        [else
                         (vector-set! new-thk* j thk)
@@ -286,7 +301,7 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     [(_)
-     (syntax/loc stx (fail))]
+     (syntax/loc stx (unsafe-amb* empty-mutable-vector))]
     [(_ expr* ...)
      (syntax/loc stx (unsafe-amb* (thunks (λ () expr*) ...)))]))
 
@@ -324,7 +339,7 @@
          #:with fill
          (if (attribute fill-expr)
              #'(λ () fill-expr)
-             #'fail)
+             #'amb-abort)
          #:do
          [(define break
             (if (attribute break-expr)
@@ -332,12 +347,9 @@
                               (syntax->list #'(break-expr ...))))
                 '()))]
          (quasisyntax/loc stx
-           (let ([m n])
-             (if (zero? m)
-                 (fail)
-                 (unsafe-amb*
-                  (#,for/vector #:length n #:fill fill
-                   (clauses ...) #,@break (λ () body ...))))))]
+           (unsafe-amb*
+            (#,for/vector #:length n #:fill fill
+             (clauses ...) #,@break (λ () body ...))))]
         [(_ (clauses ...) break-expr:break-clause ... body ...+)
          #:do
          [(define break
@@ -376,8 +388,8 @@
     ;; found or the deque is empty.  For each dequeued tree `tree0`,
     ;; it calls `(tree0)` and inspects the result `tree1`:
     ;;
-    ;;   #f        → dead end; discard `tree0` and continue searching
-    ;;   #t        → nothing produced; push `tree0` back and continue
+    ;;   dead      → dead end; discard `tree0` and continue searching
+    ;;   #f        → nothing produced; push `tree0` back and continue
     ;;               search
     ;;   list?     → leaf; push `tree0` back (per its `fair?` field),
     ;;               return the result and suspend searching
@@ -389,7 +401,7 @@
           (values #f frontier)
           (let-values ([(tree0 frontier) (pop frontier)])
             (define tree1 (tree0))
-            (if (not tree1)
+            (if (eq? tree1 dead)
                 (search frontier)
                 (let* ([push (if (amb-tree-fair? tree0)
                                  ideque-add-back
@@ -401,11 +413,13 @@
                                        ideque-add-back)]
                              [frontier (push frontier tree1)])
                         (search frontier))
-                      (if (or (pair? tree1) (null? tree1))
-                          (values tree1 frontier)
-                          (search frontier))))))))
+                      (cond
+                        [(or (pair? tree1) (null? tree1))
+                         (values tree1 frontier)]
+                        [(not tree1) (search frontier)]
+                        [else (error 'amb "internal: unexpected tree result ~e" tree1)])))))))
     (define ((make make-sequence empty-sequence raise-empty-sequence-error) thk)
-      (if (equal? thk fail)
+      (if (equal? thk amb-abort)
           empty-sequence
           (make-sequence
            (λ ()

@@ -20,8 +20,8 @@
 
 (require racket/stream
          amb
-         (rename-in (only-in amb/private/amb unsafe-amb* thunks fail)
-                    [fail amb-fail]))
+         (rename-in (only-in amb/private/amb unsafe-amb* thunks amb-abort)
+                    [amb-abort amb-fail]))
 
 (define-syntax-rule (enum expr)          ; single-value computation → bare value list
   (stream->list (in-amb expr)))

@@ -36,6 +36,7 @@
          in-amb/do in-amb*/do
          (contract-out
           [make-amb (-> (-> boolean?) (-> any) any)]
+          [amb-abort (->* () ((or/c #f list?)) any)]
           [current-amb-depth-first? (parameter/c boolean?)]
           [current-amb-fair?        (parameter/c boolean?)]
           [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
