@@ -25,10 +25,13 @@
          racket/mutability
          (rename-in "private/amb.rkt"
                     [in-amb*    -in-amb*]
-                    [in-amb*/do -in-amb*/do])
-         (contract-in "private/amb.rkt"
-                      [in-amb*    (-> (-> any) stream?)]
-                      [in-amb*/do (-> (-> any) sequence?)]))
+                    [in-amb*/do -in-amb*/do]))
+
+;; Module-boundary contracts (rather than `contract-in`): the module
+;; that uses `in-amb*` / `in-amb*/do` -- including through the `for`
+;; clause expansion below -- is the one blamed for a bad argument.
+(define-module-boundary-contract in-amb*    -in-amb*    (-> (-> any) stream?))
+(define-module-boundary-contract in-amb*/do -in-amb*/do (-> (-> any) sequence?))
 
 (provide amb
          for/amb for*/amb
@@ -44,9 +47,13 @@
 ;; ---- in-amb* (function form) ----
 
 ;; Validate that the argument is a zero-arity procedure before
-;; calling the private `in-amb*`.  If it is not, delegate to the
-;; contracted `in-amb*` which will raise a proper contract error.
-(define (check-thk thk)
+;; calling the private `in-amb*/do`.  If it is not, call the contracted
+;; `in-amb*` only to raise its contract error; it never runs the search.
+;;
+;; `check-thk` is a macro, not a function, so that the contracted call
+;; is part of the expansion at the use site: the module using `in-amb*`
+;; is blamed, not this module.
+(define-syntax-rule (check-thk thk)
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
     (in-amb* thk)))
 
@@ -55,8 +62,9 @@
 ;; As an expression: falls through to the contracted `in-amb*`,
 ;; returning a lazy stream.
 ;;
-;; Inside a `for` clause: validates the thunk, then dispatches to
-;; `-in-amb*/do` for direct `make-do-sequence` iteration.
+;; Inside a `for` clause: validates the thunk (blaming the caller),
+;; then dispatches to `-in-amb*/do` for direct `make-do-sequence`
+;; iteration.
 (define-sequence-syntax *in-amb*
   (λ () #'in-amb*)
   (λ (stx)
