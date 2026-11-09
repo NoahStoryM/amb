@@ -24,7 +24,7 @@
 (require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
-(provide make-amb
+(provide make-amb amb-output
          amb for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do

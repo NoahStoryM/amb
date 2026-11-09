@@ -62,7 +62,7 @@
          "data/stream.rkt"
          "data/ideque.rkt")
 
-(provide make-amb
+(provide make-amb amb-output
          amb for/amb for*/amb
          in-amb  in-amb/do
          in-amb* in-amb*/do
@@ -152,6 +152,19 @@
 ;; `fail` is also used as a sentinel value in the thunk vector of
 ;; `unsafe-amb*` to mark consumed slots.
 (define (fail) (abort/cc amb-prompt-tag any?))
+
+;; `amb-output` (RESEARCH, ambKanren #14; name provisional) abandons the
+;; current resumption and makes the enclosing `in-amb` / `in-amb/do`
+;; output `(values v ...)` once, through the ordinary leaf protocol: the
+;; tree being resumed is pushed back (per its `fair?`) as after any
+;; leaf.  It never returns.  Because the values are always wrapped in a
+;; list, it can only produce outputs: it cannot forge the driver's
+;; dead-end (#f) or nothing-produced (#t) events.
+;;
+;; Keeping the rest of the computation is a matter of composition:
+;;   (when (amb #t #f) (amb-output v ...))
+;; outputs v ... and, when resumed again, continues after the `when`.
+(define (amb-output . v*) (abort/cc amb-prompt-tag (λ () v*)))
 
 
 ;; ---- Ambiguous Operator ----

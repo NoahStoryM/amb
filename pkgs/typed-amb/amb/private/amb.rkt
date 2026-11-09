@@ -72,6 +72,8 @@
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
   [fail        (→ ⊥)]
+  ;; RESEARCH (ambKanren #14): name provisional.
+  [amb-output  (→ Any * ⊥)]
   [make-amb-tree (→ (Values))])
 
 (require/typed/provide amb/private/data/mutable-vector
