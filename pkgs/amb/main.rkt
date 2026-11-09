@@ -46,9 +46,16 @@
 
 ;; ---- in-amb* (function form) ----
 
-;; Is `thk` a valid argument for `in-amb*`?
-(define (thunk? thk)
-  (and (procedure? thk) (procedure-arity-includes? thk 0)))
+;; Validate that the argument is a zero-arity procedure before
+;; calling the private `in-amb*/do`.  If it is not, call the contracted
+;; `in-amb*` only to raise its contract error; it never runs the search.
+;;
+;; `check-thk` is a macro, not a function, so that the contracted call
+;; is part of the expansion at the use site: the module using `in-amb*`
+;; is blamed, not this module.
+(define-syntax-rule (check-thk thk)
+  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
+    (in-amb* thk)))
 
 ;; `*in-amb*` is the public binding for `in-amb*`.
 ;;
@@ -66,9 +73,7 @@
        (syntax/loc stx
          [(id ...)
           (let ([thk expr])
-            ;; The contracted call only reports the error.  It is in the
-            ;; expansion, so the blame goes to the module using `in-amb*`.
-            (unless (thunk? thk) (in-amb* thk))
+            (check-thk thk)
             (-in-amb*/do thk))])])))
 
 
