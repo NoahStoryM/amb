@@ -210,8 +210,11 @@
         (λ () (with-continuation-mark empty-handler-key reentrant-amb (handler)))
         list))
      (abort/cc amb-prompt-tag (λ () vs))]))
+;; A misuse of the handler protocol, so `exn:fail:contract`, like the
+;; error for `(amb)` outside any search.
 (define (reentrant-amb)
-  (error 'amb "(amb) reached inside the empty handler of the same search"))
+  (raise-arguments-error
+   'amb "(amb) reached inside the empty handler of the same search"))
 
 
 ;; ---- Ambiguous Operator ----

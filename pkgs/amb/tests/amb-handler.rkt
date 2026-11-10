@@ -187,6 +187,7 @@
 
 (test-case "(amb) inside the handler of the same search is an error; other choices are fine"
   (check-exn #rx"empty handler" (λ () (stream->list (in-amb (amb) #:empty-handler (λ () (amb))))))
+  (check-exn exn:fail:contract? (λ () (stream->list (in-amb (amb) #:empty-handler (λ () (amb))))))
   (check-equal? (stream->list (in-amb (amb) #:empty-handler (λ () (amb 1 2)))) '(1 2))
   ;; an inner search inside the handler has its own handler
   (check-equal? (stream->list (in-amb (amb) #:empty-handler (λ () (stream->list (in-amb (amb 1 (amb)))))))

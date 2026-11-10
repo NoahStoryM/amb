@@ -407,7 +407,7 @@ one leaf; the rest of that branch is abandoned, as with failure.  The
 default handler is @racket[amb-fail], which makes @racket[(amb)] a
 failure.  The handler may also call @racket[amb-fail] itself, make
 choices of its own, or raise an exception; if it reaches @racket[(amb)]
-of the same search, an error is raised.  It should return as many
+of the same search, @racket[exn:fail:contract] is raised.  It should return as many
 values as @racket[expr] does: Typed Racket checks this, and otherwise
 the mismatch is reported only where the leaf is received.
 
