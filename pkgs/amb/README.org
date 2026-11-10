@@ -37,7 +37,9 @@ which delimits the search tree and lazily produces results as a stream.
 ** Pruning with =(amb)=
 
 Calling =amb= with no arguments signals failure, causing the search
-to backtrack.  Use it to prune branches that violate constraints:
+to backtrack.  (A search given a handler with =#:empty-handler= produces the
+handler's result there instead; =(amb-fail)= always fails.)  Use it to
+prune branches that violate constraints:
 
 #+begin_src racket
 (for/list ([x (in-amb (let ([n (amb 1 2 3 4 5)])

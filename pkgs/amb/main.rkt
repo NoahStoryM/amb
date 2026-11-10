@@ -30,13 +30,16 @@
 ;; Module-boundary contracts (rather than `contract-in`): the module
 ;; that uses `in-amb*` / `in-amb*/do` -- including through the `for`
 ;; clause expansion below -- is the one blamed for a bad argument.
-(define-module-boundary-contract in-amb*    -in-amb*    (-> (-> any) stream?))
-(define-module-boundary-contract in-amb*/do -in-amb*/do (-> (-> any) sequence?))
+(define-module-boundary-contract in-amb*
+  -in-amb*    (->* ((-> any)) ((-> any)) stream?))
+(define-module-boundary-contract in-amb*/do
+  -in-amb*/do (->* ((-> any)) ((-> any)) sequence?))
 
 (provide amb
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
+         amb-fail
          (contract-out
           [make-amb (-> (-> boolean?) (-> any) any)]
           [current-amb-depth-first? (parameter/c boolean?)]
@@ -46,25 +49,32 @@
 
 ;; ---- in-amb* (function form) ----
 
-;; Validate that the argument is a zero-arity procedure before
-;; calling the private `in-amb*/do`.  If it is not, call the contracted
+;; Validate the arguments before calling the private `in-amb*/do`:
+;; `thk` and `handler` (the empty handler, which answers `(amb)`) must
+;; be zero-arity procedures.  If they are not, call the contracted
 ;; `in-amb*` only to raise its contract error; it never runs the search.
 ;;
-;; `check-thk` is a macro, not a function, so that the contracted call
+;; `check-args` is a macro, not a function, so that the contracted call
 ;; is part of the expansion at the use site: the module using `in-amb*`
 ;; is blamed, not this module.
-(define-syntax-rule (check-thk thk)
-  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
-    (in-amb* thk)))
+(define-syntax check-args
+  (syntax-rules ()
+    [(_ thk) (check-args thk amb-fail)]
+    [(_ thk handler)
+     (unless (and (procedure? thk)
+                  (procedure-arity-includes? thk 0)
+                  (procedure? handler)
+                  (procedure-arity-includes? handler 0))
+       (in-amb* thk handler))]))
 
 ;; `*in-amb*` is the public binding for `in-amb*`.
 ;;
 ;; As an expression: falls through to the contracted `in-amb*`,
 ;; returning a lazy stream.
 ;;
-;; Inside a `for` clause: validates the thunk (blaming the caller),
-;; then dispatches to `-in-amb*/do` for direct `make-do-sequence`
-;; iteration.
+;; Inside a `for` clause: validates the arguments (blaming the
+;; caller), then dispatches to `-in-amb*/do` for direct
+;; `make-do-sequence` iteration.
 (define-sequence-syntax *in-amb*
   (λ () #'in-amb*)
   (λ (stx)
@@ -73,8 +83,14 @@
        (syntax/loc stx
          [(id ...)
           (let ([thk expr])
-            (check-thk thk)
-            (-in-amb*/do thk))])])))
+            (check-args thk)
+            (-in-amb*/do thk))])]
+      [[(id:id ...) (_ expr handler-expr)]
+       (syntax/loc stx
+         [(id ...)
+          (let ([thk expr] [handler handler-expr])
+            (check-args thk handler)
+            (-in-amb*/do thk handler))])])))
 
 
 ;; ---- in-amb (macro form) ----
@@ -85,7 +101,10 @@
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx
-       (-in-amb* (λ () expr)))]))
+       (-in-amb* (λ () expr)))]
+    [(_ expr #:empty-handler handler)
+     (syntax/loc stx
+       (in-amb* (λ () expr) handler))]))
 
 ;; `*in-amb` is the public binding for `in-amb`.
 ;;
@@ -101,7 +120,11 @@
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
          [(id ...)
-          (-in-amb*/do (λ () expr))])])))
+          (-in-amb*/do (λ () expr))])]
+      [[(id:id ...) (_ expr #:empty-handler handler)]
+       (syntax/loc stx
+         [(id ...)
+          (in-amb*/do (λ () expr) handler)])])))
 
 
 ;; ---- in-amb/do (macro form, sequence only) ----
@@ -114,4 +137,7 @@
   (syntax-parse stx
     [(_ expr)
      (syntax/loc stx
-       (in-amb*/do (λ () expr)))]))
+       (in-amb*/do (λ () expr)))]
+    [(_ expr #:empty-handler handler)
+     (syntax/loc stx
+       (in-amb*/do (λ () expr) handler))]))
