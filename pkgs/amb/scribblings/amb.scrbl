@@ -44,9 +44,10 @@ A search may instead be given an @deftech{empty handler} (see
 a leaf rather than with nothing: the handler is called there, its
 values become a leaf of the search, and the rest of the branch is
 abandoned, as with failure.  The leaf belongs to the search, not to the
-@racket[(amb)] expression, which still produces no value.  So the
-leaves of a search are the values of the computation or of its
-handler: with a handler that returns a fixed value, the leaves form a
+@racket[(amb)] expression, which still produces no value.
+
+The leaves of a search are therefore the values of the computation or
+of its handler: with a handler that returns a fixed value, the leaves form a
 @tech/refer{stream} of @emph{1 + a}, each element an answer or the mark
 of a branch that ended at @racket[(amb)]; with the default handler
 @racket[amb-fail], which never returns (@emph{0}) and so contributes no
@@ -56,11 +57,11 @@ leaf, of zero values.)  The sum @emph{1 + a} is what the search
 computes; a consumer can tell the two sides apart only if the
 handler's value never occurs as an answer, so a mark is best a value of
 its own, such as an instance of a private structure type.
-Note also that some laws of choice hold only with the default
-handler.  With
-the default handler, @racket[(amb)] is the unit of choice:
-@racket[(amb e (amb))] and @racket[e] have the same leaves.  With a
-handler that returns a value, they do not, since the empty choice
+
+Some laws of choice hold only with the default handler.  There,
+@racket[(amb)] is the unit of choice: @racket[(amb e (amb))] and
+@racket[e] have the same leaves.  With a handler that returns a value,
+they do not, since the empty choice
 contributes a leaf of its own; only @racket[(amb-fail)] remains a unit.
 
 Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—an
