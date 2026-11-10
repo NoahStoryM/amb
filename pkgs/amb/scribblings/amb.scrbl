@@ -39,16 +39,18 @@ Each @racket[amb] expression creates an @tech{amb-tree} with one branch
 per @deftech{alternative}.  A branch that calls @racket[(amb)] is a
 @emph{dead end}: it is pruned and the search backtracks.
 
-A search may instead be given an @deftech{empty handler} (see
-@racket[in-amb]).  Then a branch that reaches @racket[(amb)] ends with
-a leaf rather than with nothing: the handler is called there, its
-values become a leaf of the search, and the rest of the branch is
-abandoned, as with failure.  The leaf belongs to the search, not to the
-@racket[(amb)] expression, which still produces no value.
+Sometimes it is useful to see where branches gave up: to count them, to
+report them, or to mark a pause.  For that, a search can be given an
+@deftech{empty handler}, a thunk passed as @racket[#:empty-handler] (see
+@racket[in-amb]).  When a branch reaches @racket[(amb)], the handler is
+called right there, and whatever it returns becomes one result of the
+search.  The branch then stops, just as it would on failure:
+@racket[(amb)] itself still does not return, so nothing after it in
+that branch runs.
 
-In the tree, the handler turns each @racket[(amb)] node into a leaf,
-written @tt{(amb) ⇒ (handler) ⇒} followed by the handler's result.
-Here the handler returns @racket['none]:
+In the tree, an @racket[(amb)] node answered by the handler becomes a
+leaf, written here as @tt{(amb) ⇒ (handler) ⇒} and the handler's
+result.  With a handler that returns @racket['none]:
 
 @amb-examples[
 (stream->list (in-amb (amb (amb 1 2) (amb) (amb 'a 'b))
@@ -66,9 +68,9 @@ Here the handler returns @racket['none]:
     └── 'b
 }|
 
-The leaf replaces the whole rest of its branch: below, the branch with
-@racket[x] = 1 reaches @racket[(amb)] before @racket[(list x y)], so it
-contributes @racket['none] and no list.
+Because the branch stops at @racket[(amb)], the handler's result takes
+the place of everything that branch would have computed.  Below, the
+branch with @racket[x] = 1 produces @racket['none] instead of a list:
 
 @amb-examples[
 (stream->list
@@ -86,35 +88,39 @@ contributes @racket['none] and no list.
     └── '(2 b)
 }|
 
-@margin-note{Notation: @emph{a} is the type of the values of the
-computation; @emph{1} is a type with exactly one element (the
-@emph{terminal object} of category theory), such as
-@racket[(Values)], whose only element is @racket[(values)]; @emph{0}
-is a type with no elements (the @emph{initial object}), that is,
-@racket[Nothing]; and @emph{b + a} is a disjoint union, whose elements
-are an element of @emph{b} or one of @emph{a}, tagged with the side
-they come from.}
-The leaves of a search are therefore the values of the computation or
-of its handler.  A handler that always returns the same mark has the
-type @emph{1}, so the leaves form a @tech/refer{stream} of
-@emph{1 + a}: each element is an answer, or the mark of a branch that
-ended at @racket[(amb)].  A handler that returns @racket[(values)] has
-the type @emph{1} as well, and contributes a leaf of zero values.  The
+Two practical points follow.
+
+@itemlist[
+  @item{@emph{Choose a mark that cannot be mistaken for an answer.}
+        The results do not say where each one came from, so if the
+        handler returns a value that the computation could also
+        produce, the two cannot be told apart.  A value of its own,
+        such as an instance of a private structure type, is safest.}
+  @item{@emph{Use @racket[(amb-fail)] for a failure that must stay a
+        failure.}  The handler answers @racket[(amb)] but never
+        @racket[(amb-fail)]; without a handler, the two are the same.
+        For the same reason, @racket[(amb e (amb))] has the same
+        results as @racket[e] only without a handler: with one, it has
+        one more.}
+  ]
+
+@margin-note{Here @emph{a} is the type of the computation's results;
+@emph{1} is a type with exactly one element (the @emph{terminal
+object} of category theory), such as @racket[(Values)], whose only
+element is @racket[(values)]; @emph{0} is a type with no elements (the
+@emph{initial object}), that is, @racket[Nothing]; and @emph{b + a} is
+a disjoint union, whose elements come from @emph{b} or from @emph{a},
+tagged with their side.}
+In terms of types, a handler that always returns the same mark has the
+type @emph{1}, so the results of the search form a @tech/refer{stream}
+of @emph{1 + a}: each is an answer, or the mark of a branch that ended
+at @racket[(amb)].  A handler that returns @racket[(values)] also has
+the type @emph{1}, and contributes a result of zero values.  The
 default handler @racket[amb-fail] never returns, so its result type is
-@emph{0}: it contributes no leaf, and since @emph{0 + a} has just the
-elements of @emph{a}, the leaves form a @tech/refer{stream} of
-@emph{a}, as without a handler.
-
-The sum @emph{1 + a} is what the search computes, but a consumer sees
-only the values, without the tags: it can tell the two sides apart only
-if the handler's value never occurs as an answer.  So a mark is best a
-value of its own, such as an instance of a private structure type.
-
-Some laws of choice hold only with the default handler.  There,
-@racket[(amb)] is the unit of choice: @racket[(amb e (amb))] and
-@racket[e] have the same leaves.  With a handler that returns a value,
-they do not, since the empty choice
-contributes a leaf of its own; only @racket[(amb-fail)] remains a unit.
+@emph{0}; since @emph{0 + a} has just the elements of @emph{a}, the
+results are a @tech/refer{stream} of @emph{a}, as without a handler.
+The first practical point above is that the consumer sees the values
+but not the tags of the sum.
 
 Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—an
 immutable deque of pending @tech{amb-trees}.  Each step pops a tree,
