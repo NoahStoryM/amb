@@ -669,13 +669,11 @@ before the second starts.  With a local frontier, they swap at each
 @racket[(amb)]:
 
 @amb-examples[
-(define-syntax-rule (local expr)
-  (parameterize ([current-amb-local? #t]) expr))
 (define (s1) (amb 1 2 3 (amb) 4 5 6))
 (define (s2) (amb 7 8 (amb) 9 (amb)))
 (stream->list (in-amb (amb (s1) (s2)) #:empty-handler (λ () 'pause)))
-(stream->list (in-amb (local (amb (s1) (s2))) #:empty-handler (λ () 'pause)))
-(stream->list (in-amb (local (amb (s1) (s2)))))
+(stream->list (in-amb (parameterize ([current-amb-local? #t]) (amb (s1) (s2))) #:empty-handler (λ () 'pause)))
+(stream->list (in-amb (parameterize ([current-amb-local? #t]) (amb (s1) (s2)))))
 ]
 
 As with the other parameters, @racket[parameterize] around an
@@ -694,11 +692,10 @@ quarter.  The default order never leaves the first branch.
 (define (pause) (when (amb #t #f) (amb)))
 (define (ticks name)
   (amb name (begin (pause) (ticks name))))
-(define-syntax-rule (take n expr)
-  (for/list ([x (in-amb expr)] [_ n]) x))
-(take 8 (local (amb (ticks 'a) (ticks 'b) (ticks 'c))))
-(take 8 (local (amb (ticks 'a) (amb (ticks 'b) (ticks 'c)))))
-(take 8 (amb (ticks 'a) (amb (ticks 'b) (ticks 'c))))
+(define (take-n n s) (for/list ([x s] [_ n]) x))
+(take-n 8 (in-amb (parameterize ([current-amb-local? #t]) (amb (ticks 'a) (ticks 'b) (ticks 'c)))))
+(take-n 8 (in-amb (parameterize ([current-amb-local? #t]) (amb (ticks 'a) (amb (ticks 'b) (ticks 'c))))))
+(take-n 8 (in-amb (amb (ticks 'a) (amb (ticks 'b) (ticks 'c)))))
 ]
 
 Since turns are taken where the tree says so, the order of the results
@@ -708,13 +705,14 @@ computation gives the same order as the same choice with that
 computation moved into each @tech{alternative}:
 
 @amb-examples[
+(define (pause) (when (amb #t #f) (amb)))
 (define (k v)
   (case v
     [(a) (pause) 'A]
     [(b) 'B]
     [(c) 'C]))
-(stream->list (in-amb (k (local (amb (amb 'a 'b) 'c)))))
-(stream->list (in-amb (local (amb (k (amb 'a 'b)) (k 'c)))))
+(stream->list (in-amb (k (parameterize ([current-amb-local? #t]) (amb (amb 'a 'b) 'c)))))
+(stream->list (in-amb (parameterize ([current-amb-local? #t]) (amb (k (amb 'a 'b)) (k 'c)))))
 ]
 
 The other two parameters keep their meaning inside a local frontier:
