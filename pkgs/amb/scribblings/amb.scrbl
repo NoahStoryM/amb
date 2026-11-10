@@ -46,7 +46,8 @@ values become a leaf of the search, and the rest of the branch is
 abandoned, as with failure.  The leaf belongs to the search, not to the
 @racket[(amb)] expression, which still produces no value.
 
-In the tree, the handler turns each @racket[(amb)] node into a leaf.
+In the tree, the handler turns each @racket[(amb)] node into a leaf,
+written @tt{(amb) ⇒ (handler) ⇒} followed by the handler's result.
 Here the handler returns @racket['none]:
 
 @amb-examples[
@@ -59,7 +60,7 @@ Here the handler returns @racket['none]:
 ├── (amb 1 2)
 │   ├── 1
 │   └── 2
-├── (handler) ⇒ 'none
+├── (amb) ⇒ (handler) ⇒ 'none
 └── (amb 'a 'b)
     ├── 'a
     └── 'b
@@ -79,23 +80,32 @@ contributes @racket['none] and no list.
 
 @verbatim|{
 (amb 1 2)
-├── (handler) ⇒ 'none
+├── (amb) ⇒ (handler) ⇒ 'none
 └── (amb 'a 'b)
     ├── '(2 a)
     └── '(2 b)
 }|
 
 The leaves of a search are therefore the values of the computation or
-of its handler: with a handler that returns a fixed value, the leaves form a
-@tech/refer{stream} of @emph{1 + a}, each element an answer or the mark
-of a branch that ended at @racket[(amb)]; with the default handler
-@racket[amb-fail], which never returns (@emph{0}) and so contributes no
-leaf, they form a @tech/refer{stream} of @emph{a}, as without a
-handler.  (A handler that returns @racket[(values)] does contribute a
-leaf, of zero values.)  The sum @emph{1 + a} is what the search
-computes; a consumer can tell the two sides apart only if the
-handler's value never occurs as an answer, so a mark is best a value of
-its own, such as an instance of a private structure type.
+of its handler.  In the notation of types, write @emph{a} for the
+values of the computation, @emph{1} for a type with exactly one value
+(the @emph{terminal object} of category theory), @emph{0} for the
+empty type, which has no values at all (the @emph{initial object}), and
+@emph{b + a} for a disjoint union, whose elements are an element of
+@emph{b} or one of @emph{a}, tagged with the side they come from.  A
+handler that always returns the same mark has the type @emph{1}, so the
+leaves form a @tech/refer{stream} of @emph{1 + a}: each element is an
+answer, or the mark of a branch that ended at @racket[(amb)].  The
+default handler @racket[amb-fail] never returns, so its result type is
+@emph{0}: it contributes no leaf, and since @emph{0 + a} has just the elements of
+@emph{a}, the leaves form a @tech/refer{stream} of @emph{a}, as without
+a handler.  (A handler that returns @racket[(values)] does contribute a
+leaf, of zero values.)
+
+The sum @emph{1 + a} is what the search computes, but a consumer sees
+only the values, without the tags: it can tell the two sides apart only
+if the handler's value never occurs as an answer.  So a mark is best a
+value of its own, such as an instance of a private structure type.
 
 Some laws of choice hold only with the default handler.  There,
 @racket[(amb)] is the unit of choice: @racket[(amb e (amb))] and
