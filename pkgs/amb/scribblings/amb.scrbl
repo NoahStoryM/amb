@@ -86,21 +86,24 @@ contributes @racket['none] and no list.
     └── '(2 b)
 }|
 
+@margin-note{Notation: @emph{a} is the type of the values of the
+computation; @emph{1} is a type with exactly one element (the
+@emph{terminal object} of category theory), such as
+@racket[(Values)], whose only element is @racket[(values)]; @emph{0}
+is a type with no elements (the @emph{initial object}), that is,
+@racket[Nothing]; and @emph{b + a} is a disjoint union, whose elements
+are an element of @emph{b} or one of @emph{a}, tagged with the side
+they come from.}
 The leaves of a search are therefore the values of the computation or
-of its handler.  In the notation of types, write @emph{a} for the
-values of the computation, @emph{1} for a type with exactly one value
-(the @emph{terminal object} of category theory), @emph{0} for the
-empty type, which has no values at all (the @emph{initial object}), and
-@emph{b + a} for a disjoint union, whose elements are an element of
-@emph{b} or one of @emph{a}, tagged with the side they come from.  A
-handler that always returns the same mark has the type @emph{1}, so the
-leaves form a @tech/refer{stream} of @emph{1 + a}: each element is an
-answer, or the mark of a branch that ended at @racket[(amb)].  The
+of its handler.  A handler that always returns the same mark has the
+type @emph{1}, so the leaves form a @tech/refer{stream} of
+@emph{1 + a}: each element is an answer, or the mark of a branch that
+ended at @racket[(amb)].  A handler that returns @racket[(values)] has
+the type @emph{1} as well, and contributes a leaf of zero values.  The
 default handler @racket[amb-fail] never returns, so its result type is
-@emph{0}: it contributes no leaf, and since @emph{0 + a} has just the elements of
-@emph{a}, the leaves form a @tech/refer{stream} of @emph{a}, as without
-a handler.  (A handler that returns @racket[(values)] does contribute a
-leaf, of zero values.)
+@emph{0}: it contributes no leaf, and since @emph{0 + a} has just the
+elements of @emph{a}, the leaves form a @tech/refer{stream} of
+@emph{a}, as without a handler.
 
 The sum @emph{1 + a} is what the search computes, but a consumer sees
 only the values, without the tags: it can tell the two sides apart only
