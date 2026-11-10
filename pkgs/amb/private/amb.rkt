@@ -123,8 +123,8 @@
 ;; first invocation and returns `dead` on the second, so the
 ;; root is naturally discarded from the frontier after its sole result.
 ;;
-;; The search's handler for `(amb)` (see `amb-empty`) is
-;; attached to the root frame as a continuation mark.  Every
+;; The search's empty handler (see `amb-empty-handler`) is attached to
+;; the root frame as a continuation mark.  Every
 ;; continuation of this search is captured inside that frame, so the
 ;; mark comes back whenever a tree of this search is resumed, and an
 ;; inner search's own mark is found first.
@@ -136,7 +136,7 @@
     (reset-at amb-prompt-tag
       (if first?
           (begin (set! first? #f)
-                 (with-continuation-mark handler-key handler
+                 (with-continuation-mark empty-handler-key handler
                    (call-with-values thk list)))
           dead)))
   (amb-tree k depth-first? fair?))
@@ -167,22 +167,23 @@
 (define (amb-fail) (abort/cc amb-prompt-tag false-thunk))
 (define (false-thunk) #f)
 
-;; `(amb)` is a choice among no alternatives:
-;; the computation ends here.  What it ends *with* is decided by the
-;; innermost search: `amb-empty` calls that search's handler (given as
-;; `#:empty` to `in-amb` / `in-amb/do`, default `amb-fail`) at the
-;; point of `(amb)`, in its dynamic context, and outputs the values the
-;; handler returns as one answer of the search.  With the default
+;; `(amb)` is a choice among no alternatives: the computation ends
+;; here.  What it ends *with* is decided by the innermost search's
+;; *empty handler*, given as `#:empty-handler` to `in-amb` / `in-amb/do`
+;; (default `amb-fail`).  `amb-empty-handler` looks that handler up,
+;; calls it at the point of `(amb)`, in its dynamic context, and outputs
+;; the values it returns as one answer of the search; with the default
 ;; handler, `(amb)` is `(amb-fail)`.  The handler belongs to the search,
 ;; not to the dynamic extent, so an inner search that was given no
 ;; handler fails at its own `(amb)` even inside an outer one that was.
-;; Either way `amb-empty` never returns, and the tree being resumed is
-;; pushed back (per its `fair?`).
-;; A pause is (when (amb #t #f) (amb)).
-(define handler-key (make-continuation-mark-key 'amb-handler))
-(define (amb-empty)
+;; Either way `amb-empty-handler` never returns, and the tree being
+;; resumed is pushed back (per its `fair?`).
+;; For example, (when (amb #t #f) (amb)) is a pause: the search outputs
+;; the handler's answer, then continues after it.
+(define empty-handler-key (make-continuation-mark-key 'amb-empty-handler))
+(define (amb-empty-handler)
   (define handler
-    (continuation-mark-set-first #f handler-key amb-fail amb-prompt-tag))
+    (continuation-mark-set-first #f empty-handler-key amb-fail amb-prompt-tag))
   (define vs (call-with-values handler list))
   (abort/cc amb-prompt-tag (λ () vs)))
 
@@ -203,7 +204,7 @@
   (cond
     [(more?) (set! started? #t) (get)]
     [started? (unsafe-fail)]
-    [else (set! started? #t) (amb-empty)]))
+    [else (set! started? #t) (amb-empty-handler)]))
 
 ;; `unsafe-amb*` walks a mutable vector of thunks via `make-amb`,
 ;; one alternative per slot.
@@ -249,7 +250,7 @@
   (when (or (zero? len) (equal? (vector-ref thk* 0) amb-fail))
     (set! thk* empty-mutable-vector)
     ((current-amb-shuffler) thk*)
-    (amb-empty))
+    (amb-empty-handler))
 
   (define compacted? #f)
   (if (equal? (vector-ref thk* (sub1 len)) amb-fail)
@@ -402,7 +403,7 @@
                 ;; no alternative at all: this for/amb is (amb)
                 (if started?
                     (unsafe-fail)
-                    (begin (set! started? #t) (amb-empty))))
+                    (begin (set! started? #t) (amb-empty-handler))))
               prompt-tag)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
@@ -469,7 +470,7 @@
         [(_ expr)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]
-        [(_ expr #:empty handler)
+        [(_ expr #:empty-handler handler)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr) handler))]))
     (values (make #'in-amb*)

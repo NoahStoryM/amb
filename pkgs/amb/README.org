@@ -37,7 +37,7 @@ which delimits the search tree and lazily produces results as a stream.
 ** Pruning with =(amb)=
 
 Calling =amb= with no arguments signals failure, causing the search
-to backtrack.  (A search given a handler with =#:empty= produces the
+to backtrack.  (A search given a handler with =#:empty-handler= produces the
 handler's result there instead; =(amb-fail)= always fails.)  Use it to
 prune branches that violate constraints:
 

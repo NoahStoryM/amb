@@ -266,7 +266,7 @@
         [(_ expr)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]
-        [(_ expr #:empty handler)
+        [(_ expr #:empty-handler handler)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr) handler))]))
     (values (make #'in-amb*)

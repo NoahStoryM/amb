@@ -239,14 +239,14 @@ decided by the innermost search.  By default it ends with nothing, so
 @racket[(amb)] signals failure, causing the search to backtrack; this
 is commonly used as a pruning mechanism to discard branches that do
 not satisfy a constraint.  A search started with a handler
-(@racket[#:empty] for @racket[in-amb] and @racket[in-amb/do]) instead
+(@racket[#:empty-handler] for @racket[in-amb] and @racket[in-amb/do]) instead
 calls the handler at the point of @racket[(amb)] and produces its
 results as one leaf.
 
 @amb-examples[
 (stream->list (in-amb (amb 1 2 3)))
 (stream->list (in-amb (amb)))
-(stream->list (in-amb (amb) #:empty (λ () 'none)))
+(stream->list (in-amb (amb) #:empty-handler (λ () 'none)))
 ]
 
 A dead-end @racket[(amb)] nested among @tech{alternatives} prunes only
@@ -278,7 +278,7 @@ in a search that has a handler for @racket[(amb)].  Without a handler,
 @racket[(amb-fail)] and @racket[(amb)] behave the same.
 
 @amb-examples[
-(stream->list (in-amb (amb 1 (amb) (amb-fail) 2) #:empty (λ () 'none)))
+(stream->list (in-amb (amb 1 (amb) (amb-fail) 2) #:empty-handler (λ () 'none)))
 ]
 }
 
@@ -352,7 +352,7 @@ each resumption calls @racket[more?] to check for remaining
 
 @defform[(in-amb expr maybe-empty)
          #:grammar ([maybe-empty (code:line)
-                                 (code:line #:empty handler-expr)])
+                                 (code:line #:empty-handler handler-expr)])
          #:contracts ([handler-expr (-> any)])]{
 Constructs a lazy @tech/refer{stream} of @tech{amb-tree} leaves from
 the ambiguous expression @racket[expr].  All @racket[amb] operations
@@ -361,7 +361,7 @@ by @racket[in-amb].
 
 The form @racket[(in-amb expr)] expands to
 @racket[(in-amb* (λ () expr))], and
-@racket[(in-amb expr #:empty handler-expr)] to
+@racket[(in-amb expr #:empty-handler handler-expr)] to
 @racket[(in-amb* (λ () expr) handler-expr)].
 
 The handler answers @racket[(amb)].  When the computation reaches
@@ -374,7 +374,7 @@ should not call @racket[(amb)].
 
 @amb-examples[
 (stream->list (in-amb (let ([x (amb 1 2 3)]) (if (even? x) (amb) x))
-                      #:empty (λ () 'even)))
+                      #:empty-handler (λ () 'even)))
 ]
 
 The handler belongs to the search that was given it, not to the
@@ -386,7 +386,7 @@ handler's leaf and then continues the computation after it.
 
 @amb-examples[
 (define (pause) (when (amb #t #f) (amb)))
-(stream->list (in-amb (begin (pause) 'done) #:empty (λ () 'paused)))
+(stream->list (in-amb (begin (pause) 'done) #:empty-handler (λ () 'paused)))
 (stream->list (in-amb (begin (pause) 'done)))
 ]
 
@@ -411,7 +411,7 @@ non-empty, it eagerly evaluates the next leaf.
 
 @defproc[(in-amb* [thk (-> any)] [handler (-> any) amb-fail]) stream?]{
 The procedural backend of @racket[in-amb]; @racket[handler] answers
-@racket[(amb)], as with @racket[#:empty].
+@racket[(amb)], as with @racket[#:empty-handler].
 
 @amb-examples[
 (define (choices)
@@ -424,7 +424,7 @@ The procedural backend of @racket[in-amb]; @racket[handler] answers
 
 @defform[(in-amb/do expr maybe-empty)
          #:grammar ([maybe-empty (code:line)
-                                 (code:line #:empty handler-expr)])
+                                 (code:line #:empty-handler handler-expr)])
          #:contracts ([handler-expr (-> any)])]{
 Similar to @racket[in-amb], but returns a generic @tech/refer{sequence}
 rather than specifically a lazy @tech/refer{stream}.  The sequence is

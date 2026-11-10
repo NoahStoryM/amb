@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; `amb-fail` and the `#:empty` handler for `(amb)`.  Run with: raco test pkgs/amb/tests/amb-handler.rkt
+;; `amb-fail` and the `#:empty-handler` handler for `(amb)`.  Run with: raco test pkgs/amb/tests/amb-handler.rkt
 (require rackunit racket/sequence racket/stream amb)
 
 ;; the pause idiom: (amb) is answered by the search's handler
@@ -14,41 +14,41 @@
   (check-equal? (for/list ([x (in-amb/do (begin (suspend) (amb 1 (begin (suspend) 2))))]) x)
                 '(1 2)))
 
-(test-case "with #:empty, (amb) outputs the handler's values and abandons the rest"
-  (check-equal? (for/list ([x (in-amb/do (begin (amb) 'late) #:empty P)]) x) '(P))
-  (check-equal? (stream->list (in-amb (let ([x (amb 1 2)]) (amb) x) #:empty P)) '(P P)))
+(test-case "with #:empty-handler, (amb) outputs the handler's values and abandons the rest"
+  (check-equal? (for/list ([x (in-amb/do (begin (amb) 'late) #:empty-handler P)]) x) '(P))
+  (check-equal? (stream->list (in-amb (let ([x (amb 1 2)]) (amb) x) #:empty-handler P)) '(P P)))
 
 (test-case "(amb-fail) is never answered by the handler"
-  (check-equal? (for/list ([x (in-amb/do (amb (amb-fail) 1) #:empty P)]) x) '(1)))
+  (check-equal? (for/list ([x (in-amb/do (amb (amb-fail) 1) #:empty-handler P)]) x) '(1)))
 
 (test-case "a choice with no alternatives is (amb)"
-  (check-equal? (for/list ([x (in-amb/do (for/amb ([i '()]) i) #:empty P)]) x) '(P))
-  (check-equal? (for/list ([x (in-amb/do (for/amb #:length 0 ([i '()]) i) #:empty P)]) x) '(P))
-  (check-equal? (for/list ([x (in-amb/do (make-amb (λ () #f) void) #:empty P)]) x) '(P))
+  (check-equal? (for/list ([x (in-amb/do (for/amb ([i '()]) i) #:empty-handler P)]) x) '(P))
+  (check-equal? (for/list ([x (in-amb/do (for/amb #:length 0 ([i '()]) i) #:empty-handler P)]) x) '(P))
+  (check-equal? (for/list ([x (in-amb/do (make-amb (λ () #f) void) #:empty-handler P)]) x) '(P))
   ;; but running out after some alternatives is not
-  (check-equal? (for/list ([x (in-amb/do (for/amb ([i '(1 2)]) i) #:empty P)]) x) '(1 2))
-  (check-equal? (for/list ([x (in-amb/do (amb 1 2) #:empty P)]) x) '(1 2)))
+  (check-equal? (for/list ([x (in-amb/do (for/amb ([i '(1 2)]) i) #:empty-handler P)]) x) '(1 2))
+  (check-equal? (for/list ([x (in-amb/do (amb 1 2) #:empty-handler P)]) x) '(1 2)))
 
 (test-case "the handler runs where (amb) is called"
   (define p (make-parameter 'outside))
-  (check-equal? (for/list ([x (in-amb/do (parameterize ([p 'inside]) (amb)) #:empty p)]) x)
+  (check-equal? (for/list ([x (in-amb/do (parameterize ([p 'inside]) (amb)) #:empty-handler p)]) x)
                 '(inside))
   ;; and may fail or raise
-  (check-equal? (for/list ([x (in-amb/do (amb (amb) 1) #:empty amb-fail)]) x) '(1))
-  (check-exn #rx"boom" (λ () (for/list ([x (in-amb/do (amb) #:empty (λ () (error "boom")))]) x))))
+  (check-equal? (for/list ([x (in-amb/do (amb (amb) 1) #:empty-handler amb-fail)]) x) '(1))
+  (check-exn #rx"boom" (λ () (for/list ([x (in-amb/do (amb) #:empty-handler (λ () (error "boom")))]) x))))
 
 (test-case "function forms take the handler as an optional argument"
   (check-equal? (for/list ([x (in-amb*/do (λ () (suspend) 'x) P)]) x) '(P x))
   (check-equal? (stream->list (in-amb* (λ () (suspend) 'x) P)) '(P x))
   (check-equal? (for/list ([x (in-amb* (λ () (suspend) 'x) P)]) x) '(P x))
-  (check-equal? (for/list ([x (in-amb (begin (suspend) 'x) #:empty P)]) x) '(P x))
+  (check-equal? (for/list ([x (in-amb (begin (suspend) 'x) #:empty-handler P)]) x) '(P x))
   (check-equal? (for/list ([x (in-amb*/do (λ () (suspend) 'x) amb-fail)]) x) '(x)))
 
 (test-case "zero and several values"
-  (check-equal? (for/list ([(a b) (in-amb/do (begin (suspend) (values 3 4)) #:empty (λ () (values 1 2)))])
+  (check-equal? (for/list ([(a b) (in-amb/do (begin (suspend) (values 3 4)) #:empty-handler (λ () (values 1 2)))])
                   (list a b))
                 '((1 2) (3 4)))
-  (check-equal? (for/list ([() (in-amb/do (begin (suspend) (values)) #:empty values)]) 'tick)
+  (check-equal? (for/list ([() (in-amb/do (begin (suspend) (values)) #:empty-handler values)]) 'tick)
                 '(tick tick)))
 
 (test-case "the pause idiom: output, then continue after it"
@@ -58,7 +58,7 @@
                                     (suspend)
                                     (set! log (cons 'after log))
                                     'x)
-                             #:empty P)])
+                             #:empty-handler P)])
       (set! log (cons (list 'got x) log))
       x))
   (check-equal? out '(P x))
@@ -69,10 +69,10 @@
    (for/list ([x (in-amb/do
                   (let-values ([(more? get)
                                 (sequence-generate
-                                 (in-amb/do (begin (suspend) 'inner) #:empty (λ () 'inner-P)))])
+                                 (in-amb/do (begin (suspend) 'inner) #:empty-handler (λ () 'inner-P)))])
                     (suspend)
                     (list (get) (get)))
-                  #:empty (λ () 'outer-P))])
+                  #:empty-handler (λ () 'outer-P))])
      x)
    '(outer-P (inner-P inner)))
   ;; a plain inner search (no handler) just reschedules: the answer survives
@@ -81,30 +81,30 @@
                   (let-values ([(more? get)
                                 (sequence-generate (in-amb/do (begin (suspend) 'inner)))])
                     (list (and (more?) (get))))
-                  #:empty (λ () 'outer-P))])
+                  #:empty-handler (λ () 'outer-P))])
      x)
    '((inner))))
 
 (test-case "the handler is the search's, wherever its trees are resumed"
   (define-values (more? get)
-    (sequence-generate (in-amb/do (begin (suspend) (suspend) 'x) #:empty P)))
+    (sequence-generate (in-amb/do (begin (suspend) (suspend) 'x) #:empty-handler P)))
   ;; resumed from inside another search that has a different handler
   (check-equal? (for/list ([_ 3])
-                  (for/first ([v (in-amb/do (get) #:empty (λ () 'other))]) v))
+                  (for/first ([v (in-amb/do (get) #:empty-handler (λ () 'other))]) v))
                 '(P P x)))
 
 (test-case "answer sets are unchanged under every strategy"
   (for* ([df '(#t #f)] [fair '(#t #f)])
     (define vs
       (parameterize ([current-amb-depth-first? df] [current-amb-fair? fair])
-        (for/list ([v (in-amb/do (let ([x (amb 1 2 3)]) (suspend) x) #:empty P)]
+        (for/list ([v (in-amb/do (let ([x (amb 1 2 3)]) (suspend) x) #:empty-handler P)]
                    #:unless (eq? v 'P))
           v)))
     (check-equal? (sort vs <) '(1 2 3) (format "df=~a fair=~a" df fair))))
 
 (test-case "a computation that keeps pausing yields control each time"
   (define (spin) (suspend) (spin))
-  (define-values (more? get) (sequence-generate (in-amb/do (spin) #:empty P)))
+  (define-values (more? get) (sequence-generate (in-amb/do (spin) #:empty-handler P)))
   (check-equal? (for/list ([_ 5]) (and (more?) (get))) '(P P P P P)))
 
 (test-case "the handler must be a thunk"

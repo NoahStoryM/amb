@@ -65,7 +65,7 @@
     [(_ expr)
      (syntax/loc stx
        (in-amb* (λ () expr)))]
-    [(_ expr #:empty handler)
+    [(_ expr #:empty-handler handler)
      (syntax/loc stx
        (in-amb* (λ () expr) handler))]))
 
@@ -84,7 +84,7 @@
        (syntax/loc stx
          [(id ...)
           (in-amb*/do (λ () expr))])]
-      [[(id:id ...) (_ expr #:empty handler)]
+      [[(id:id ...) (_ expr #:empty-handler handler)]
        (syntax/loc stx
          [(id ...)
           (in-amb*/do (λ () expr) handler)])])))
@@ -99,6 +99,6 @@
     [(_ expr)
      (syntax/loc stx
        (in-amb*/do (λ () expr)))]
-    [(_ expr #:empty handler)
+    [(_ expr #:empty-handler handler)
      (syntax/loc stx
        (in-amb*/do (λ () expr) handler))]))
