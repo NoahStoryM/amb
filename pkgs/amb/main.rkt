@@ -44,6 +44,7 @@
           [make-amb (-> (-> boolean?) (-> any) any)]
           [current-amb-depth-first? (parameter/c boolean?)]
           [current-amb-fair?        (parameter/c boolean?)]
+          [current-amb-local?       (parameter/c boolean?)]
           [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
 
 

@@ -70,6 +70,7 @@
          in-amb* in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
+         current-amb-local?
          current-amb-shuffler)
 (provide amb-fail amb-empty-handler unsafe-fail make-amb-tree thunks unsafe-amb*)
 
@@ -87,6 +88,9 @@
 
 (define current-amb-depth-first? (make-parameter #t  ))
 (define current-amb-fair?        (make-parameter #f  ))
+;; RESEARCH (local frontiers): a choice point created while this is #t
+;; schedules its descendants itself, in a frontier of its own.
+(define current-amb-local?       (make-parameter #f  ))
 (define current-amb-shuffler     (make-parameter void))
 
 
@@ -105,8 +109,17 @@
 ;; strategy parameters that were in effect at capture time.
 ;; `prop:procedure` makes the struct callable — `(t)` invokes `(k)`,
 ;; returning the next result in the tree protocol.
-(struct amb-tree (k depth-first? fair?)
+(struct amb-tree (k depth-first? fair? local?)
   #:property prop:procedure (struct-field-index k))
+
+;; RESEARCH (local frontiers).  A tree created with `current-amb-local?`
+;; is kept in the frontier as an `amb-node`: the tree together with a
+;; frontier of its own, which holds the tree itself and every tree
+;; created below it.  To the frontier that contains it, a node is one
+;; item: each time it is resumed it runs its own frontier until that
+;; produces a leaf or yields.  So the frontiers form a tree of the same
+;; shape as the choice points that asked for one.
+(struct amb-node (tree [frontier #:mutable]))
 
 ;; `make-amb-tree` snapshots the current strategy parameters and uses
 ;; `shift-at` to capture the continuation, packaging everything into
@@ -119,7 +132,8 @@
 (define (make-amb-tree)
   (define depth-first? (current-amb-depth-first?))
   (define fair? (current-amb-fair?))
-  (shift-at amb-prompt-tag k (amb-tree k depth-first? fair?)))
+  (define local? (current-amb-local?))
+  (shift-at amb-prompt-tag k (amb-tree k depth-first? fair? local?)))
 
 ;; `make-amb-root` constructs the root `amb-tree` of a leaf-labeled
 ;; tree directly.  The `first?` flag produces exactly one leaf on the
@@ -152,7 +166,7 @@
                          (call-with-values thk list))])
                vs))]
         [else dead])))
-  (amb-tree k depth-first? fair?))
+  (amb-tree k depth-first? fair? #f))
 
 
 ;; ---- Failure ----
@@ -203,13 +217,22 @@
   (define handler
     (continuation-mark-set-first #f empty-handler-key amb-fail amb-prompt-tag))
   (cond
-    [(eq? handler amb-fail) (amb-fail)]
+    [(eq? handler amb-fail) (abort/cc amb-prompt-tag yield-thunk)]
     [else
      (define vs
        (call-with-values
         (λ () (with-continuation-mark empty-handler-key reentrant-amb (handler)))
         list))
-     (abort/cc amb-prompt-tag (λ () vs))]))
+     (abort/cc amb-prompt-tag (λ () (yielded vs)))]))
+;; RESEARCH (local frontiers).  `(amb)` is reported to the driver as a
+;; *yield*, with the handler's values if it has any, so that a node can
+;; tell it from a failure or an ordinary leaf: the node that yields
+;; gives up its turn (it goes to the back of the frontier that contains
+;; it), and so does every node around it.  Outside any node a yield is
+;; what it was before: a failure, or a leaf.
+(struct yielded (vs))
+(define yield-nothing (string->uninterned-symbol "yield"))
+(define (yield-thunk) yield-nothing)
 ;; A misuse of the handler protocol, so `exn:fail:contract`, like the
 ;; error for `(amb)` outside any search.
 (define (reentrant-amb)
@@ -470,28 +493,73 @@
     ;;   amb-tree? → branch; push `tree0` back (per its `fair?` field),
     ;;               enqueue `tree1` (per `tree0`'s `depth-first?` field),
     ;;               and continue searching
-    (define (search frontier)
+    ;;
+    ;; RESEARCH (local frontiers).  An item of a frontier is a tree or
+    ;; an `amb-node`.  A node is resumed by running its own frontier
+    ;; with this same function (`root?` #f), which stops at a leaf or a
+    ;; yield and passes it on.  A child tree that asked for a frontier
+    ;; of its own is wrapped in a node when it is enqueued.  On a yield,
+    ;; the item goes to the back whatever its `fair?` field says, if it
+    ;; is a node or if it is inside a node's frontier; a plain tree in
+    ;; the root frontier follows its `fair?` field as before.  At the
+    ;; root a yield is unwrapped: its values are a leaf, and without
+    ;; values the search goes on.
+    (define (search frontier root?)
       (if (ideque-empty? frontier)
           (values #f frontier)
-          (let-values ([(tree0 frontier) (pop frontier)])
-            (define tree1 (tree0))
-            (if (eq? tree1 dead)
-                (search frontier)
-                (let* ([push (if (amb-tree-fair? tree0)
-                                 ideque-add-back
-                                 ideque-add-front)]
-                       [frontier (push frontier tree0)])
-                  (if (amb-tree? tree1)
-                      (let* ([push (if (amb-tree-depth-first? tree0)
-                                       ideque-add-front
-                                       ideque-add-back)]
-                             [frontier (push frontier tree1)])
-                        (search frontier))
-                      (cond
-                        [(or (pair? tree1) (null? tree1))
-                         (values tree1 frontier)]
-                        [(not tree1) (search frontier)]
-                        [else (error 'amb "internal: unexpected tree result ~e" tree1)])))))))
+          (let*-values ([(item0 frontier) (pop frontier)]
+                        [(node?) (amb-node? item0)]
+                        [(tree1) (if node? (resume-node item0) (item0))]
+                        ;; a node left with a single node inside it is
+                        ;; that node
+                        [(item) (if node? (collapse item0) item0)]
+                        [(tree0) (if node? (amb-node-tree item) item)])
+            (cond
+              [(eq? tree1 dead) (search frontier root?)]
+              [(amb-tree? tree1)
+               (let* ([push (if (amb-tree-fair? tree0)
+                                ideque-add-back
+                                ideque-add-front)]
+                      [frontier (push frontier item)]
+                      [push (if (amb-tree-depth-first? tree0)
+                                ideque-add-front
+                                ideque-add-back)]
+                      [child (if (amb-tree-local? tree1)
+                                 (amb-node tree1 (ideque tree1))
+                                 tree1)]
+                      [frontier (push frontier child)])
+                 (search frontier root?))]
+              [(or (eq? tree1 yield-nothing) (yielded? tree1))
+               (let* ([push (if (or node? (not root?) (amb-tree-fair? tree0))
+                                ideque-add-back
+                                ideque-add-front)]
+                      [frontier (push frontier item)])
+                 (cond
+                   [(not root?) (values tree1 frontier)]
+                   [(yielded? tree1) (values (yielded-vs tree1) frontier)]
+                   [else (search frontier root?)]))]
+              [else
+               (let* ([push (if (amb-tree-fair? tree0)
+                                ideque-add-back
+                                ideque-add-front)]
+                      [frontier (push frontier item)])
+                 (cond
+                   [(or (pair? tree1) (null? tree1))
+                    (values tree1 frontier)]
+                   [(not tree1) (search frontier root?)]
+                   [else (error 'amb "internal: unexpected tree result ~e" tree1)]))]))))
+    ;; One turn of a node: run its frontier up to a leaf or a yield.  A
+    ;; node whose frontier is exhausted is a dead end.
+    (define (collapse node)
+      (define frontier (amb-node-frontier node))
+      (if (= (ideque-length frontier) 1)
+          (let ([inner (ideque-front frontier)])
+            (if (amb-node? inner) (collapse inner) node))
+          node))
+    (define (resume-node node)
+      (define-values (result frontier) (search (amb-node-frontier node) #f))
+      (set-amb-node-frontier! node frontier)
+      (or result dead))
     (define ((make make-sequence empty-sequence raise-empty-sequence-error)
              thk [handler amb-fail])
       (if (equal? thk amb-fail)
@@ -499,7 +567,7 @@
           (make-sequence
            (λ ()
              (let loop ([frontier (ideque (make-amb-root thk handler))])
-               (let-values ([(v* frontier) (search frontier)])
+               (let-values ([(v* frontier) (search frontier #t)])
                  (values v* (if v* (λ () (loop frontier)) raise-empty-sequence-error))))))))
     (values (make make-stream   empty-stream   raise-empty-stream-error)
             (make make-sequence empty-sequence raise-empty-sequence-error))))
