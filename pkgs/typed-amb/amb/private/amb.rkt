@@ -56,22 +56,34 @@
       (→ (→ Boolean) (→ (Values a ... a))
          (Values a ... a)))]
   [in-amb*
-   (∀ (a ...)
+   ;; With a handler for (amb): the sequence
+   ;; type is the union of the body's type and the handler's; the
+   ;; default handler, amb-fail, returns ⊥.
+   (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
+                (Sequenceof a ... a))
+             (→ (→ c) (→ d) (Sequenceof (U c d)))
+             (→ (→ (Values a ... a)) (→ (Values a ... a))
                 (Sequenceof a ... a))))]
   [in-amb*/do
-   (∀ (a ...)
+   ;; With a handler for (amb): the sequence
+   ;; type is the union of the body's type and the handler's; the
+   ;; default handler, amb-fail, returns ⊥.
+   (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
+                (Sequenceof a ... a))
+             (→ (→ c) (→ d) (Sequenceof (U c d)))
+             (→ (→ (Values a ... a)) (→ (Values a ... a))
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
-  [fail        (→ ⊥)]
+  [amb-fail    (→ ⊥)]
   [make-amb-tree (→ (Values))])
 
 (require/typed/provide amb/private/data/mutable-vector
@@ -97,7 +109,7 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     [(_)
-     (syntax/loc stx (fail))]
+     (syntax/loc stx (unsafe-amb* empty-mutable-vector))]
     [(_ expr* ...)
      (syntax/loc stx (unsafe-amb* (thunks (λ () expr*) ...)))]))
 
@@ -175,7 +187,7 @@
            #:with fill
            (if (attribute fill-expr)
                #'(ann (λ () : t2 fill-expr) (→ t1)) ; ensure `t2 <: t1`
-               #'fail)
+               #'amb-fail)
            #:do
            [(define break
               (if (attribute break-expr)
@@ -183,10 +195,10 @@
                                 (syntax->list #'(break-expr ...))))
                   '()))]
            (quasisyntax/loc stx
-             (let ([m n])
-               (if (zero? m)
-                   (fail)
-                   (unsafe-amb*
+             (unsafe-amb*
+              (let ([m n])
+                (if (zero? m)
+                    (ann empty-mutable-vector (Mutable-Vectorof (→ t1)))
                     (#,for/vector
                      : (Mutable-Vectorof (→ t1))
                      #:length m #:fill fill
@@ -253,6 +265,9 @@
       (syntax-parse stx
         [(_ expr)
          (quasisyntax/loc stx
-           (#,derived-stx (λ () expr)))]))
+           (#,derived-stx (λ () expr)))]
+        [(_ expr #:empty handler)
+         (quasisyntax/loc stx
+           (#,derived-stx (λ () expr) handler))]))
     (values (make #'in-amb*)
             (make #'in-amb*/do))))
