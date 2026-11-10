@@ -24,7 +24,7 @@
 (require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
-(provide make-amb amb-fail amb-empty
+(provide make-amb amb-fail
          amb for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
@@ -50,10 +50,10 @@
        (syntax/loc stx
          [(id ...)
           (in-amb*/do expr)])]
-      [[(id:id ...) (_ expr vs)]
+      [[(id:id ...) (_ expr handler)]
        (syntax/loc stx
          [(id ...)
-          (in-amb*/do expr vs)])])))
+          (in-amb*/do expr handler)])])))
 
 
 ;; ---- in-amb (macro form) ----
@@ -65,9 +65,9 @@
     [(_ expr)
      (syntax/loc stx
        (in-amb* (λ () expr)))]
-    [(_ expr #:empty-values vs)
+    [(_ expr #:empty handler)
      (syntax/loc stx
-       (in-amb* (λ () expr) vs))]))
+       (in-amb* (λ () expr) handler))]))
 
 ;; `*in-amb` is the public binding for `in-amb`.
 ;;
@@ -84,10 +84,10 @@
        (syntax/loc stx
          [(id ...)
           (in-amb*/do (λ () expr))])]
-      [[(id:id ...) (_ expr #:empty-values vs)]
+      [[(id:id ...) (_ expr #:empty handler)]
        (syntax/loc stx
          [(id ...)
-          (in-amb*/do (λ () expr) vs)])])))
+          (in-amb*/do (λ () expr) handler)])])))
 
 
 ;; ---- in-amb/do (macro form, sequence only) ----
@@ -99,6 +99,6 @@
     [(_ expr)
      (syntax/loc stx
        (in-amb*/do (λ () expr)))]
-    [(_ expr #:empty-values vs)
+    [(_ expr #:empty handler)
      (syntax/loc stx
-       (in-amb*/do (λ () expr) vs))]))
+       (in-amb*/do (λ () expr) handler))]))

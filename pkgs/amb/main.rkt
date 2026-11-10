@@ -31,16 +31,16 @@
 ;; that uses `in-amb*` / `in-amb*/do` -- including through the `for`
 ;; clause expansion below -- is the one blamed for a bad argument.
 (define-module-boundary-contract in-amb*
-  -in-amb*    (->* ((-> any)) ((or/c #f list?)) stream?))
+  -in-amb*    (->* ((-> any)) ((-> any)) stream?))
 (define-module-boundary-contract in-amb*/do
-  -in-amb*/do (->* ((-> any)) ((or/c #f list?)) sequence?))
+  -in-amb*/do (->* ((-> any)) ((-> any)) sequence?))
 
 (provide amb
          for/amb for*/amb
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          ;; RESEARCH (ambKanren #14)
-         amb-fail amb-empty
+         amb-fail
          (contract-out
           [make-amb (-> (-> boolean?) (-> any) any)]
           [current-amb-depth-first? (parameter/c boolean?)]
@@ -51,8 +51,8 @@
 ;; ---- in-amb* (function form) ----
 
 ;; Validate the arguments before calling the private `in-amb*/do`:
-;; `thk` must be a zero-arity procedure and `vs` (the empty values)
-;; must be #f or a list.  If they are not, call the contracted
+;; `thk` and `handler` (the handler for `(amb)`) must be zero-arity
+;; procedures.  If they are not, call the contracted
 ;; `in-amb*` only to raise its contract error; it never runs the search.
 ;;
 ;; `check-args` is a macro, not a function, so that the contracted call
@@ -60,12 +60,13 @@
 ;; is blamed, not this module.
 (define-syntax check-args
   (syntax-rules ()
-    [(_ thk) (check-args thk #f)]
-    [(_ thk vs)
+    [(_ thk) (check-args thk amb-fail)]
+    [(_ thk handler)
      (unless (and (procedure? thk)
                   (procedure-arity-includes? thk 0)
-                  (or (not vs) (list? vs)))
-       (in-amb* thk vs))]))
+                  (procedure? handler)
+                  (procedure-arity-includes? handler 0))
+       (in-amb* thk handler))]))
 
 ;; `*in-amb*` is the public binding for `in-amb*`.
 ;;
@@ -85,12 +86,12 @@
           (let ([thk expr])
             (check-args thk)
             (-in-amb*/do thk))])]
-      [[(id:id ...) (_ expr vs-expr)]
+      [[(id:id ...) (_ expr handler-expr)]
        (syntax/loc stx
          [(id ...)
-          (let ([thk expr] [vs vs-expr])
-            (check-args thk vs)
-            (-in-amb*/do thk vs))])])))
+          (let ([thk expr] [handler handler-expr])
+            (check-args thk handler)
+            (-in-amb*/do thk handler))])])))
 
 
 ;; ---- in-amb (macro form) ----
@@ -102,9 +103,9 @@
     [(_ expr)
      (syntax/loc stx
        (-in-amb* (λ () expr)))]
-    [(_ expr #:empty-values vs)
+    [(_ expr #:empty handler)
      (syntax/loc stx
-       (in-amb* (λ () expr) vs))]))
+       (in-amb* (λ () expr) handler))]))
 
 ;; `*in-amb` is the public binding for `in-amb`.
 ;;
@@ -121,10 +122,10 @@
        (syntax/loc stx
          [(id ...)
           (-in-amb*/do (λ () expr))])]
-      [[(id:id ...) (_ expr #:empty-values vs)]
+      [[(id:id ...) (_ expr #:empty handler)]
        (syntax/loc stx
          [(id ...)
-          (in-amb*/do (λ () expr) vs)])])))
+          (in-amb*/do (λ () expr) handler)])])))
 
 
 ;; ---- in-amb/do (macro form, sequence only) ----
@@ -138,6 +139,6 @@
     [(_ expr)
      (syntax/loc stx
        (in-amb*/do (λ () expr)))]
-    [(_ expr #:empty-values vs)
+    [(_ expr #:empty handler)
      (syntax/loc stx
-       (in-amb*/do (λ () expr) vs))]))
+       (in-amb*/do (λ () expr) handler))]))

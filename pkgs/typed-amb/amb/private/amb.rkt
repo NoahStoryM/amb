@@ -56,28 +56,28 @@
       (→ (→ Boolean) (→ (Values a ... a))
          (Values a ... a)))]
   [in-amb*
-   ;; With empty values (RESEARCH, ambKanren #14): the sequence type is
-   ;; the union of the body's type and the declared empty values' type.
+   ;; With a handler for (amb) (RESEARCH, ambKanren #14): the sequence
+   ;; type is the union of the body's type and the handler's; the
+   ;; default handler, amb-fail, returns ⊥.
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
                 (Sequenceof a ... a))
-             (→ (→ c) (List d) (Sequenceof (U c d)))
-             (→ (→ c) (Option (List c)) (Sequenceof c))
-             (→ (→ (Values a ... a)) (Option (List a ... a))
+             (→ (→ c) (→ d) (Sequenceof (U c d)))
+             (→ (→ (Values a ... a)) (→ (Values a ... a))
                 (Sequenceof a ... a))))]
   [in-amb*/do
-   ;; With empty values (RESEARCH, ambKanren #14): the sequence type is
-   ;; the union of the body's type and the declared empty values' type.
+   ;; With a handler for (amb) (RESEARCH, ambKanren #14): the sequence
+   ;; type is the union of the body's type and the handler's; the
+   ;; default handler, amb-fail, returns ⊥.
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
                 (Sequenceof a ... a))
-             (→ (→ c) (List d) (Sequenceof (U c d)))
-             (→ (→ c) (Option (List c)) (Sequenceof c))
-             (→ (→ (Values a ... a)) (Option (List a ... a))
+             (→ (→ c) (→ d) (Sequenceof (U c d)))
+             (→ (→ (Values a ... a)) (→ (Values a ... a))
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
@@ -85,7 +85,6 @@
   [unsafe-fail (→ ⊥)]
   ;; RESEARCH (ambKanren #14)
   [amb-fail    (→ ⊥)]
-  [amb-empty   (→ ⊥)]
   [make-amb-tree (→ (Values))])
 
 (require/typed/provide amb/private/data/mutable-vector
@@ -268,8 +267,8 @@
         [(_ expr)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]
-        [(_ expr #:empty-values vs)
+        [(_ expr #:empty handler)
          (quasisyntax/loc stx
-           (#,derived-stx (λ () expr) vs))]))
+           (#,derived-stx (λ () expr) handler))]))
     (values (make #'in-amb*)
             (make #'in-amb*/do))))

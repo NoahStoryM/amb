@@ -69,7 +69,7 @@
          current-amb-depth-first?
          current-amb-fair?
          current-amb-shuffler)
-(provide amb-fail amb-empty)
+(provide amb-fail)
 (provide unsafe-fail make-amb-tree thunks unsafe-amb*)
 
 
@@ -122,7 +122,13 @@
 ;; tree directly.  The `first?` flag produces exactly one leaf on the
 ;; first invocation and returns `dead` on the second, so the
 ;; root is naturally discarded from the frontier after its sole result.
-(define (make-amb-root thk)
+;;
+;; RESEARCH (ambKanren #14): the search's handler for `(amb)` is
+;; attached to the root frame as a continuation mark.  Every
+;; continuation of this search is captured inside that frame, so the
+;; mark comes back whenever a tree of this search is resumed, and an
+;; inner search's own mark is found first.
+(define (make-amb-root thk [handler amb-fail])
   (define first? #t)
   (define depth-first? (current-amb-depth-first?))
   (define fair? (current-amb-fair?))
@@ -130,7 +136,8 @@
     (reset-at amb-prompt-tag
       (if first?
           (begin (set! first? #f)
-                 (call-with-values thk list))
+                 (with-continuation-mark handler-key handler
+                   (call-with-values thk list)))
           dead)))
   (amb-tree k depth-first? fair?))
 
@@ -160,18 +167,24 @@
 (define (amb-fail) (abort/cc amb-prompt-tag false-thunk))
 (define (false-thunk) #f)
 
-;; `(amb-empty)` (RESEARCH, ambKanren #14) ends the current resumption
-;; with the *empty values* of the innermost search: if that `in-amb` /
-;; `in-amb/do` was started with `#:empty-values vs`, it outputs
-;; `(apply values vs)` once; otherwise `(amb-empty)` is `(amb-fail)`.
-;; Either way the tree being resumed is pushed back (per its `fair?`)
-;; and `(amb-empty)` never returns.  The values are fixed where the
-;; search starts, so its sequence type covers them, and a search that
-;; did not ask for them never sees them.
-;; A pause is (when (amb #t #f) (amb-empty)).
-(define empty-signal (string->uninterned-symbol "empty"))
-(define (empty-thunk) empty-signal)
-(define (amb-empty) (abort/cc amb-prompt-tag empty-thunk))
+;; `(amb)` (RESEARCH, ambKanren #14) is a choice among no alternatives:
+;; the computation ends here.  What it ends *with* is decided by the
+;; innermost search: `amb-empty` calls that search's handler (given as
+;; `#:empty` to `in-amb` / `in-amb/do`, default `amb-fail`) at the
+;; point of `(amb)`, in its dynamic context, and outputs the values the
+;; handler returns as one answer of the search.  With the default
+;; handler, `(amb)` is `(amb-fail)`.  The handler belongs to the search,
+;; not to the dynamic extent, so an inner search that was given no
+;; handler fails at its own `(amb)` even inside an outer one that was.
+;; Either way `amb-empty` never returns, and the tree being resumed is
+;; pushed back (per its `fair?`).
+;; A pause is (when (amb #t #f) (amb)).
+(define handler-key (make-continuation-mark-key 'amb-handler))
+(define (amb-empty)
+  (define handler
+    (continuation-mark-set-first #f handler-key amb-fail amb-prompt-tag))
+  (define vs (call-with-values handler list))
+  (abort/cc amb-prompt-tag (λ () vs)))
 
 
 ;; ---- Ambiguous Operator ----
@@ -182,9 +195,15 @@
 ;; for remaining alternatives and `(get)` to produce the next value.
 ;; When `(more?)` returns #f, it calls `unsafe-fail` to signal a
 ;; dead end.
+;; RESEARCH (ambKanren #14): a choice that has no alternative at all is
+;; `(amb)`; once it has produced one, running out is a dead end.
 (define (make-amb more? get)
+  (define started? #f)
   (make-amb-tree)
-  (if (more?) (get) (unsafe-fail)))
+  (cond
+    [(more?) (set! started? #t) (get)]
+    [started? (unsafe-fail)]
+    [else (set! started? #t) (amb-empty)]))
 
 ;; `unsafe-amb*` walks a mutable vector of thunks via `make-amb`,
 ;; one alternative per slot.
@@ -230,7 +249,7 @@
   (when (or (zero? len) (equal? (vector-ref thk* 0) amb-fail))
     (set! thk* empty-mutable-vector)
     ((current-amb-shuffler) thk*)
-    (amb-fail))
+    (amb-empty))
 
   (define compacted? #f)
   (if (equal? (vector-ref thk* (sub1 len)) amb-fail)
@@ -369,6 +388,7 @@
              (call-with-continuation-prompt
               (λ ()
                 (define retry #f)
+                (define started? #f)
                 (make-amb-tree)
                 (when retry (retry #f))
                 (#,for (clauses ...) #,@break
@@ -376,9 +396,13 @@
                  (when choice
                    (define (alt) body ...)
                    (set! retry choice)
+                   (set! started? #t)
                    (abort/cc prompt-tag alt)))
                 (set! retry #f)
-                (unsafe-fail))
+                ;; no alternative at all: this for/amb is (amb)
+                (if started?
+                    (unsafe-fail)
+                    (begin (set! started? #t) (amb-empty))))
               prompt-tag)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
@@ -403,13 +427,13 @@
     ;;   amb-tree? → branch; push `tree0` back (per its `fair?` field),
     ;;               enqueue `tree1` (per `tree0`'s `depth-first?` field),
     ;;               and continue searching
-    (define (search frontier vs)
+    (define (search frontier)
       (if (ideque-empty? frontier)
           (values #f frontier)
           (let-values ([(tree0 frontier) (pop frontier)])
             (define tree1 (tree0))
             (if (eq? tree1 dead)
-                (search frontier vs)
+                (search frontier)
                 (let* ([push (if (amb-tree-fair? tree0)
                                  ideque-add-back
                                  ideque-add-front)]
@@ -419,22 +443,20 @@
                                        ideque-add-front
                                        ideque-add-back)]
                              [frontier (push frontier tree1)])
-                        (search frontier vs))
+                        (search frontier))
                       (cond
                         [(or (pair? tree1) (null? tree1))
                          (values tree1 frontier)]
-                        [(not tree1) (search frontier vs)]
-                        [(eq? tree1 empty-signal)
-                         (if vs (values vs frontier) (search frontier vs))]
+                        [(not tree1) (search frontier)]
                         [else (error 'amb "internal: unexpected tree result ~e" tree1)])))))))
     (define ((make make-sequence empty-sequence raise-empty-sequence-error)
-             thk [vs #f])
+             thk [handler amb-fail])
       (if (equal? thk amb-fail)
           empty-sequence
           (make-sequence
            (λ ()
-             (let loop ([frontier (ideque (make-amb-root thk))])
-               (let-values ([(v* frontier) (search frontier vs)])
+             (let loop ([frontier (ideque (make-amb-root thk handler))])
+               (let-values ([(v* frontier) (search frontier)])
                  (values v* (if v* (λ () (loop frontier)) raise-empty-sequence-error))))))))
     (values (make make-stream   empty-stream   raise-empty-stream-error)
             (make make-sequence empty-sequence raise-empty-sequence-error))))
@@ -447,8 +469,8 @@
         [(_ expr)
          (quasisyntax/loc stx
            (#,derived-stx (λ () expr)))]
-        [(_ expr #:empty-values vs)
+        [(_ expr #:empty handler)
          (quasisyntax/loc stx
-           (#,derived-stx (λ () expr) vs))]))
+           (#,derived-stx (λ () expr) handler))]))
     (values (make #'in-amb*)
             (make #'in-amb*/do))))
