@@ -56,27 +56,27 @@
       (→ (→ Boolean) (→ (Values a ... a))
          (Values a ... a)))]
   [in-amb*
-   ;; With a handler for (amb): the sequence
-   ;; type is the union of the body's type and the handler's; the
-   ;; default handler, amb-fail, returns ⊥.
+   ;; With an empty handler: the sequence type is the union of the
+   ;; body's type and the handler's; the default handler, amb-fail,
+   ;; returns ⊥.
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
                 (Sequenceof a ... a))
-             (→ (→ c) (→ d) (Sequenceof (U c d)))
+             (→ (→ c) (→ d) (Sequenceof (∪ c d)))
              (→ (→ (Values a ... a)) (→ (Values a ... a))
                 (Sequenceof a ... a))))]
   [in-amb*/do
-   ;; With a handler for (amb): the sequence
-   ;; type is the union of the body's type and the handler's; the
-   ;; default handler, amb-fail, returns ⊥.
+   ;; With an empty handler: the sequence type is the union of the
+   ;; body's type and the handler's; the default handler, amb-fail,
+   ;; returns ⊥.
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
                 (Sequenceof a ... a))
-             (→ (→ c) (→ d) (Sequenceof (U c d)))
+             (→ (→ c) (→ d) (Sequenceof (∪ c d)))
              (→ (→ (Values a ... a)) (→ (Values a ... a))
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]

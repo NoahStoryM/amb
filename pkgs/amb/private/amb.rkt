@@ -25,9 +25,11 @@
 ;;     dead       — dead end (all alternatives exhausted); a private
 ;;                  value only `unsafe-fail` produces; discard and
 ;;                  continue searching
-;;     #f         — nothing produced (`amb-fail`, `(amb)`); push
-;;                  parent back and continue searching
-;;     (list ...) — leaf (computation produced values);
+;;     #f         — nothing produced (`amb-fail`, which is also what
+;;                  `(amb)` does under the default empty handler);
+;;                  push parent back and continue searching
+;;     (list ...) — leaf (the computation produced values, or `(amb)`
+;;                  was answered by the search's empty handler);
 ;;                  push parent back and suspend searching
 ;;     amb-tree   — branch (child tree to be enqueued);
 ;;                  push parent back, enqueue child, and continue
@@ -69,8 +71,7 @@
          current-amb-depth-first?
          current-amb-fair?
          current-amb-shuffler)
-(provide amb-fail)
-(provide unsafe-fail make-amb-tree thunks unsafe-amb*)
+(provide amb-fail unsafe-fail make-amb-tree thunks unsafe-amb*)
 
 
 ;; ---- Aliases ----
@@ -134,11 +135,12 @@
   (define fair? (current-amb-fair?))
   (define (k)
     (reset-at amb-prompt-tag
-      (if first?
-          (begin (set! first? #f)
-                 (with-continuation-mark empty-handler-key handler
-                   (call-with-values thk list)))
-          dead)))
+      (cond
+        [first?
+         (set! first? #f)
+         (with-continuation-mark empty-handler-key handler
+           (call-with-values thk list))]
+        [else dead])))
   (amb-tree k depth-first? fair?))
 
 
@@ -401,9 +403,9 @@
                    (abort/cc prompt-tag alt)))
                 (set! retry #f)
                 ;; no alternative at all: this for/amb is (amb)
-                (if started?
-                    (unsafe-fail)
-                    (begin (set! started? #t) (amb-empty-handler))))
+                (cond
+                  [started? (unsafe-fail)]
+                  [else (set! started? #t) (amb-empty-handler)]))
               prompt-tag)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
