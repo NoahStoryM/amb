@@ -56,6 +56,11 @@ leaf, of zero values.)  The sum @emph{1 + a} is what the search
 computes; a consumer can tell the two sides apart only if the
 handler's value never occurs as an answer, so a mark is best a value of
 its own, such as an instance of a private structure type.
+Note also that some laws of choice hold only without a handler.  With
+the default handler, @racket[(amb)] is the unit of choice:
+@racket[(amb e (amb))] and @racket[e] have the same leaves.  With a
+handler that returns a value, they do not, since the empty choice
+contributes a leaf of its own; only @racket[(amb-fail)] remains a unit.
 
 Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—an
 immutable deque of pending @tech{amb-trees}.  Each step pops a tree,
