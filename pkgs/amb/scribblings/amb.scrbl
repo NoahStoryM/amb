@@ -560,7 +560,9 @@ The behavior of the @racket[amb] search engine is governed by two
 orthogonal @tech/refer{parameters}: @racket[current-amb-depth-first?]
 controls traversal order and @racket[current-amb-fair?] controls
 fairness.  Together, they make the @tech{amb-frontier} pluggable in
-ways impossible to achieve with the implicit stack alone.
+ways impossible to achieve with the implicit stack alone.  A third
+one, @racket[current-amb-local?], gives part of a search an
+@tech{amb-frontier} of its own.
 
 As described in @secref["Evaluation_Model"], the search driver
 maintains an @tech{amb-frontier}.  Each step pops an @tech{amb-tree}
@@ -588,7 +590,7 @@ from the front and runs it.  The result determines what happens next:
         The search continues.}
   ]
 
-Both @tech/refer{parameters} are captured per-tree at the point where
+All three @tech/refer{parameters} are captured per-tree at the point where
 @racket[amb] or @racket[for/amb] is evaluated.  This means different
 parts of a computation can use different strategies via
 @racket[parameterize].  As a result, different subtrees may coexist in
@@ -634,6 +636,93 @@ single branch from starving its siblings.
       (define b (amb 4 5 6))
       (list a b)))))
 ]
+}
+
+
+@defparam[current-amb-local? local? boolean?]{
+Controls whether a newly created @tech{amb-tree} gets an
+@tech{amb-frontier} of its own.
+
+When @racket[#f] (the default), the tree and every tree created below
+it are items of the frontier the tree was created in.  Without any
+local frontier that is the single frontier of the search, in which the
+two parameters above order all pending trees together.
+
+When @racket[#t], the tree gets a @deftech{local frontier}, which holds
+the tree itself and every tree created below it.  To the frontier
+around it, the whole group is a single item.  When that item is
+resumed, it runs its own frontier, in the same way as the search runs
+the outer one, until a leaf is produced or a branch reaches
+@racket[(amb)].
+
+Inside a local frontier, @racket[(amb)] also ends a @emph{turn}.  The
+branch ends there as usual, and the @tech{empty handler} is called as
+usual.  In addition, the tree that reached @racket[(amb)] goes to the
+back of its frontier, and every group around it goes to the back of
+the frontier that contains it.  A leaf does not end a turn, and neither
+does @racket[(amb-fail)].  So a group keeps producing results until one
+of its branches reaches @racket[(amb)], and then the next group runs.
+
+Below, each of @racket[s1] and @racket[s2] is a sequence of answers
+with empty choices in between.  By default the first is exhausted
+before the second starts.  With a local frontier, they swap at each
+@racket[(amb)]:
+
+@amb-examples[
+(define-syntax-rule (local expr)
+  (parameterize ([current-amb-local? #t]) expr))
+(define (s1) (amb 1 2 3 (amb) 4 5 6))
+(define (s2) (amb 7 8 (amb) 9 (amb)))
+(stream->list (in-amb (amb (s1) (s2)) #:empty-handler (λ () 'pause)))
+(stream->list (in-amb (local (amb (s1) (s2))) #:empty-handler (λ () 'pause)))
+(stream->list (in-amb (local (amb (s1) (s2)))))
+]
+
+As with the other parameters, @racket[parameterize] around an
+@racket[amb] covers its @tech{alternatives} as well, so above the
+choices made by @racket[s1] and @racket[s2] are local too.
+
+Local frontiers nest, and each level shares its turns among its own
+items.  Combined with a pause (see @racket[in-amb]), this makes an
+unbounded branch give way to its siblings without a search-wide
+strategy.  Below, @racket[(ticks 'a)] never ends.  A choice between
+three such branches gives each a third of the turns; a choice between
+one branch and a choice between two gives them a half, a quarter and a
+quarter.  The default order never leaves the first branch.
+
+@amb-examples[
+(define (pause) (when (amb #t #f) (amb)))
+(define (ticks name)
+  (amb name (begin (pause) (ticks name))))
+(define-syntax-rule (take n expr)
+  (for/list ([x (in-amb expr)] [_ n]) x))
+(take 8 (local (amb (ticks 'a) (ticks 'b) (ticks 'c))))
+(take 8 (local (amb (ticks 'a) (amb (ticks 'b) (ticks 'c)))))
+(take 8 (amb (ticks 'a) (amb (ticks 'b) (ticks 'c))))
+]
+
+Since turns are taken where the tree says so, the order of the results
+depends only on the @tech{amb-tree}, not on how the program that
+builds it is written.  For example, a choice followed by more
+computation gives the same order as the same choice with that
+computation moved into each @tech{alternative}:
+
+@amb-examples[
+(define (k v)
+  (case v
+    [(a) (pause) 'A]
+    [(b) 'B]
+    [(c) 'C]))
+(stream->list (in-amb (k (local (amb (amb 'a 'b) 'c)))))
+(stream->list (in-amb (local (amb (k (amb 'a 'b)) (k 'c)))))
+]
+
+The other two parameters keep their meaning inside a local frontier:
+@racket[current-amb-depth-first?] places a child tree in the frontier
+of its parent, and @racket[current-amb-fair?] places a tree, or a whole
+group, after a leaf.
+
+@history[#:added "2.2"]
 }
 
 

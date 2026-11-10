@@ -2,7 +2,7 @@
 
 (define license 'MIT)
 (define collection "amb")
-(define version "2.1")
+(define version "2.2")
 
 (define pkg-desc "Ambiguous Operator")
 

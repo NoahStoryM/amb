@@ -85,6 +85,7 @@
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
+  [current-amb-local?       (Parameter Boolean)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
   [amb-empty-handler (→ ⊥)]
