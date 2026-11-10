@@ -69,3 +69,16 @@
                                #:empty-handler (λ () : (∪ Symbol Integer) 'odd))])
                 x)
               '(odd 2 odd))
+
+;; (amb) of the same search reached through an empty for/amb in the handler
+(define calls : Integer 0)
+(check-exn #rx"empty handler of the same search"
+           (λ ()
+             (for/list : (Listof Any)
+               ([x (in-amb/do (amb)
+                              #:empty-handler
+                              (λ ()
+                                (set! calls (add1 calls))
+                                (when (> calls 5) (error "handler called more than 5 times"))
+                                (for/amb : Integer ([i : Integer (in-list (ann '() (Listof Integer)))]) i)))])
+               x)))

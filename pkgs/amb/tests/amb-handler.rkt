@@ -192,6 +192,65 @@
   (check-equal? (stream->list (in-amb (amb) #:empty-handler (λ () (stream->list (in-amb (amb 1 (amb)))))))
                 '((1))))
 
+(test-case "reentry is detected through empty choices and resumed continuations too"
+  ;; bounded, so that a regression fails instead of running forever
+  (define (bounded thunk)
+    (define n 0)
+    (λ () (set! n (add1 n)) (when (> n 5) (error "handler called more than 5 times")) (thunk)))
+  (for ([h (list (λ () (for/amb ([i '()]) i))
+                 (λ () (for/amb #:length 0 ([i '()]) i))
+                 (λ () (make-amb (λ () #f) void))
+                 (λ () (when (amb #t #f) (amb)) 'P))])
+    (check-exn #rx"empty handler of the same search"
+               (λ () (for/list ([x (in-amb/do (amb) #:empty-handler (bounded h))]) x)))))
+
+(test-case "after a reentry error the search goes on"
+  (define first? #t)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (amb 1 (amb) 2 (amb))
+                #:empty-handler (λ () (if first? (begin (set! first? #f) (amb)) 'ok)))))
+  (check-equal? (get) 1)
+  (check-exn #rx"empty handler of the same search" get)
+  (check-equal? (get) 2)
+  (check-equal? (get) 'ok))
+
+(test-case "an inner search without a handler, resumed lazily across outer choices"
+  (check-equal?
+   (stream->list
+    (in-amb (let ([s (in-amb (begin (suspend) (amb 1 (for/amb ([i '()]) i) 2)))])
+              (suspend)
+              (let ([a (stream-first s)]) (suspend) (list a (stream->list (stream-rest s)))))
+            #:empty-handler P))
+   '(P P (1 (2))))
+  ;; created outside, resumed inside a search with a handler
+  (define-values (more? get)
+    (sequence-generate (in-amb/do (begin (suspend) (make-amb (λ () #f) void) 'never))))
+  (check-equal? (stream->list (in-amb (list (more?)) #:empty-handler P)) '((#f))))
+
+(test-case "three levels: with, without, with"
+  (check-equal?
+   (stream->list
+    (in-amb (stream->list
+             (in-amb (list (amb 'm (amb))
+                           (stream->list (in-amb (amb 'x (amb)) #:empty-handler (λ () 'IN))))))
+            #:empty-handler (λ () 'OUT)))
+   '(((m (x IN))))))
+
+(test-case "an empty for/amb does not change the order of side effects (every strategy)"
+  (for ([df   '(#t #t #f #f)]
+        [fair '(#t #f #t #f)]
+        [expected-log '((probe open choose) (probe open choose)
+                        (open probe choose) (open choose probe))])
+    (define log '())
+    (parameterize ([current-amb-depth-first? df] [current-amb-fair? fair])
+      (stream->list
+       (in-amb
+        (amb (for/amb ([i (begin (set! log (cons 'probe log)) '())]) i)
+             (begin (set! log (cons 'open log)) 's)
+             (begin (set! log (cons 'choose log)) (amb 1 2))))))
+    (check-equal? (reverse log) expected-log (format "df=~a fair=~a" df fair))))
+
 (test-case "after the handler raises, in-amb/do can go on"
   (define-values (more? get)
     (sequence-generate (in-amb/do (amb 1 (amb) 2) #:empty-handler (λ () (error "boom")))))

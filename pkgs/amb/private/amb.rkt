@@ -143,8 +143,14 @@
          (set! first? #f)
          (if (eq? handler amb-fail)
              (call-with-values thk list)
-             (with-continuation-mark empty-handler-key handler
-               (call-with-values thk list)))]
+             ;; Not in tail position of `reset-at`: a mark on the
+             ;; prompt's own frame can reappear innermost when a
+             ;; continuation captured across another prompt is applied
+             ;; again (seen on Racket v9.3 CS), which would hide the
+             ;; `reentrant-amb` mark of a running handler.
+             (let ([vs (with-continuation-mark empty-handler-key handler
+                         (call-with-values thk list))])
+               vs))]
         [else dead])))
   (amb-tree k depth-first? fair?))
 
