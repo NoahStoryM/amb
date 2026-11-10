@@ -26,3 +26,18 @@
               '(1))
 
 (check-equal? (for/list : (Listof Integer) ([x (in-amb/do (amb (amb-fail) 3))]) x) '(3))
+
+;; a for/amb with no alternative at all is (amb), with or without #:length
+(define (all-paused? [l : (Listof (∪ Integer paused))]) : Boolean
+  (and (pair? l) (andmap paused? l)))
+(check-true (all-paused?
+             (for/list ([x (in-amb/do (for/amb : Integer ([i : Integer (in-list (ann '() (Listof Integer)))]) i)
+                                      #:empty-handler (λ () PAUSED))])
+               x)))
+(check-true (all-paused?
+             (for/list ([x (in-amb/do (for/amb : Integer #:length 0 ([i : Integer (in-list (ann '() (Listof Integer)))]) i)
+                                      #:empty-handler (λ () PAUSED))])
+               x)))
+(check-equal? (for/list : (Listof (∪ Integer paused))
+                ([x (in-amb/do (for/amb : Integer ([i : Integer (in-list '(1 2))]) i) #:empty-handler (λ () PAUSED))]) x)
+              '(1 2))

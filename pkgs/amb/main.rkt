@@ -50,8 +50,8 @@
 ;; ---- in-amb* (function form) ----
 
 ;; Validate the arguments before calling the private `in-amb*/do`:
-;; `thk` and `handler` (the handler for `(amb)`) must be zero-arity
-;; procedures.  If they are not, call the contracted
+;; `thk` and `handler` (the empty handler, which answers `(amb)`) must
+;; be zero-arity procedures.  If they are not, call the contracted
 ;; `in-amb*` only to raise its contract error; it never runs the search.
 ;;
 ;; `check-args` is a macro, not a function, so that the contracted call

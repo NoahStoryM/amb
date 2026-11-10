@@ -83,6 +83,7 @@
   [current-amb-fair?        (Parameter Boolean)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
+  [amb-empty-handler (→ ⊥)]
   [amb-fail    (→ ⊥)]
   [make-amb-tree (→ (Values))])
 
@@ -148,9 +149,10 @@
 ;; 1. With `#:length` — Collect body thunks into a typed vector via
 ;;    `for/vector`, then delegate to `unsafe-amb*`.  The optional
 ;;    `#:fill` thunk is annotated as `(→ T₁)` to enforce that it is a
-;;    subtype of the outer result type.  Without `#:fill`, `amb*` is
-;;    used as the fill value
-;;    (a procedure, so type-compatible with the vector element type).
+;;    subtype of the outer result type.  Without `#:fill`, `amb-fail`
+;;    is used as the fill value (a procedure, so type-compatible with
+;;    the vector element type).  A length of 0 gives an empty vector,
+;;    which `unsafe-amb*` treats as `(amb)`.
 ;;
 ;; 2. Without `#:length` — Create a fresh prompt tag typed for this
 ;;    specific result type.  `retry` is typed as `(∪ False (¬ False))`
@@ -159,6 +161,9 @@
 ;;
 ;;    `(let ([retry retry])` re-binds `retry` in a local scope so that
 ;;    Typed Racket can narrow its type after `when`.
+;;    `started?` records whether the loop has produced an alternative:
+;;    a loop with no iterations is `(amb)`, one that runs out later is
+;;    a dead end.
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
@@ -221,6 +226,7 @@
                  (λ ()
                    (: retry (∪ False (¬ False)))
                    (define retry #f)
+                   (define started? : Boolean #f)
                    (make-amb-tree)
                    (let ([retry retry])
                      (when retry (retry #f)))
@@ -230,9 +236,13 @@
                     (when choice
                       (define (alt) : t2 body ...)
                       (set! retry choice)
+                      (set! started? #t)
                       (abort/cc prompt-tag alt)))
                    (set! retry #f)
-                   (unsafe-fail))
+                   ;; no alternative at all: this for/amb is (amb)
+                   (cond
+                     [started? (unsafe-fail)]
+                     [else (set! started? #t) (amb-empty-handler)]))
                  prompt-tag
                  (inst values (→ t1))))))]
           [(~or* (name : t0:type (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+)

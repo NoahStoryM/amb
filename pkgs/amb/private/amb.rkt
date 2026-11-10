@@ -71,7 +71,7 @@
          current-amb-depth-first?
          current-amb-fair?
          current-amb-shuffler)
-(provide amb-fail unsafe-fail make-amb-tree thunks unsafe-amb*)
+(provide amb-fail amb-empty-handler unsafe-fail make-amb-tree thunks unsafe-amb*)
 
 
 ;; ---- Aliases ----
@@ -93,7 +93,9 @@
 ;; ---- Prompt Tags ----
 
 ;; `amb-prompt-tag` delimits the leaf-labeled tree.  Every `shift-at`,
-;; `amb-fail`, and `make-amb-root` communicates through this prompt.
+;; `amb-fail`, `unsafe-fail`, `amb-empty-handler`, and `make-amb-root`
+;; communicates through this prompt; `amb-empty-handler` also looks up
+;; the search's empty handler no further out than it.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
 
 
@@ -161,8 +163,8 @@
 ;; driver treats as "nothing produced": it pushes the calling tree
 ;; back onto the frontier (respecting its `fair?` field) and continues
 ;; searching.  This is precisely what lets a single failed alternative
-;; fail without discarding its parent — e.g. `(amb (amb) 5)` still
-;; yields 5, because the inner `(amb)` fails but the parent tree
+;; fail without discarding its parent — e.g. `(amb (amb-fail) 5)` still
+;; yields 5, because the inner `(amb-fail)` fails but the parent tree
 ;; survives to produce 5.
 ;; `amb-fail` is also the sentinel marking consumed slots in the thunk
 ;; vector of `unsafe-amb*`: as a thunk it fails.
@@ -228,8 +230,10 @@
 ;; only at entry; once the shuffler runs, `amb-fail`s may be scattered,
 ;; which is what the re-compaction scan below handles.)
 ;;
-;; If the vector is empty or wholly dead, `amb-fail` is called directly
-;; (which pushes the parent tree back) without creating a tree.
+;; If the vector is empty or wholly dead, the choice has no alternative
+;; at all: it is `(amb)`, so `amb-empty-handler` is called directly
+;; (which outputs the handler's answer, or fails under the default
+;; handler, and pushes the parent tree back) without creating a tree.
 ;;
 ;; Two compaction passes keep the vector dense and its memory
 ;; footprint low:

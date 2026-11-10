@@ -37,8 +37,20 @@ Categorically, this is the @emph{free monad} over the
 
 Each @racket[amb] expression creates an @tech{amb-tree} with one branch
 per @deftech{alternative}.  A branch that calls @racket[(amb)] is a
-@emph{dead end}: it is pruned and the search backtracks, unless the
-search was given a handler for @racket[(amb)] (see @racket[in-amb]).
+@emph{dead end}: it is pruned and the search backtracks.
+
+A search may instead be given an @deftech{empty handler} (see
+@racket[in-amb]).  Then a branch that reaches @racket[(amb)] ends with
+a leaf rather than with nothing: the handler is called there, its
+values become a leaf of the search, and the rest of the branch is
+abandoned, as with failure.  The leaf belongs to the search, not to the
+@racket[(amb)] expression, which still produces no value.  So the
+leaves of a search are the values of the computation or of its
+handler: with a handler that returns a fixed value, the leaves form a
+@tech/refer{stream} of @emph{1 + a}, each element an answer or the mark
+of a branch that ended at @racket[(amb)]; with the default handler
+@racket[amb-fail], which returns nothing (@emph{0}), they form a
+@tech/refer{stream} of @emph{a}, as without a handler.
 
 Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—an
 immutable deque of pending @tech{amb-trees}.  Each step pops a tree,
@@ -364,7 +376,7 @@ The form @racket[(in-amb expr)] expands to
 @racket[(in-amb expr #:empty-handler handler-expr)] to
 @racket[(in-amb* (λ () expr) handler-expr)].
 
-The handler answers @racket[(amb)].  When the computation reaches
+The @tech{empty handler} answers @racket[(amb)].  When the computation reaches
 @racket[(amb)], the handler is called there, in the dynamic context of
 @racket[(amb)], and the values it returns are produced as one leaf; the
 rest of that branch is abandoned, as with failure.  The default handler
@@ -461,7 +473,8 @@ from the front and runs it.  The result determines what happens next:
         @racket[current-amb-fair?] controls whether the parent
         tree goes to the front or the back.
         The search continues.}
-  @item{@emph{Leaf}: a result is produced.
+  @item{@emph{Leaf}: a result is produced, by the computation or by
+        the @tech{empty handler} at @racket[(amb)].
         The parent tree is put back (as in the nothing case).
         The search suspends.}
   @item{@emph{Branch}: a new @tech{amb-tree} was created.
