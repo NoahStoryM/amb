@@ -49,8 +49,13 @@ leaves of a search are the values of the computation or of its
 handler: with a handler that returns a fixed value, the leaves form a
 @tech/refer{stream} of @emph{1 + a}, each element an answer or the mark
 of a branch that ended at @racket[(amb)]; with the default handler
-@racket[amb-fail], which returns nothing (@emph{0}), they form a
-@tech/refer{stream} of @emph{a}, as without a handler.
+@racket[amb-fail], which never returns (@emph{0}) and so contributes no
+leaf, they form a @tech/refer{stream} of @emph{a}, as without a
+handler.  (A handler that returns @racket[(values)] does contribute a
+leaf, of zero values.)  The sum @emph{1 + a} is what the search
+computes; a consumer can tell the two sides apart only if the
+handler's value never occurs as an answer, so a mark is best a value of
+its own, such as an instance of a private structure type.
 
 Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—an
 immutable deque of pending @tech{amb-trees}.  Each step pops a tree,
@@ -127,7 +132,10 @@ can be expressed purely with @tech/refer{streams}.  The correspondence
 is direct: @racket[amb] is @racket[stream], @racket[in-amb] is
 @racket[stream-flatten], and sequential @racket[amb] in @racket[let*]
 corresponds to @racket[for*/stream] composed with
-@racket[stream-flatten].  The examples above, rewritten in this style:
+@racket[stream-flatten].  This is the interpretation without an
+@tech{empty handler}, in which an empty choice contributes nothing; it
+does not model the handler, whose leaf ends the whole branch.  The
+examples above, rewritten in this style:
 
 @racketblock[
 (define (stream-flatten s*)
@@ -327,8 +335,18 @@ the next @tech{alternative} on demand.  Because the @racket[body] is
 evaluated lazily, this works with @tech/refer{sequences} of any size,
 including infinite ones.
 
-In either form, a loop with no iterations is a choice among no
-@tech{alternatives}, that is, @racket[(amb)].
+A @racket[for/amb] that provides no @tech{alternative} at all is
+@racket[(amb)]: without @racket[#:length], a loop with no iterations;
+with @racket[#:length], a length of 0, or no iterations and no
+@racket[#:fill].  Slots filled by default are not alternatives, but
+with @racket[#:fill] every slot is one.  The clauses are evaluated
+once either way.
+
+@amb-examples[
+(stream->list (in-amb (for/amb ([i '()]) i) #:empty-handler (λ () 'none)))
+(stream->list (in-amb (for/amb #:length 2 ([i '()]) i) #:empty-handler (λ () 'none)))
+(stream->list (in-amb (for/amb #:length 2 #:fill 0 ([i '()]) i) #:empty-handler (λ () 'none)))
+]
 
 @amb-examples[
 (for/list ([x (in-amb (for/amb ([i (in-naturals)]) i))] [_ 5]) x)
@@ -376,13 +394,29 @@ The form @racket[(in-amb expr)] expands to
 @racket[(in-amb expr #:empty-handler handler-expr)] to
 @racket[(in-amb* (λ () expr) handler-expr)].
 
-The @tech{empty handler} answers @racket[(amb)].  When the computation reaches
-@racket[(amb)], the handler is called there, in the dynamic context of
-@racket[(amb)], and the values it returns are produced as one leaf; the
-rest of that branch is abandoned, as with failure.  The default handler
-is @racket[amb-fail], which makes @racket[(amb)] a failure.  The handler
-may also call @racket[amb-fail] itself or raise an exception, but it
-should not call @racket[(amb)].
+The @tech{empty handler} answers @racket[(amb)].  When the computation
+reaches @racket[(amb)], the handler is called there, in the dynamic
+context of @racket[(amb)], and the values it returns are produced as
+one leaf; the rest of that branch is abandoned, as with failure.  The
+default handler is @racket[amb-fail], which makes @racket[(amb)] a
+failure.  The handler may also call @racket[amb-fail] itself, make
+choices of its own, or raise an exception; if it reaches @racket[(amb)]
+of the same search, an error is raised.  It should return as many
+values as @racket[expr] does: Typed Racket checks this, and otherwise
+the mismatch is reported only where the leaf is received.
+
+Since the search is lazy, the dynamic context of @racket[(amb)] is the
+one in which the search is resumed, that is, the consumer's, as for any
+other code in @racket[expr]:
+
+@amb-examples[
+(define p (make-parameter 'first))
+(define-values (more? get)
+  (sequence-generate
+   (in-amb/do (begin (when (amb #t #f) (amb)) (when (amb #t #f) (amb)) 'x)
+              #:empty-handler p)))
+(list (get) (parameterize ([p 'second]) (get)) (get))
+]
 
 @amb-examples[
 (stream->list (in-amb (let ([x (amb 1 2 3)]) (if (even? x) (amb) x))

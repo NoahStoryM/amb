@@ -17,7 +17,7 @@
 ;;     (a `make-do-sequence`-based sequence), bypassing stream
 ;;     construction entirely.
 ;;
-;; Unlike the untyped version, no runtime `check-thk` validation
+;; Unlike the untyped version, no runtime `check-args` validation
 ;; is needed — Typed Racket's type system enforces the thunk
 ;; contract statically.
 

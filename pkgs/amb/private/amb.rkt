@@ -127,10 +127,11 @@
 ;; root is naturally discarded from the frontier after its sole result.
 ;;
 ;; The search's empty handler (see `amb-empty-handler`) is attached to
-;; the root frame as a continuation mark.  Every
-;; continuation of this search is captured inside that frame, so the
-;; mark comes back whenever a tree of this search is resumed, and an
-;; inner search's own mark is found first.
+;; the root frame as a continuation mark.  Every continuation of this
+;; search is captured inside that frame, so the mark comes back whenever
+;; a tree of this search is resumed, and an inner search's own mark is
+;; found first.  The default handler, `amb-fail`, is not attached: the
+;; lookup stops at this search's prompt and falls back to it anyway.
 (define (make-amb-root thk [handler amb-fail])
   (define first? #t)
   (define depth-first? (current-amb-depth-first?))
@@ -140,8 +141,10 @@
       (cond
         [first?
          (set! first? #f)
-         (with-continuation-mark empty-handler-key handler
-           (call-with-values thk list))]
+         (if (eq? handler amb-fail)
+             (call-with-values thk list)
+             (with-continuation-mark empty-handler-key handler
+               (call-with-values thk list)))]
         [else dead])))
   (amb-tree k depth-first? fair?))
 
@@ -184,12 +187,25 @@
 ;; resumed is pushed back (per its `fair?`).
 ;; For example, (when (amb #t #f) (amb)) is a pause: the search outputs
 ;; the handler's answer, then continues after it.
+;;
+;; While the handler runs, the mark is replaced with `reentrant-amb`, so
+;; a handler that itself reaches `(amb)` of the same search raises an
+;; error instead of calling itself forever.  An inner search inside the
+;; handler has its own mark and is not affected.
 (define empty-handler-key (make-continuation-mark-key 'amb-empty-handler))
 (define (amb-empty-handler)
   (define handler
     (continuation-mark-set-first #f empty-handler-key amb-fail amb-prompt-tag))
-  (define vs (call-with-values handler list))
-  (abort/cc amb-prompt-tag (λ () vs)))
+  (cond
+    [(eq? handler amb-fail) (amb-fail)]
+    [else
+     (define vs
+       (call-with-values
+        (λ () (with-continuation-mark empty-handler-key reentrant-amb (handler)))
+        list))
+     (abort/cc amb-prompt-tag (λ () vs))]))
+(define (reentrant-amb)
+  (error 'amb "(amb) reached inside the empty handler of the same search"))
 
 
 ;; ---- Ambiguous Operator ----
@@ -200,15 +216,21 @@
 ;; for remaining alternatives and `(get)` to produce the next value.
 ;; When `(more?)` returns #f, it calls `unsafe-fail` to signal a
 ;; dead end.
-;; A choice that has no alternative at all is
-;; `(amb)`; once it has produced one, running out is a dead end.
+;;
+;; A choice that has no alternative at all is `(amb)`; once it has
+;; produced one, running out is a dead end.  `state` is #f until the
+;; first `(more?)`, then 'started or 'empty.  After `(amb)` has been
+;; answered the tree is still resumed once more (it was pushed back);
+;; that resumption must neither call `(more?)` again nor answer `(amb)`
+;; twice, so 'empty is checked first and is a dead end.
 (define (make-amb more? get)
-  (define started? #f)
+  (define state #f)
   (make-amb-tree)
   (cond
-    [(more?) (set! started? #t) (get)]
-    [started? (unsafe-fail)]
-    [else (set! started? #t) (amb-empty-handler)]))
+    [(eq? state 'empty) (unsafe-fail)]
+    [(more?) (set! state 'started) (get)]
+    [state (unsafe-fail)]
+    [else (set! state 'empty) (amb-empty-handler)]))
 
 ;; `unsafe-amb*` walks a mutable vector of thunks via `make-amb`,
 ;; one alternative per slot.
@@ -234,6 +256,7 @@
 ;; at all: it is `(amb)`, so `amb-empty-handler` is called directly
 ;; (which outputs the handler's answer, or fails under the default
 ;; handler, and pushes the parent tree back) without creating a tree.
+;; The shuffler is not called: there is nothing to shuffle.
 ;;
 ;; Two compaction passes keep the vector dense and its memory
 ;; footprint low:
@@ -255,7 +278,6 @@
 
   (when (or (zero? len) (equal? (vector-ref thk* 0) amb-fail))
     (set! thk* empty-mutable-vector)
-    ((current-amb-shuffler) thk*)
     (amb-empty-handler))
 
   (define compacted? #f)
@@ -331,7 +353,7 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     [(_)
-     (syntax/loc stx (unsafe-amb* empty-mutable-vector))]
+     (syntax/loc stx (amb-empty-handler))]
     [(_ expr* ...)
      (syntax/loc stx (unsafe-amb* (thunks (λ () expr*) ...)))]))
 
@@ -397,7 +419,12 @@
                 (define retry #f)
                 (define started? #f)
                 (make-amb-tree)
-                (when retry (retry #f))
+                ;; Resumed after `(amb)` was answered (no alternative was
+                ;; produced, so `retry` is #f): a dead end.  Re-entering the
+                ;; loop would evaluate its clauses again.
+                (cond
+                  [retry (retry #f)]
+                  [started? (unsafe-fail)])
                 (#,for (clauses ...) #,@break
                  (define choice (call/cc values prompt-tag))
                  (when choice

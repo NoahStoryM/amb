@@ -24,15 +24,15 @@
 ;;
 ;; Each binding from `amb/private/amb` is annotated with its type.
 ;;
-;; `amb*` uses `case→` to distinguish the zero-argument case
-;; (always diverges → ⊥) from the variadic case (chooses among
-;; thunks → their shared return type).
-;;
-;; `unsafe-amb*` similarly distinguishes an empty mutable vector
-;; (diverges) from a vector of thunks.  The vector slots are
-;; overwritten with `amb*` as a consumed-slot sentinel; since
-;; `amb*` is itself a procedure, this is type-compatible with
+;; `thunks` and `unsafe-amb*` use `case→` to distinguish the empty
+;; case (an empty mutable vector: the choice is `(amb)` and does not
+;; return → ⊥) from a vector of thunks (their shared return type).
+;; Consumed slots are overwritten with `amb-fail` as a sentinel; since
+;; `amb-fail` is itself a procedure, this is type-compatible with
 ;; `(Mutable-Vectorof (→ ...))`.
+;;
+;; `in-amb*` and `in-amb*/do` take an optional empty handler; the
+;; sequence type is the union of the body's type and the handler's.
 ;;
 ;; `make-amb-tree` returns `(Values)` (zero values) because the first
 ;; call shifts out and never returns; on resumption the continuation
@@ -59,6 +59,8 @@
    ;; With an empty handler: the sequence type is the union of the
    ;; body's type and the handler's; the default handler, amb-fail,
    ;; returns ⊥.
+   ;; The type variables c and d come first, so an explicit
+   ;; instantiation must now supply them: (inst in-amb* c d a ...).
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
@@ -71,6 +73,8 @@
    ;; With an empty handler: the sequence type is the union of the
    ;; body's type and the handler's; the default handler, amb-fail,
    ;; returns ⊥.
+   ;; The type variables c and d come first, so an explicit
+   ;; instantiation must now supply them: (inst in-amb* c d a ...).
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
@@ -110,7 +114,7 @@
 (define-syntax (amb stx)
   (syntax-parse stx
     [(_)
-     (syntax/loc stx (unsafe-amb* empty-mutable-vector))]
+     (syntax/loc stx (amb-empty-handler))]
     [(_ expr* ...)
      (syntax/loc stx (unsafe-amb* (thunks (λ () expr*) ...)))]))
 
@@ -228,8 +232,12 @@
                    (define retry #f)
                    (define started? : Boolean #f)
                    (make-amb-tree)
+                   ;; resumed after (amb) was answered: a dead end, as in
+                   ;; the untyped version
                    (let ([retry retry])
-                     (when retry (retry #f)))
+                     (cond
+                       [retry (retry #f)]
+                       [started? (unsafe-fail)]))
                    (#,for (clauses ...) #,@break
                     (define choice
                       (call/cc (inst values (¬ False)) prompt-tag))

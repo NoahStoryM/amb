@@ -41,3 +41,31 @@
 (check-equal? (for/list : (Listof (∪ Integer paused))
                 ([x (in-amb/do (for/amb : Integer ([i : Integer (in-list '(1 2))]) i) #:empty-handler (λ () PAUSED))]) x)
               '(1 2))
+
+;; an empty for/amb evaluates its clauses once, even with a handler
+(define n : Integer 0)
+(define src : (Listof Integer) '())
+(check-true (all-paused?
+             (for/list ([x (in-amb/do (for/amb : Integer ([i : Integer (begin (set! n (add1 n))
+                                                                               (begin0 src (set! src '(1 2))))])
+                                        i)
+                                      #:empty-handler (λ () PAUSED))])
+               x)))
+(check-equal? n 1)
+
+;; several values: body and handler agree, or the handler is amb-fail
+(check-equal? (for/list : (Listof (List Integer Symbol))
+                ([(a b) (in-amb/do (begin (suspend) (values 1 'x)) #:empty-handler (λ () (values 0 'p)))])
+                (list a b))
+              '((0 p) (1 x)))
+(check-equal? (for/list : (Listof (List Integer Symbol))
+                ([(a b) (in-amb*/do (λ () (suspend) (values 1 'x)) amb-fail)])
+                (list a b))
+              '((1 x)))
+
+;; (amb) in a for/amb body; a handler whose type is a union
+(check-equal? (for/list : (Listof (∪ Integer Symbol))
+                ([x (in-amb/do (for/amb : Integer ([i : Integer '(1 2 3)]) (if (odd? i) (amb) i))
+                               #:empty-handler (λ () : (∪ Symbol Integer) 'odd))])
+                x)
+              '(odd 2 odd))
