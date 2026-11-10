@@ -46,6 +46,45 @@ values become a leaf of the search, and the rest of the branch is
 abandoned, as with failure.  The leaf belongs to the search, not to the
 @racket[(amb)] expression, which still produces no value.
 
+In the tree, the handler turns each @racket[(amb)] node into a leaf.
+Here the handler returns @racket['none]:
+
+@amb-examples[
+(stream->list (in-amb (amb (amb 1 2) (amb) (amb 'a 'b))
+                      #:empty-handler (λ () 'none)))
+]
+
+@verbatim|{
+(amb (amb 1 2) (amb) (amb 'a 'b))
+├── (amb 1 2)
+│   ├── 1
+│   └── 2
+├── (handler) ⇒ 'none
+└── (amb 'a 'b)
+    ├── 'a
+    └── 'b
+}|
+
+The leaf replaces the whole rest of its branch: below, the branch with
+@racket[x] = 1 reaches @racket[(amb)] before @racket[(list x y)], so it
+contributes @racket['none] and no list.
+
+@amb-examples[
+(stream->list
+ (in-amb (let* ([x (amb 1 2)]
+                [y (if (= x 1) (amb) (amb 'a 'b))])
+           (list x y))
+         #:empty-handler (λ () 'none)))
+]
+
+@verbatim|{
+(amb 1 2)
+├── (handler) ⇒ 'none
+└── (amb 'a 'b)
+    ├── '(2 a)
+    └── '(2 b)
+}|
+
 The leaves of a search are therefore the values of the computation or
 of its handler: with a handler that returns a fixed value, the leaves form a
 @tech/refer{stream} of @emph{1 + a}, each element an answer or the mark
