@@ -213,3 +213,125 @@
   ;; the raise ended nothing: (amb) was used up, and no turn ended there
   (check-equal? (for/list ([_ 2]) (get)) '(2 3))
   (check-false (more?)))
+
+;; ---- From the review in #11 ----
+
+(define-syntax-rule (in g e) (parameterize ([current-amb-frontier g]) e))
+
+(test-case "regression: the same, with amb/local in tail position of the other prompt's thunk"
+  ;; amb/local's mark lands on the prompt's own frame.  Replaying the
+  ;; continuation, here, in another alternative and under another
+  ;; amb/local, must see that frontier (as a plain mark would be seen),
+  ;; and a nested amb/local must still get its own.
+  (define tag (make-continuation-prompt-tag 'other))
+  (define saved #f)
+  (define L0 #f)
+  (define root #f)
+  (check-equal?
+   (stream->list
+    (in-amb (begin
+              (set! root (current-amb-frontier))
+              (amb (call-with-continuation-prompt
+                    (λ ()
+                      (amb/local
+                       (begin
+                         (call-with-composable-continuation (λ (c) (set! saved c)) tag)
+                         (let ([here (current-amb-frontier)])
+                           (unless L0 (set! L0 here))
+                           (list (cond [(eq? here L0) 'L0] [(eq? here root) 'root] [else 'other])
+                                 (amb/local (eq? (current-amb-frontier) here)))))
+                       'second))
+                    tag)
+                   (call-with-continuation-prompt (λ () (saved #f)) tag)
+                   (amb/local (call-with-continuation-prompt (λ () (saved #f)) tag))))))
+   '((L0 #f) second (L0 #f) (L0 #f))))
+
+(test-case "a frontier installed in another search is not seen, even with a shared root"
+  (define R (make-amb-frontier))
+  (define g (make-amb-frontier))
+  (check-equal?
+   (stream->list
+    (in-amb (in g (stream->list (in-amb (eq? (current-amb-frontier) g) #:frontier R)))
+            #:frontier R))
+   '((#f))))
+
+(test-case "installing #f undoes an installation"
+  (define g (make-amb-frontier))
+  (check-equal?
+   (stream->list
+    (in-amb (let ([root (current-amb-frontier)])
+              (in g (list (eq? (current-amb-frontier) g)
+                          (in #f (eq? (current-amb-frontier) root)))))))
+   '((#t #t))))
+
+(test-case "a continuation that carries the parameterize loses it under another amb/local"
+  ;; documented: unlike other parameters
+  (define tag (make-continuation-prompt-tag))
+  (define saved #f)
+  (define g (make-amb-frontier))
+  (define p (make-parameter 'out))
+  (check-equal?
+   (stream->list
+    (in-amb
+     (amb (amb/local
+           (call-with-continuation-prompt
+            (λ () (parameterize ([current-amb-frontier g] [p 'in])
+                    ((call-with-composable-continuation (λ (k) (set! saved k) values) tag))
+                    (list (eq? (current-amb-frontier) g) (p))))
+            tag)
+           'x)
+          (amb/local (call-with-continuation-prompt (λ () (saved void)) tag) 'y))))
+   '((#t in) x (#f in) y)))
+
+(test-case "a reused frontier is not collapsed: the result does not depend on the optimization"
+  (define (ticks name) (amb name (begin (pause) (ticks name))))
+  (define g (make-amb-frontier))
+  (check-equal?
+   (for/list ([x (in-amb (amb/local (in g (amb (amb/local (ticks 'a) (ticks 'b))))
+                                    (begin (pause) (pause) (in g (amb (ticks 'c) (ticks 'd))))))]
+              [_ 12])
+     x)
+   ;; what the driver gives without collapsing
+   '(a b a c d b c d a c d b)))
+
+(test-case "the turn ends where the handler returns"
+  ;; a handler that fails does not end a turn; the default one does
+  (define (s1) (amb/local 1 2 3 (amb) 4 5 6))
+  (define (s2) (amb/local 7 8 (amb) 9 (amb)))
+  (check-equal? (stream->list (in-amb (amb/local (s1) (s2)))) '(1 2 3 7 8 4 5 6 9))
+  (check-equal? (stream->list (in-amb (amb/local (s1) (s2)) #:empty-handler (λ () (amb-fail))))
+                '(1 2 3 4 5 6 7 8 9)))
+
+(test-case "an escape in a search nested on the same frontier: the outer one loses nothing"
+  (define f (make-amb-frontier))
+  (define first? #t)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (let ([x (amb 'z 'a 'b 'c)])
+                  (when (and first? (eq? x 'a))
+                    (set! first? #f)
+                    (for ([y (in-amb/do (amb 'i0 (error "boom") 'i1 'i2) #:frontier f)]) (void)))
+                  x)
+                #:frontier f)))
+  (define (step) (with-handlers ([exn:fail? exn-message]) (if (more?) (get) 'end)))
+  ;; the inner search's trees were left in the shared frontier, so the
+  ;; outer one runs them too
+  (check-equal? (for/list ([_ 7]) (step)) '(z "boom" b c i1 i2 end)))
+
+(test-case "an escape in the first step does not push the root again"
+  (define f (make-amb-frontier))
+  (define n 0)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (begin (set! n (add1 n)) (when (= n 1) (error "first")) (amb 1 2))
+                #:frontier f)))
+  (define (step) (with-handlers ([exn:fail? exn-message]) (if (more?) (get) 'end)))
+  ;; the computation raised, which uses it up, as for any alternative
+  (check-equal? (for/list ([_ 2]) (step)) '("first" end))
+  (check-equal? n 1)
+  (check-equal? (amb-frontier-length f) 0))
+
+(test-case "an abandoned search leaves its trees in a given frontier"
+  (define f (make-amb-frontier))
+  (check-equal? (for/first ([x (in-amb/do (amb 1 2 3) #:frontier f)]) x) 1)
+  (check-equal? (for/list ([x (in-amb/do (amb 'p 'q) #:frontier f)]) x) '(p q 2 3)))

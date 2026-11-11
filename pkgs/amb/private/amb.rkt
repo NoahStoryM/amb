@@ -134,14 +134,19 @@
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
 
 ;; The frontier new trees belong to is kept as a continuation mark:
-;; the root frame of each search (`make-amb-root`) carries the root
-;; frontier, and `amb/local` carries its own.  Every continuation of the
+;; the root frame of each search (`make-amb-root`) carries an
+;; `amb-search` record of the root frontier, fresh for each search, and
+;; `amb/local` carries its own frontier.  Every continuation of the
 ;; search is captured inside the root frame, so the mark comes back
 ;; whenever a tree of the search is resumed, and the innermost one (an
-;; inner search's root, or a local frontier) is found first.
+;; inner search's root, or a local frontier) is found first.  The record
+;; tells two searches apart even when they share their root frontier.
 (define frontier-key (make-continuation-mark-key 'amb-frontier))
+(struct amb-search (frontier) #:authentic)
 (define (marked-frontier)
   (continuation-mark-set-first #f frontier-key #f amb-prompt-tag))
+(define (unmark m)
+  (if (amb-search? m) (amb-search-frontier m) m))
 
 
 ;; ---- Frontiers ----
@@ -154,20 +159,29 @@
 ;; other frontier (see `collapse` in the driver): the driver then runs
 ;; that one directly, and asks `find` whether this one is being run.
 ;;
-;; `current` is the item popped whose resumption has not returned yet
-;; (see `land!` in the driver).
+;; `current` is the stack of items popped whose resumption has not
+;; returned yet (see `land!` in the driver).
+;;
+;; `exposed?` is set once user code can hold the frontier
+;; (`make-amb-frontier`, or reading `current-amb-frontier`): such a
+;; frontier may be installed again anywhere, so `collapse` leaves it be.
+;; The frontiers of `amb/local` and of a search without `#:frontier`
+;; stay private.
 (struct amb-frontier ([items #:mutable] empty-handler
-                      [forward #:mutable] [current #:mutable])
+                      [forward #:mutable] [current #:mutable]
+                      [exposed? #:mutable])
   #:authentic)
+(define (new-frontier handler exposed?)
+  (amb-frontier empty-ideque handler #f #f exposed?))
 
 (define (make-amb-frontier [handler (inherited-handler)])
-  (amb-frontier empty-ideque handler #f #f))
+  (new-frontier handler #t))
 
 (define (inherited-handler)
   (define f (frontier-now))
   (if f (amb-frontier-empty-handler f) amb-fail))
 
-(define (amb-frontier-length [f (current-amb-frontier)])
+(define (amb-frontier-length [f (frontier-now)])
   (unless (amb-frontier? f)
     (raise-argument-error 'amb-frontier-length "amb-frontier?" f))
   (ideque-length (amb-frontier-items f)))
@@ -198,13 +212,17 @@
 ;; is the mark above instead, which the parameter reads.
 ;;
 ;; A frontier can still be installed with `parameterize`: the guard
-;; records, with it, the frontier marked where it was installed
-;; (`outer`).  It counts as long as that is still the marked one, that
-;; is, until an inner `amb/local` or an inner search marks another.  So
-;; a frontier installed outside a search, or in another search, is not
-;; seen, and outside every search the parameter is #f (or what was
-;; installed there).  Until something is installed, the parameter is not
-;; read at all (`installed?`).
+;; records, with it, the mark found where it was installed (`outer`).
+;; It counts as long as that is still the innermost mark, that is, until
+;; an inner `amb/local` or an inner search marks another.  So a frontier
+;; installed outside a search, or in another search, is not seen, and
+;; outside every search the parameter is #f (or what was installed
+;; there).  Installing #f undoes an installation.  Until something is
+;; installed, the parameter is not read at all (`installed?`).
+;;
+;; A continuation that carries the `parameterize` but is applied under
+;; another mark (another `amb/local`) loses the installation there,
+;; unlike other parameters; the documentation says so.
 (struct binding (frontier outer) #:authentic)
 (define raw-frontier (make-parameter #f))
 (define installed? #f)
@@ -222,7 +240,7 @@
 (define (frontier-in-prompt)
   (frontier-of (marked-frontier)))
 (define (frontier-of m)
-  (if installed? (resolve (raw-frontier) m) m))
+  (unmark (if installed? (resolve (raw-frontier) m) m)))
 (define current-amb-frontier
   (make-derived-parameter
    raw-frontier
@@ -232,13 +250,16 @@
      (set! installed? #t)
      (binding f (and (continuation-prompt-available? amb-prompt-tag)
                      (marked-frontier))))
-   (λ (b) (frontier-now))))
+   (λ (b)
+     (define f (frontier-now))
+     (when f (set-amb-frontier-exposed?! f #t))
+     f)))
 
 ;; `amb/local` is `amb` in a fresh frontier of its own; the code after
 ;; it returns is back in the frontier around it.  The same as
 ;; `parameterize`, but with the mark directly.
 (define (call-with-local-frontier thk)
-  (with-continuation-mark frontier-key (make-amb-frontier)
+  (with-continuation-mark frontier-key (new-frontier (inherited-handler) #f)
     (thk)))
 
 
@@ -255,6 +276,11 @@
 ;; that of the tree whose birth mounted it: it decides where the mount
 ;; goes back after a turn that produced a leaf.
 (struct mount (frontier fair?) #:authentic)
+
+;; An item being resumed, on the `current` stack of its frontier:
+;; `below` is the rest of the stack, and `inner` the stack of the
+;; frontier the item mounts, if it is a mount, when it was entered.
+(struct flight (item below inner) #:authentic)
 
 ;; `make-amb-tree` snapshots the current parameters and uses
 ;; `shift-at` to capture the continuation, packaging everything into
@@ -276,6 +302,7 @@
 ;; root is naturally discarded from the frontier after its sole result.
 ;; The root mark is attached here (see `frontier-key`).
 (define (make-amb-root thk frontier)
+  (define search (amb-search frontier))
   (define first? #t)
   (define depth-first? (current-amb-depth-first?))
   (define fair? (current-amb-fair?))
@@ -289,7 +316,7 @@
          ;; captured across another prompt is applied again (seen on
          ;; Racket v9.3 CS), which would hide the mark of a frontier
          ;; installed inside this one.
-         (let ([vs (with-continuation-mark frontier-key frontier
+         (let ([vs (with-continuation-mark frontier-key search
                      (call-with-values thk list))])
            vs)]
         [else dead])))
@@ -651,12 +678,15 @@
     ;; resumption: the code resumed may have run a search of its own on
     ;; the same frontier.
     ;;
-    ;; While an item is resumed it is kept in the `current` field of
-    ;; `f`.  If the resumption escapes (the empty handler raises, say),
-    ;; the next step of the search puts it back in front of `f`, and so
-    ;; on down the frontiers it was running (`land!`), so that the search
-    ;; can go on.  Only after an escape: a search started inside on the
-    ;; same frontier must not put back the item the outer one is running.
+    ;; While an item is resumed it is pushed on the `current` stack of
+    ;; `f` (a `flight`, which also records the stack of the frontier it
+    ;; mounts, if any).  If the resumption escapes (the empty handler
+    ;; raises, say), the next step of the search puts back, in front of
+    ;; their frontiers, every item pushed since its own step began, and
+    ;; so on down the frontiers they mount (`land!`), so that the search
+    ;; can go on.  A search started inside on the same frontier pushes
+    ;; above the outer one's item; if it escapes, the outer one puts back
+    ;; both, and if it is stepped again itself it puts back only its own.
     (define (search f running root?)
       (define items (amb-frontier-items f))
       (cond
@@ -666,7 +696,9 @@
          (set-amb-frontier-items! f rest)
          (define mounted? (mount? item0))
          (define prev (amb-frontier-current f))
-         (set-amb-frontier-current! f item0)
+         (set-amb-frontier-current!
+          f (flight item0 prev
+                    (and mounted? (amb-frontier-current (mount-frontier item0)))))
          (define tree1
            (cond
              [(not mounted?) (item0)]
@@ -699,12 +731,14 @@
               [(or (pair? tree1) (null? tree1)) tree1]
               [(not tree1) (search f running root?)]
               [else (error 'amb "internal: unexpected tree result ~e" tree1)])])]))
-    (define (land! f)
-      (define item (amb-frontier-current f))
-      (when item
-        (set-amb-frontier-current! f #f)
-        (push-front! f item)
-        (when (mount? item) (land! (mount-frontier item)))))
+    (define (land! f base)
+      (let loop ([fl (amb-frontier-current f)])
+        (unless (or (eq? fl base) (not fl))
+          (define item (flight-item fl))
+          (push-front! f item)
+          (when (mount? item) (land! (mount-frontier item) (flight-inner fl)))
+          (loop (flight-below fl))))
+      (set-amb-frontier-current! f base))
     ;; A child born in a frontier that is not being run goes into that
     ;; frontier, which is mounted in `f`; otherwise it goes into `f`
     ;; itself.  Both go to the front under `depth-first?`, to the back
@@ -725,11 +759,15 @@
     ;; one finished choice per level (a loop with a local choice in it)
     ;; would be resumed through all of them.  The inner mount has been
     ;; through here already, so one step is enough.
+;; A frontier user code can hold is never collapsed: it may be
+    ;; installed again, and the result must not depend on whether it was.
     (define (collapse m)
       (define g (mount-frontier m))
       (define items (amb-frontier-items g))
       (cond
-        [(and (= (ideque-length items) 1) (mount? (ideque-front items)))
+        [(and (= (ideque-length items) 1)
+              (mount? (ideque-front items))
+              (not (amb-frontier-exposed? g)))
          (define inner (ideque-front items))
          (set-amb-frontier-forward! g (mount-frontier inner))
          (mount (mount-frontier inner) (mount-fair? m))]
@@ -738,25 +776,32 @@
              thk [handler amb-fail] #:frontier [root #f])
       (if (equal? thk amb-fail)
           empty-sequence
-          (make-sequence
-           (λ ()
-             (when (and root (not (eq? handler amb-fail)))
-               (raise-arguments-error
-                'in-amb "an empty handler and a frontier cannot both be given"
-                "handler" handler "frontier" root))
-             (define f (or root (amb-frontier empty-ideque handler #f #f)))
-             (set-amb-frontier-forward! f #f)
-             (push-front! f (make-amb-root thk f))
-             (define running (list f))
-             ;; #t while a step runs: still #t at the next step only if
-             ;; the last one escaped
-             (define stepping? #f)
-             (let loop ()
-               (when stepping? (land! f))
-               (set! stepping? #t)
-               (define v* (search f running #t))
-               (set! stepping? #f)
-               (values v* (if v* loop raise-empty-sequence-error)))))))
+          (let ([loop #f])
+            (make-sequence
+             ;; Set up once: if the first step escapes, the sequence calls
+             ;; this again, which must not push another root.
+             (λ ()
+               (unless loop
+                 (when (and root (not (eq? handler amb-fail)))
+                   (raise-arguments-error
+                    'in-amb "an empty handler and a frontier cannot both be given"
+                    "handler" handler "frontier" root))
+                 (define f (or root (new-frontier handler #f)))
+                 (set-amb-frontier-forward! f #f)
+                 (push-front! f (make-amb-root thk f))
+                 (define running (list f))
+                 ;; the stack of `f` when the current step began; #t
+                 ;; while no step is running
+                 (define base #t)
+                 (set! loop
+                       (λ ()
+                         ;; still in a step: the last one escaped
+                         (unless (eq? base #t) (land! f base))
+                         (set! base (amb-frontier-current f))
+                         (define v* (search f running #t))
+                         (set! base #t)
+                         (values v* (if v* loop raise-empty-sequence-error)))))
+               (loop))))))
     (values (make make-stream   empty-stream   raise-empty-stream-error)
             (make make-sequence empty-sequence raise-empty-sequence-error))))
 
