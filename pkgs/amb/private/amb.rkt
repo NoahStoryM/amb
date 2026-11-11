@@ -147,7 +147,7 @@
              ;; prompt's own frame can reappear innermost when a
              ;; continuation captured across another prompt is applied
              ;; again (seen on Racket v9.3 CS), which would hide the
-             ;; `reentrant-amb` mark of a running handler.
+             ;; mark of a search started inside this one.
              (let ([vs (with-continuation-mark empty-handler-key handler
                          (call-with-values thk list))])
                vs))]
@@ -194,10 +194,11 @@
 ;; For example, (when (amb #t #f) (amb)) is a pause: the search outputs
 ;; the handler's answer, then continues after it.
 ;;
-;; While the handler runs, the mark is replaced with `reentrant-amb`, so
-;; a handler that itself reaches `(amb)` of the same search raises an
-;; error instead of calling itself forever.  An inner search inside the
-;; handler has its own mark and is not affected.
+;; The handler may reach `(amb)` of the same search itself: that is a
+;; recursive call of the handler, whose `(amb)` abandons the outer call,
+;; so the answer is that of the innermost call.  It ends only if the
+;; handler changes some state; an inner search inside the handler has
+;; its own mark and handler.
 (define empty-handler-key (make-continuation-mark-key 'amb-empty-handler))
 (define (amb-empty-handler)
   (define handler
@@ -205,16 +206,8 @@
   (cond
     [(eq? handler amb-fail) (amb-fail)]
     [else
-     (define vs
-       (call-with-values
-        (λ () (with-continuation-mark empty-handler-key reentrant-amb (handler)))
-        list))
+     (define vs (call-with-values handler list))
      (abort/cc amb-prompt-tag (λ () vs))]))
-;; A misuse of the handler protocol, so `exn:fail:contract`, like the
-;; error for `(amb)` outside any search.
-(define (reentrant-amb)
-  (raise-arguments-error
-   'amb "(amb) reached inside the empty handler of the same search"))
 
 
 ;; ---- Ambiguous Operator ----
