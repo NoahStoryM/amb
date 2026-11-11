@@ -37,6 +37,7 @@
 
 (provide amb
          for/amb for*/amb
+         amb/local
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          amb-fail

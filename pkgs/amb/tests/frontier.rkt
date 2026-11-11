@@ -122,3 +122,71 @@
   (define f (make-amb-frontier))
   (check-equal? (for/first ([x (in-amb/do (amb 1 2 3) #:frontier f)]) x) 1)
   (check-equal? (for/list ([x (in-amb/do (amb 'p 'q) #:frontier f)]) x) '(p q 2 3)))
+
+;; ---- Local frontiers ----
+
+(define (pause) (when (amb #t #f) (amb)))
+
+(test-case "a local frontier inherits the empty handler"
+  (check-equal? (stream->list
+                 (in-amb (amb/local 1 (amb) 2) #:empty-handler (λ () 'R)))
+                '(1 R 2)))
+
+(test-case "running out is a dead end, never an (amb)"
+  ;; the handler is called only for the explicit (amb)
+  (define calls 0)
+  (check-equal? (stream->list
+                 (in-amb (amb/local (amb/local 1 2) (amb/local) 3)
+                         #:empty-handler (λ () (set! calls (add1 calls)) 'P)))
+                '(1 2 P 3))
+  (check-equal? calls 1))
+
+(test-case "the turn ends where the handler returns"
+  ;; a handler that fails does not end a turn; the default one does
+  (define (s1) (amb/local 1 2 3 (amb) 4 5 6))
+  (define (s2) (amb/local 7 8 (amb) 9 (amb)))
+  (check-equal? (stream->list (in-amb (amb/local (s1) (s2)))) '(1 2 3 7 8 4 5 6 9))
+  (check-equal? (stream->list (in-amb (amb/local (s1) (s2)) #:empty-handler (λ () (amb-fail))))
+                '(1 2 3 4 5 6 7 8 9)))
+
+(test-case "amb-frontier-length: a mounted local frontier counts as one item"
+  (define root (make-amb-frontier))
+  (check-equal? (stream->list
+                 (in-amb (amb/local (amb 'p (begin (amb 1 2 3)
+                                                   (amb-frontier-length root))))
+                         #:frontier root))
+                '(p 1 1 1)))
+
+(test-case "a choice after an amb/local returns is held in the local frontier"
+  ;; its (amb) is answered by the outer handler and ends a local turn
+  (check-equal? (stream->list
+                 (in-amb (let ([v (amb/local 1 2)]) (list v (amb 'x (amb) 'y)))
+                         #:empty-handler (λ () 'P)))
+                '((1 x) P (2 x) P (1 y) (2 y)))
+  (check-equal? (stream->list
+                 (in-amb (let ([v (amb 1 2)]) (list v (amb 'x (amb) 'y)))
+                         #:empty-handler (λ () 'P)))
+                '((1 x) P (1 y) (2 x) P (2 y)))
+  ;; and after the local frontier has run out of its own trees
+  (define r
+    (stream->list
+     (in-amb (amb/local 'x
+                        (let ([v (amb/local 'a (begin (pause) 'b))])
+                          (list v (amb 1 2))))
+             #:empty-handler (λ () 'P))))
+  (check-equal? (sort (filter pair? r) string<? #:key (λ (p) (format "~a" p)))
+                '((a 1) (a 2) (b 1) (b 2)))
+  (check-equal? (count (λ (v) (eq? v 'P)) r) 1)
+  (check-equal? (car r) 'x))
+
+(test-case "after the handler raises inside a local frontier the search goes on"
+  (define first? #t)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (amb/local (amb/local 1 (amb) 2) 3)
+                #:empty-handler (λ () (if first? (begin (set! first? #f) (error "boom")) 'P)))))
+  (check-equal? (get) 1)
+  (check-exn #rx"boom" get)
+  ;; the raise ended nothing: (amb) was used up, and no turn ended there
+  (check-equal? (for/list ([_ 2]) (get)) '(2 3))
+  (check-false (more?)))
