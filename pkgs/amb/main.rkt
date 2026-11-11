@@ -31,12 +31,13 @@
 ;; that uses `in-amb*` / `in-amb*/do` -- including through the `for`
 ;; clause expansion below -- is the one blamed for a bad argument.
 (define-module-boundary-contract in-amb*
-  -in-amb*    (->* ((-> any)) ((-> any)) stream?))
+  -in-amb*    (->* ((-> any)) ((-> any) #:frontier (or/c #f amb-frontier?)) stream?))
 (define-module-boundary-contract in-amb*/do
-  -in-amb*/do (->* ((-> any)) ((-> any)) sequence?))
+  -in-amb*/do (->* ((-> any)) ((-> any) #:frontier (or/c #f amb-frontier?)) sequence?))
 
 (provide amb
          for/amb for*/amb
+         amb/local for/amb/local for*/amb/local
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          amb-fail
@@ -44,8 +45,12 @@
           [make-amb (-> (-> boolean?) (-> any) any)]
           [current-amb-depth-first? (parameter/c boolean?)]
           [current-amb-fair?        (parameter/c boolean?)]
-          [current-amb-local?       (parameter/c boolean?)]
-          [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
+          [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]
+          [current-amb-frontier     (parameter/c (or/c #f amb-frontier?))]
+          [make-amb-frontier          (->* () ((-> any)) amb-frontier?)]
+          [amb-frontier?              (-> any/c boolean?)]
+          [amb-frontier-length        (->* () (amb-frontier?) exact-nonnegative-integer?)]
+          [amb-frontier-empty-handler (-> amb-frontier? (-> any))]))
 
 
 ;; ---- in-amb* (function form) ----
@@ -66,7 +71,12 @@
                   (procedure-arity-includes? thk 0)
                   (procedure? handler)
                   (procedure-arity-includes? handler 0))
-       (in-amb* thk handler))]))
+       (in-amb* thk handler))]
+    [(_ thk #:frontier f)
+     (unless (and (procedure? thk)
+                  (procedure-arity-includes? thk 0)
+                  (or (not f) (amb-frontier? f)))
+       (in-amb* thk #:frontier f))]))
 
 ;; `*in-amb*` is the public binding for `in-amb*`.
 ;;
@@ -91,7 +101,14 @@
          [(id ...)
           (let ([thk expr] [handler handler-expr])
             (check-args thk handler)
-            (-in-amb*/do thk handler))])])))
+            (-in-amb*/do thk handler))])]
+      [[(id:id ...) (_ expr #:frontier frontier-expr)]
+       (syntax/loc stx
+         [(id ...)
+          (let ([thk expr] [f frontier-expr])
+            (check-args thk #:frontier f)
+            (-in-amb*/do thk #:frontier f))])]
+      [_ #f])))
 
 
 ;; ---- in-amb (macro form) ----
@@ -105,7 +122,10 @@
        (-in-amb* (λ () expr)))]
     [(_ expr #:empty-handler handler)
      (syntax/loc stx
-       (in-amb* (λ () expr) handler))]))
+       (in-amb* (λ () expr) handler))]
+    [(_ expr #:frontier frontier)
+     (syntax/loc stx
+       (in-amb* (λ () expr) #:frontier frontier))]))
 
 ;; `*in-amb` is the public binding for `in-amb`.
 ;;
@@ -125,7 +145,11 @@
       [[(id:id ...) (_ expr #:empty-handler handler)]
        (syntax/loc stx
          [(id ...)
-          (in-amb*/do (λ () expr) handler)])])))
+          (in-amb*/do (λ () expr) handler)])]
+      [[(id:id ...) (_ expr #:frontier frontier)]
+       (syntax/loc stx
+         [(id ...)
+          (in-amb*/do (λ () expr) #:frontier frontier)])])))
 
 
 ;; ---- in-amb/do (macro form, sequence only) ----
@@ -141,4 +165,7 @@
        (in-amb*/do (λ () expr)))]
     [(_ expr #:empty-handler handler)
      (syntax/loc stx
-       (in-amb*/do (λ () expr) handler))]))
+       (in-amb*/do (λ () expr) handler))]
+    [(_ expr #:frontier frontier)
+     (syntax/loc stx
+       (in-amb*/do (λ () expr) #:frontier frontier))]))

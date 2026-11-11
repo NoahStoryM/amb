@@ -9,6 +9,7 @@
   - [[#pruning-with-amb][Pruning with =(amb)=]]
   - [[#iteration-with-foramb][Iteration with =for/amb=]]
   - [[#search-strategy][Search Strategy]]
+  - [[#local-frontiers][Local Frontiers]]
 - [[#implementation][Implementation]]
 - [[#documentation][Documentation]]
 - [[#license][License]]
@@ -78,13 +79,35 @@ so different parts of a computation can use different strategies via
 ;; => '(1 7 8 2 3 4 5 6)
 #+end_src
 
+** Local Frontiers
+
+=amb/local= makes a choice whose branches get a frontier of their own.
+To the frontier around it the group is one item, and inside it =(amb)=
+ends a turn: the branches take turns at each =(amb)=, level by level.
+With an empty handler, =(when (amb #t #f) (amb))= is an observable
+pause, so =amb= can interleave unbounded computations the way streams
+do:
+
+#+begin_src racket
+(define (s1) (amb 1 2 3 (amb) 4 5 6))
+(define (s2) (amb 7 8 (amb) 9 (amb)))
+(for/list ([x (in-amb (amb/local (s1) (s2)) #:empty-handler (λ () 'pause))])
+  x)
+;; => '(1 2 3 pause 7 8 pause 4 5 6 9 pause)
+#+end_src
+
+Frontiers are first-class values: =make-amb-frontier= makes one with its
+own empty handler, =current-amb-frontier= installs one, and
+=amb-frontier-length= tells how many items wait in one.
+
 * Implementation
 
-The search tree is driven by composable continuations (=shift=/=reset=)
-with an immutable double-ended queue as the frontier.  Each =amb= or
-=for/amb= captures a composable continuation delimited by
+The search tree is driven by composable continuations (=shift=/=reset=).
+Each =amb= or =for/amb= captures a composable continuation delimited by
 =amb-prompt-tag= and packages it into an =amb-tree= struct that also
-records the search strategy parameters in effect at capture time.
+records the search strategy parameters and the frontier in effect at
+capture time.  A frontier is a mutable handle on an immutable
+double-ended queue of trees and of other (local) frontiers.
 
 * Documentation
 

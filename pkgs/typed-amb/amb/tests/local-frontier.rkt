@@ -1,32 +1,41 @@
 #lang typed/racket/base
 
-;; Typed `current-amb-local?`: local frontiers.
+;; Typed local frontiers: `amb/local`, `for/amb/local`, `amb-frontier-length`.
 (require typed/amb typed/rackunit)
 
-(define-syntax-rule (local e) (parameterize ([current-amb-local? #t]) e))
-
-(define (s1) : Integer (local (amb 1 2 3 (amb) 4 5 6)))
-(define (s2) : Integer (local (amb 7 8 (amb) 9 (amb))))
+(define (s1) : Integer (amb/local 1 2 3 (amb) 4 5 6))
+(define (s2) : Integer (amb/local 7 8 (amb) 9 (amb)))
 
 (check-equal? (for/list : (Listof (∪ Integer 'pause))
-                ([x (in-amb/do (local (amb (s1) (s2))) #:empty-handler (λ () 'pause))])
+                ([x (in-amb/do (amb/local (s1) (s2)) #:empty-handler (λ () 'pause))])
                 x)
               '(1 2 3 pause 7 8 pause 4 5 6 9 pause))
-(check-equal? (for/list : (Listof Integer) ([x (in-amb/do (local (amb (s1) (s2))))]) x)
+(check-equal? (for/list : (Listof Integer) ([x (in-amb/do (amb/local (s1) (s2)))]) x)
               '(1 2 3 7 8 4 5 6 9))
 
-;; for/amb and make-amb take the parameter too
+;; for/amb/local takes the same forms as for/amb
 (check-equal? (for/list : (Listof Integer)
-                ([x (in-amb/do (local (for/amb : Integer ([s (list s1 s2)]) (s))))])
+                ([x (in-amb/do (for/amb/local : Integer ([s (list s1 s2)]) (s)))])
                 x)
               '(1 2 3 7 8 4 5 6 9))
 (check-equal? (for/list : (Listof Integer)
-                ([x (in-amb/do
-                     (let ([l : (Listof (→ Integer)) (list s1 s2)])
-                       ((local ((inst make-amb (→ Integer))
-                                (λ () (pair? l))
-                                (λ () (begin0 (car l) (set! l (cdr l)))))))))])
+                ([x (in-amb/do (for/amb/local : Integer #:length 2 ([s (list s1 s2)]) : Integer (s)))])
+                x)
+              '(1 2 3 7 8 4 5 6 9))
+(check-equal? (for/list : (Listof Integer)
+                ([x (in-amb/do (for*/amb/local ([l (list (list s1 s2))] [s l]) : Integer (s)))])
                 x)
               '(1 2 3 7 8 4 5 6 9))
 
-(check-false (current-amb-local?))
+;; several values
+(check-equal? (for/list : (Listof (List Integer Symbol))
+                ([(a b) (in-amb/do (amb/local (values 1 'a) (values 2 'b)))])
+                (list a b))
+              '((1 a) (2 b)))
+
+;; the length of the current frontier
+(check-equal? (for/list : (Listof (List Symbol Integer))
+                ([(s n) (in-amb/do (let ([s : Symbol (amb/local 'a 'b)])
+                                     (values s (amb-frontier-length))))])
+                (list s n))
+              '((a 1) (b 1)))

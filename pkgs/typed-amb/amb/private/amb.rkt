@@ -17,6 +17,7 @@
 
 (provide amb
          for/amb for*/amb
+         amb/local for/amb/local for*/amb/local
          in-amb  in-amb/do)
 
 
@@ -85,12 +86,16 @@
                 (Sequenceof a ... a))))]
   [current-amb-depth-first? (Parameter Boolean)]
   [current-amb-fair?        (Parameter Boolean)]
-  [current-amb-local?       (Parameter Boolean)]
   [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
   [unsafe-fail (→ ⊥)]
   [amb-empty-handler (→ ⊥)]
   [amb-fail    (→ ⊥)]
-  [make-amb-tree (→ (Values))])
+  [make-amb-tree (→ (Values))]
+  ;; The frontier itself is not exposed: its type would depend on the
+  ;; answer type of the innermost search.
+  [call-with-local-frontier
+   (∀ (a ...) (→ (→ (Values a ... a)) (Values a ... a)))]
+  [amb-frontier-length (→ Natural)])
 
 (require/typed/provide amb/private/data/mutable-vector
   [empty-mutable-vector (Mutable-Vector)])
@@ -118,6 +123,25 @@
      (syntax/loc stx (amb-empty-handler))]
     [(_ expr* ...)
      (syntax/loc stx (unsafe-amb* (thunks (λ () expr*) ...)))]))
+
+
+;; ---- Local Choices ----
+
+;; `amb/local` and `for/amb/local` are `amb` and `for/amb` in a fresh
+;; frontier, as in the untyped version (where they are a `parameterize`
+;; of `current-amb-frontier`, which is not exposed here).
+(define-syntax (amb/local stx)
+  (syntax-parse stx
+    [(_ expr* ...)
+     (syntax/loc stx (call-with-local-frontier (λ () (amb expr* ...))))]))
+(define-syntaxes (for/amb/local for*/amb/local)
+  (let ()
+    (define ((make for/amb) stx)
+      (syntax-parse stx
+        [(_ . rest)
+         (quasisyntax/loc stx
+           (call-with-local-frontier (λ () (#,for/amb . rest))))]))
+    (values (make #'for/amb) (make #'for*/amb))))
 
 
 ;; ---- for/amb: Nondeterministic Choice over Sequences ----

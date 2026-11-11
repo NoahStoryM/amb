@@ -36,6 +36,13 @@ annotations:
 ;; => '(1 2 3 4 5)
 #+end_src
 
+Local frontiers are available as =amb/local=, =for/amb/local= and
+=for*/amb/local= (with the same type annotations as =for/amb=), and
+=(amb-frontier-length)= for the current frontier.  The frontier value
+itself (=current-amb-frontier=, =make-amb-frontier=, =#:frontier=) is
+not exposed: its type would depend on the answer type of the innermost
+search.
+
 * Dependencies
 
 This package depends on =amb=.  Install both:

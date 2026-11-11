@@ -26,11 +26,12 @@
 
 (provide make-amb amb-fail
          amb for/amb for*/amb
+         amb/local for/amb/local for*/amb/local
+         amb-frontier-length
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
-         current-amb-local?
          current-amb-shuffler)
 
 
