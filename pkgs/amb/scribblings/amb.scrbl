@@ -39,8 +39,8 @@ Each @racket[amb] expression creates an @tech{amb-tree} with one branch
 per @deftech{alternative}.  A branch that calls @racket[(amb)] is a
 @emph{dead end}: it is pruned and the search backtracks.
 
-Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—an
-immutable deque of pending @tech{amb-trees}.  Each step pops a tree,
+Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—a
+deque of pending @tech{amb-trees}.  Each step pops a tree,
 runs one branch, and, depending on the outcome, either yields a leaf
 and suspends, enqueues a child tree and continues, discards the tree
 and continues (dead end), or just continues.

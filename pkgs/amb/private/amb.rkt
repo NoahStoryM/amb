@@ -5,8 +5,8 @@
 ;; ===================================================================
 ;;
 ;; This module implements the ambiguous operator `amb` and its
-;; companions using composable continuations and an immutable
-;; double-ended queue (deque) as the search frontier.
+;; companions using composable continuations and a frontier: a mutable
+;; handle on an immutable double-ended queue (deque) of pending trees.
 ;;
 ;; All `amb` operations must occur within the dynamic extent of
 ;; `in-amb` (or `in-amb/do`), which installs the continuation prompt
@@ -97,6 +97,23 @@
 ;; communicates through this prompt; `amb-empty-handler` also looks up
 ;; the search's empty handler no further out than it.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
+
+
+;; ---- Frontiers ----
+
+;; A frontier is a mutable handle on an immutable deque of pending
+;; trees.  The deque operations are not exported.
+;;
+;; `current` is the stack of trees popped whose resumption has not
+;; returned yet (see `land!` in the driver).
+(struct amb-frontier ([items #:mutable] [current #:mutable])
+  #:authentic)
+(define (new-frontier)
+  (amb-frontier empty-ideque #f))
+
+;; A tree being resumed, on the `current` stack of its frontier:
+;; `below` is the rest of the stack.
+(struct flight (item below) #:authentic)
 
 
 ;; ---- Tree Construction ----
@@ -450,50 +467,81 @@
 ;; into a lazy stream or a do-sequence respectively.
 
 (define-values (in-amb* in-amb*/do)
-  (let ([pop ideque-pop-front])
-    ;; The `search` function walks the frontier deque until a leaf is
-    ;; found or the deque is empty.  For each dequeued tree `tree0`,
-    ;; it calls `(tree0)` and inspects the result `tree1`:
+  (let ()
+    (define (push-front! f v)
+      (set-amb-frontier-items! f (ideque-add-front (amb-frontier-items f) v)))
+    (define (push-back! f v)
+      (set-amb-frontier-items! f (ideque-add-back (amb-frontier-items f) v)))
+    ;; `search` runs the frontier `f` until a leaf is found or `f` is
+    ;; empty.  For each tree `tree0` popped from `f`, it calls `(tree0)`
+    ;; and inspects the result `tree1`:
     ;;
     ;;   dead      → dead end; discard `tree0` and continue searching
-    ;;   #f        → nothing produced; push `tree0` back and continue
-    ;;               search
-    ;;   list?     → leaf; push `tree0` back (per its `fair?` field),
-    ;;               return the result and suspend searching
-    ;;   amb-tree? → branch; push `tree0` back (per its `fair?` field),
-    ;;               enqueue `tree1` (per `tree0`'s `depth-first?` field),
-    ;;               and continue searching
-    (define (search frontier)
-      (if (ideque-empty? frontier)
-          (values #f frontier)
-          (let-values ([(tree0 frontier) (pop frontier)])
-            (define tree1 (tree0))
-            (if (eq? tree1 dead)
-                (search frontier)
-                (let* ([push (if (amb-tree-fair? tree0)
-                                 ideque-add-back
-                                 ideque-add-front)]
-                       [frontier (push frontier tree0)])
-                  (if (amb-tree? tree1)
-                      (let* ([push (if (amb-tree-depth-first? tree0)
-                                       ideque-add-front
-                                       ideque-add-back)]
-                             [frontier (push frontier tree1)])
-                        (search frontier))
-                      (cond
-                        [(or (pair? tree1) (null? tree1))
-                         (values tree1 frontier)]
-                        [(not tree1) (search frontier)]
-                        [else (error 'amb "internal: unexpected tree result ~e" tree1)])))))))
+    ;;   #f        → nothing produced; push `tree0` back (per its
+    ;;               `fair?`) and continue searching
+    ;;   list?     → leaf; push `tree0` back (per its `fair?`), return
+    ;;               the result and suspend searching
+    ;;   amb-tree? → branch; push `tree0` back (per its `fair?`), push
+    ;;               `tree1` (per `tree0`'s `depth-first?`), and continue
+    ;;               searching
+    ;;
+    ;; `f` is a mutable handle, so it is read again after every
+    ;; resumption.
+    ;;
+    ;; While a tree is resumed it is pushed on the `current` stack of
+    ;; `f` (a `flight`).  If the resumption escapes (the empty handler
+    ;; raises, say), the next step of the search puts back, in front of
+    ;; `f`, every tree pushed since its own step began (`land!`), so that
+    ;; the search can go on, as it did when the frontier was an
+    ;; immutable value threaded through the steps.
+    (define (search f)
+      (define items (amb-frontier-items f))
+      (cond
+        [(ideque-empty? items) #f]
+        [else
+         (define-values (tree0 rest) (ideque-pop-front items))
+         (set-amb-frontier-items! f rest)
+         (define prev (amb-frontier-current f))
+         (set-amb-frontier-current! f (flight tree0 prev))
+         (define tree1 (tree0))
+         (set-amb-frontier-current! f prev)
+         (define fair? (amb-tree-fair? tree0))
+         (cond
+           [(eq? tree1 dead) (search f)]
+           [(amb-tree? tree1)
+            (if fair? (push-back! f tree0) (push-front! f tree0))
+            (if (amb-tree-depth-first? tree0) (push-front! f tree1) (push-back! f tree1))
+            (search f)]
+           [else
+            (if fair? (push-back! f tree0) (push-front! f tree0))
+            (cond
+              [(or (pair? tree1) (null? tree1)) tree1]
+              [(not tree1) (search f)]
+              [else (error 'amb "internal: unexpected tree result ~e" tree1)])])]))
+    (define (land! f base)
+      (let loop ([fl (amb-frontier-current f)])
+        (unless (or (eq? fl base) (not fl))
+          (push-front! f (flight-item fl))
+          (loop (flight-below fl))))
+      (set-amb-frontier-current! f base))
     (define ((make make-sequence empty-sequence raise-empty-sequence-error)
              thk [handler amb-fail])
       (if (equal? thk amb-fail)
           empty-sequence
           (make-sequence
            (λ ()
-             (let loop ([frontier (ideque (make-amb-root thk handler))])
-               (let-values ([(v* frontier) (search frontier)])
-                 (values v* (if v* (λ () (loop frontier)) raise-empty-sequence-error))))))))
+             (define f (new-frontier))
+             (push-front! f (make-amb-root thk handler))
+             ;; the stack of `f` when the current step began; #t while
+             ;; no step is running
+             (define base #t)
+             (let loop ()
+               ;; still in a step: the last one escaped
+               (unless (eq? base #t) (land! f base))
+               (set! base (amb-frontier-current f))
+               (define v* (search f))
+               (set! base #t)
+               (values v* (if v* loop raise-empty-sequence-error)))))))
     (values (make make-stream   empty-stream   raise-empty-stream-error)
             (make make-sequence empty-sequence raise-empty-sequence-error))))
 
