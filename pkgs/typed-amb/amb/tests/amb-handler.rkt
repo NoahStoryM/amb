@@ -70,15 +70,17 @@
                 x)
               '(odd 2 odd))
 
-;; (amb) of the same search reached through an empty for/amb in the handler
+;; (amb) reached in the handler (here through an empty for/amb) is a
+;; recursive call of the handler; it ends when the handler stops
 (define calls : Integer 0)
-(check-exn #rx"empty handler of the same search"
-           (λ ()
-             (for/list : (Listof Any)
-               ([x (in-amb/do (amb)
-                              #:empty-handler
-                              (λ ()
-                                (set! calls (add1 calls))
-                                (when (> calls 5) (error "handler called more than 5 times"))
-                                (for/amb : Integer ([i : Integer (in-list (ann '() (Listof Integer)))]) i)))])
-               x)))
+(check-equal? (for/list : (Listof (∪ Integer Symbol))
+                ([x (in-amb/do (amb)
+                               #:empty-handler
+                               (λ () : (∪ Integer Symbol)
+                                 (set! calls (add1 calls))
+                                 (if (> calls 3)
+                                     'done
+                                     (for/amb : Integer ([i : Integer (in-list (ann '() (Listof Integer)))]) i))))])
+                x)
+              '(done))
+(check-equal? calls 4)

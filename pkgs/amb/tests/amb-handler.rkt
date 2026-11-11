@@ -185,36 +185,41 @@
     (check-equal? (for/list ([x (in-amb/do (for/amb #:length 5 ([i '(1 2)]) i) #:empty-handler P)]) x)
                   '(2 1))))
 
-(test-case "(amb) inside the handler of the same search is an error; other choices are fine"
-  (check-exn #rx"empty handler" (λ () (stream->list (in-amb (amb) #:empty-handler (λ () (amb))))))
-  (check-exn exn:fail:contract? (λ () (stream->list (in-amb (amb) #:empty-handler (λ () (amb))))))
+(test-case "(amb) inside the handler is a recursive call; the innermost answer counts"
+  ;; a counter makes it stop; the outer calls are abandoned
+  (define n 0)
+  (define calls '())
+  (check-equal? (stream->list
+                 (in-amb (amb)
+                         #:empty-handler
+                         (λ ()
+                           (set! n (add1 n))
+                           (set! calls (cons n calls))
+                           (if (< n 3) (list 'outer (amb)) n))))
+                '(3))
+  (check-equal? (reverse calls) '(1 2 3))
+  ;; other choices inside the handler are fine
   (check-equal? (stream->list (in-amb (amb) #:empty-handler (λ () (amb 1 2)))) '(1 2))
   ;; an inner search inside the handler has its own handler
   (check-equal? (stream->list (in-amb (amb) #:empty-handler (λ () (stream->list (in-amb (amb 1 (amb)))))))
                 '((1))))
 
-(test-case "reentry is detected through empty choices and resumed continuations too"
-  ;; bounded, so that a regression fails instead of running forever
-  (define (bounded thunk)
-    (define n 0)
-    (λ () (set! n (add1 n)) (when (> n 5) (error "handler called more than 5 times")) (thunk)))
+(test-case "the recursion goes through empty choices and resumed continuations too"
   (for ([h (list (λ () (for/amb ([i '()]) i))
                  (λ () (for/amb #:length 0 ([i '()]) i))
                  (λ () (make-amb (λ () #f) void))
                  (λ () (when (amb #t #f) (amb)) 'P))])
-    (check-exn #rx"empty handler of the same search"
-               (λ () (for/list ([x (in-amb/do (amb) #:empty-handler (bounded h))]) x)))))
+    (define n 0)
+    (define (bounded) (set! n (add1 n)) (if (> n 3) 'done (h)))
+    (check-equal? (for/list ([x (in-amb/do (amb) #:empty-handler bounded)] #:unless (eq? x 'P)) x)
+                  '(done))
+    (check-equal? n 4)))
 
-(test-case "after a reentry error the search goes on"
-  (define first? #t)
-  (define-values (more? get)
-    (sequence-generate
-     (in-amb/do (amb 1 (amb) 2 (amb))
-                #:empty-handler (λ () (if first? (begin (set! first? #f) (amb)) 'ok)))))
-  (check-equal? (get) 1)
-  (check-exn #rx"empty handler of the same search" get)
-  (check-equal? (get) 2)
-  (check-equal? (get) 'ok))
+(test-case "a handler can avoid the recursion with a frontier of its own"
+  (define (handler) (parameterize ([current-amb-frontier (make-amb-frontier (λ () 'inner))])
+                      (list 'outer (amb))))
+  (check-equal? (stream->list (in-amb (amb 1 (amb) 2) #:empty-handler handler))
+                '(1 inner 2)))
 
 (test-case "an inner search without a handler, resumed lazily across outer choices"
   (check-equal?
