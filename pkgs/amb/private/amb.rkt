@@ -67,17 +67,18 @@
 ;; deque of items, together with an *empty handler*, which answers
 ;; `(amb)`.  An item is a tree or a *mount* of another frontier: so the
 ;; frontiers form a tree, and each tree records the frontier it was
-;; born in (the innermost one marked where `make-amb-tree` is called).
+;; born in (the value of `current-amb-frontier` at `make-amb-tree`).
 ;;
 ;;   frontier ──▶ item*        (an item is a tree or a mounted frontier)
 ;;   tree     ──▶ frontier     (where it was born)
 ;;
 ;; `in-amb` runs a *root* frontier, made from its `#:empty-handler` or
-;; given by `#:frontier`.  `amb/local` makes a fresh frontier `f` and
-;; has the trees created in its extent born in `f`.  When a child tree
-;; is born in a frontier that the driver is not running at the moment,
-;; the child is pushed into that frontier, and the frontier is
-;; *mounted*, as one item, in the frontier being run.  A child born in a frontier that is being
+;; given by `#:frontier`.  `(parameterize ([current-amb-frontier f])
+;; ...)` (or `amb/local`, which makes `f` fresh) has the trees created
+;; in its extent born in `f`.  When a child tree is born in a frontier
+;; that the driver is not running at the moment, the child is pushed
+;; into that frontier, and the frontier is *mounted*, as one item, in
+;; the frontier being run.  A child born in a frontier that is being
 ;; run (the current one, or one further out, such as the code after an
 ;; `amb/local` has returned) is pushed into the current one.  Mounting
 ;; again after a frontier ran out is allowed, and so is having one
@@ -107,6 +108,7 @@
          in-amb* in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
+         current-amb-frontier
          current-amb-shuffler
          make-amb-frontier amb-frontier?
          amb-frontier-length amb-frontier-empty-handler)
@@ -133,10 +135,8 @@
 
 ;; The frontier new trees belong to is kept as a continuation mark:
 ;; the root frame of each search (`make-amb-root`) carries an
-;; `amb-search` record of the root frontier, fresh for each search
-;; (unless the root has the default handler: then no mark is found, a
-;; tree records #f for "the root", and none is needed), and `amb/local`
-;; carries its own frontier.  Every continuation of the
+;; `amb-search` record of the root frontier, fresh for each search, and
+;; `amb/local` carries its own frontier.  Every continuation of the
 ;; search is captured inside the root frame, so the mark comes back
 ;; whenever a tree of the search is resumed, and the innermost one (an
 ;; inner search's root, or a local frontier) is found first.  The record
@@ -161,20 +161,27 @@
 ;;
 ;; `current` is the stack of items popped whose resumption has not
 ;; returned yet (see `land!` in the driver).
+;;
+;; `exposed?` is set once user code can hold the frontier
+;; (`make-amb-frontier`, or reading `current-amb-frontier`): such a
+;; frontier may be installed again anywhere, so `collapse` leaves it be.
+;; The frontiers of `amb/local` and of a search without `#:frontier`
+;; stay private.
 (struct amb-frontier ([items #:mutable] empty-handler
-                      [forward #:mutable] [current #:mutable])
+                      [forward #:mutable] [current #:mutable]
+                      [exposed? #:mutable])
   #:authentic)
-(define (new-frontier handler)
-  (amb-frontier empty-ideque handler #f #f))
+(define (new-frontier handler exposed?)
+  (amb-frontier empty-ideque handler #f #f exposed?))
 
 (define (make-amb-frontier [handler (inherited-handler)])
-  (new-frontier handler))
+  (new-frontier handler #t))
 
 (define (inherited-handler)
   (define f (frontier-now))
   (if f (amb-frontier-empty-handler f) amb-fail))
 
-(define (amb-frontier-length f)
+(define (amb-frontier-length [f (frontier-now)])
   (unless (amb-frontier? f)
     (raise-argument-error 'amb-frontier-length "amb-frontier?" f))
   (ideque-length (amb-frontier-items f)))
@@ -189,28 +196,70 @@
      (unless (eq? r g) (set-amb-frontier-forward! f r))
      r]))
 
+
 ;; ---- Parameters ----
 
 (define current-amb-depth-first? (make-parameter #t  ))
 (define current-amb-fair?        (make-parameter #f  ))
 (define current-amb-shuffler     (make-parameter void))
 
+;; `current-amb-frontier` is the frontier new trees are born in.
+;;
+;; It is not stored in the parameterization: a parameterization is a
+;; snapshot of every parameter, so a tree resumed later would see the
+;; other parameters as they were when the frontier was installed, and a
+;; parameter costs about twice as much to read as a mark.  The frontier
+;; is the mark above instead, which the parameter reads.
+;;
+;; A frontier can still be installed with `parameterize`: the guard
+;; records, with it, the mark found where it was installed (`outer`).
+;; It counts as long as that is still the innermost mark, that is, until
+;; an inner `amb/local` or an inner search marks another.  So a frontier
+;; installed outside a search, or in another search, is not seen, and
+;; outside every search the parameter is #f (or what was installed
+;; there).  Installing #f undoes an installation.  Until something is
+;; installed, the parameter is not read at all (`installed?`).
+;;
+;; A continuation that carries the `parameterize` but is applied under
+;; another mark (another `amb/local`) loses the installation there,
+;; unlike other parameters; the documentation says so.
+(struct binding (frontier outer) #:authentic)
+(define raw-frontier (make-parameter #f))
+(define installed? #f)
+(define (resolve b m)
+  (if (and b (eq? (binding-outer b) m) (binding-frontier b))
+      (binding-frontier b)
+      m))
 ;; Anywhere, and inside a search only (where `amb-prompt-tag` is
 ;; available): in `make-amb-tree` (where `shift-at` needs the prompt
 ;; anyway) and in `amb-empty-handler` (where the error for `(amb)`
-;; outside any search comes from).  #f when no frontier is marked:
-;; outside any search, or in the root of a search with the default
-;; handler.
+;; outside any search comes from).
 (define (frontier-now)
-  (and (continuation-prompt-available? amb-prompt-tag)
-       (frontier-in-prompt)))
+  (frontier-of (and (continuation-prompt-available? amb-prompt-tag)
+                    (marked-frontier))))
 (define (frontier-in-prompt)
-  (unmark (marked-frontier)))
+  (frontier-of (marked-frontier)))
+(define (frontier-of m)
+  (unmark (if installed? (resolve (raw-frontier) m) m)))
+(define current-amb-frontier
+  (make-derived-parameter
+   raw-frontier
+   (λ (f)
+     (unless (or (not f) (amb-frontier? f))
+       (raise-argument-error 'current-amb-frontier "(or/c #f amb-frontier?)" f))
+     (set! installed? #t)
+     (binding f (and (continuation-prompt-available? amb-prompt-tag)
+                     (marked-frontier))))
+   (λ (b)
+     (define f (frontier-now))
+     (when f (set-amb-frontier-exposed?! f #t))
+     f)))
 
 ;; `amb/local` is `amb` in a fresh frontier of its own; the code after
-;; it returns is back in the frontier around it.
+;; it returns is back in the frontier around it.  The same as
+;; `parameterize`, but with the mark directly.
 (define (call-with-local-frontier thk)
-  (with-continuation-mark frontier-key (new-frontier (inherited-handler))
+  (with-continuation-mark frontier-key (new-frontier (inherited-handler) #f)
     (thk)))
 
 
@@ -262,19 +311,14 @@
       (cond
         [first?
          (set! first? #f)
-         (if (eq? (amb-frontier-empty-handler frontier) amb-fail)
-             ;; Not attached for the default handler, which a lookup that
-             ;; finds no mark falls back to anyway: a frame with a mark
-             ;; makes every resumption of the search slower.
-             (call-with-values thk list)
-             ;; Not in tail position of `reset-at`: a mark on the
-             ;; prompt's own frame can reappear innermost when a
-             ;; continuation captured across another prompt is applied
-             ;; again (seen on Racket v9.3 CS), which would hide the
-             ;; mark of a frontier installed inside this one.
-             (let ([vs (with-continuation-mark frontier-key search
-                         (call-with-values thk list))])
-               vs))]
+         ;; Not in tail position of `reset-at`: a mark on the prompt's
+         ;; own frame can reappear innermost when a continuation
+         ;; captured across another prompt is applied again (seen on
+         ;; Racket v9.3 CS), which would hide the mark of a frontier
+         ;; installed inside this one.
+         (let ([vs (with-continuation-mark frontier-key search
+                     (call-with-values thk list))])
+           vs)]
         [else dead])))
   (amb-tree k depth-first? fair? frontier))
 
@@ -306,7 +350,7 @@
 
 ;; `(amb)` is a choice among no alternatives: the computation ends
 ;; here.  What it ends *with* is decided by the *empty handler* of the
-;; current frontier (the innermost one marked): of the root frontier, the
+;; current frontier (`current-amb-frontier`): of the root frontier, the
 ;; handler given as `#:empty-handler` to `in-amb` / `in-amb/do`
 ;; (default `amb-fail`); of a local one, the handler it was made with
 ;; (by default that of the frontier it was made in).
@@ -578,7 +622,8 @@
 ;; ---- Local Choices ----
 
 ;; `amb/local` and `for/amb/local` are `amb` and `for/amb` in a fresh
-;; frontier.
+;; frontier: `(parameterize ([current-amb-frontier (make-amb-frontier)])
+;; (amb ...))`.
 (define-syntax (amb/local stx)
   (syntax-parse stx
     [(_ expr* ...)
@@ -700,10 +745,9 @@
     ;; otherwise.
     (define (place! f running tree1 depth-first?)
       (define push! (if depth-first? push-front! push-back!))
-      ;; #f: born in the root of this search, which is being run
       (define g (amb-tree-frontier tree1))
       (cond
-        [(or (not g) (eq? g f) (memq (find g) running)) (push! f tree1)]
+        [(or (eq? g f) (memq (find g) running)) (push! f tree1)]
         [else
          (set-amb-frontier-forward! g #f)
          (push! g tree1)
@@ -715,11 +759,15 @@
     ;; one finished choice per level (a loop with a local choice in it)
     ;; would be resumed through all of them.  The inner mount has been
     ;; through here already, so one step is enough.
+    ;; A frontier user code can hold is never collapsed: it may be
+    ;; installed again, and the result must not depend on whether it was.
     (define (collapse m)
       (define g (mount-frontier m))
       (define items (amb-frontier-items g))
       (cond
-        [(and (= (ideque-length items) 1) (mount? (ideque-front items)))
+        [(and (= (ideque-length items) 1)
+              (mount? (ideque-front items))
+              (not (amb-frontier-exposed? g)))
          (define inner (ideque-front items))
          (set-amb-frontier-forward! g (mount-frontier inner))
          (mount (mount-frontier inner) (mount-fair? m))]
@@ -738,7 +786,7 @@
                    (raise-arguments-error
                     'in-amb "an empty handler and a frontier cannot both be given"
                     "handler" handler "frontier" root))
-                 (define f (or root (new-frontier handler)))
+                 (define f (or root (new-frontier handler #f)))
                  (set-amb-frontier-forward! f #f)
                  (push-front! f (make-amb-root thk f))
                  (define running (list f))
