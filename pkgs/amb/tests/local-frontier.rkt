@@ -130,6 +130,10 @@
   (check-equal? (run (λ () (fair (amb (amb (amb 1 2) 3) (amb 'a 'b 'c)))))
                 '(1 a 3 2 b c)))
 
+(test-case "a long chain of finished choices does not slow the search down"
+  (define (count-up n) (amb/local n (begin (pause) (count-up (add1 n)))))
+  (check-equal? (length (run (λ () (count-up 0)) 20000)) 20000))
+
 (test-case "every strategy: local frontiers keep the answers and the pauses"
   ;; a small random-ish tree of local and plain choices with pauses
   (define (tree d i)

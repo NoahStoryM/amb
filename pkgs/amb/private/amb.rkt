@@ -154,15 +154,18 @@
 ;; A frontier is a mutable handle on an immutable deque of items, and
 ;; the empty handler that answers `(amb)` in it.  The deque operations
 ;; are not exported.
-
+;;
+;; `forward` is set when every turn of this frontier would only run one
+;; other frontier (see `collapse` in the driver): the driver then runs
+;; that one directly, and asks `find` whether this one is being run.
 ;;
 ;; `current` is the stack of items popped whose resumption has not
 ;; returned yet (see `land!` in the driver).
-
-(struct amb-frontier ([items #:mutable] empty-handler [current #:mutable])
+(struct amb-frontier ([items #:mutable] empty-handler
+                      [forward #:mutable] [current #:mutable])
   #:authentic)
 (define (new-frontier handler)
-  (amb-frontier empty-ideque handler #f))
+  (amb-frontier empty-ideque handler #f #f))
 
 (define (make-amb-frontier [handler (inherited-handler)])
   (new-frontier handler))
@@ -175,6 +178,16 @@
   (unless (amb-frontier? f)
     (raise-argument-error 'amb-frontier-length "amb-frontier?" f))
   (ideque-length (amb-frontier-items f)))
+
+;; Follow (and compress) `forward` links.
+(define (find f)
+  (define g (amb-frontier-forward f))
+  (cond
+    [(not g) f]
+    [else
+     (define r (find g))
+     (unless (eq? r g) (set-amb-frontier-forward! f r))
+     r]))
 
 ;; ---- Parameters ----
 
@@ -660,13 +673,15 @@
             (place! f running tree1 (amb-tree-depth-first? item0))
             (search f running root?)]
            [(yielded? tree1)
-            (if (or mounted? (not root?) fair?) (push-back! f item0) (push-front! f item0))
+            (define item (if mounted? (collapse item0) item0))
+            (if (or mounted? (not root?) fair?) (push-back! f item) (push-front! f item))
             (cond
               [(not root?) tree1]
               [(yielded-vs tree1) => values]
               [else (search f running root?)])]
            [else
-            (if fair? (push-back! f item0) (push-front! f item0))
+            (define item (if mounted? (collapse item0) item0))
+            (if fair? (push-back! f item) (push-front! f item))
             (cond
               [(or (pair? tree1) (null? tree1)) tree1]
               [(not tree1) (search f running root?)]
@@ -688,10 +703,27 @@
       ;; #f: born in the root of this search, which is being run
       (define g (amb-tree-frontier tree1))
       (cond
-        [(or (not g) (eq? g f) (memq g running)) (push! f tree1)]
+        [(or (not g) (eq? g f) (memq (find g) running)) (push! f tree1)]
         [else
+         (set-amb-frontier-forward! g #f)
          (push! g tree1)
          (push! f (mount g (amb-tree-fair? tree1)))]))
+    ;; A frontier that holds nothing but one mount, and is not being run,
+    ;; can get a second item only by being mounted again, so its mount
+    ;; is replaced with that one (keeping the outer `fair?`), and it is
+    ;; forwarded there for `place!`.  Otherwise a recursion that leaves
+    ;; one finished choice per level (a loop with a local choice in it)
+    ;; would be resumed through all of them.  The inner mount has been
+    ;; through here already, so one step is enough.
+    (define (collapse m)
+      (define g (mount-frontier m))
+      (define items (amb-frontier-items g))
+      (cond
+        [(and (= (ideque-length items) 1) (mount? (ideque-front items)))
+         (define inner (ideque-front items))
+         (set-amb-frontier-forward! g (mount-frontier inner))
+         (mount (mount-frontier inner) (mount-fair? m))]
+        [else m]))
     (define ((make make-sequence empty-sequence raise-empty-sequence-error)
              thk [handler amb-fail] #:frontier [root #f])
       (if (equal? thk amb-fail)
@@ -707,6 +739,7 @@
                     'in-amb "an empty handler and a frontier cannot both be given"
                     "handler" handler "frontier" root))
                  (define f (or root (new-frontier handler)))
+                 (set-amb-frontier-forward! f #f)
                  (push-front! f (make-amb-root thk f))
                  (define running (list f))
                  ;; the stack of `f` when the current step began; #t
