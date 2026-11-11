@@ -70,7 +70,9 @@
          in-amb* in-amb*/do
          current-amb-depth-first?
          current-amb-fair?
-         current-amb-shuffler)
+         current-amb-shuffler
+         make-amb-frontier amb-frontier?
+         amb-frontier-length amb-frontier-empty-handler)
 (provide amb-fail amb-empty-handler unsafe-fail make-amb-tree thunks unsafe-amb*)
 
 
@@ -111,9 +113,13 @@
   (continuation-mark-set-first #f frontier-key #f amb-prompt-tag))
 (define (unmark m)
   (if (amb-search? m) (amb-search-frontier m) m))
-;; Inside a search only (where `amb-prompt-tag` is available): in
-;; `amb-empty-handler`, where the error for `(amb)` outside any search
-;; comes from.
+;; Anywhere, and inside a search only (where `amb-prompt-tag` is
+;; available): in `amb-empty-handler`, where the error for `(amb)`
+;; outside any search comes from.  #f when no frontier is marked: outside
+;; any search, or in a search whose frontier has the default handler.
+(define (frontier-now)
+  (and (continuation-prompt-available? amb-prompt-tag)
+       (frontier-in-prompt)))
 (define (frontier-in-prompt)
   (unmark (marked-frontier)))
 
@@ -130,6 +136,18 @@
   #:authentic)
 (define (new-frontier handler)
   (amb-frontier empty-ideque handler #f))
+
+(define (make-amb-frontier [handler (inherited-handler)])
+  (new-frontier handler))
+
+(define (inherited-handler)
+  (define f (frontier-now))
+  (if f (amb-frontier-empty-handler f) amb-fail))
+
+(define (amb-frontier-length f)
+  (unless (amb-frontier? f)
+    (raise-argument-error 'amb-frontier-length "amb-frontier?" f))
+  (ideque-length (amb-frontier-items f)))
 
 ;; A tree being resumed, on the `current` stack of its frontier:
 ;; `below` is the rest of the stack.
@@ -503,14 +521,17 @@
     ;;               searching
     ;;
     ;; `f` is a mutable handle, so it is read again after every
-    ;; resumption.
+    ;; resumption: the code resumed may have run a search of its own on
+    ;; the same frontier.
     ;;
     ;; While a tree is resumed it is pushed on the `current` stack of
     ;; `f` (a `flight`).  If the resumption escapes (the empty handler
     ;; raises, say), the next step of the search puts back, in front of
     ;; `f`, every tree pushed since its own step began (`land!`), so that
-    ;; the search can go on, as it did when the frontier was an
-    ;; immutable value threaded through the steps.
+    ;; the search can go on.  A search started inside on the same
+    ;; frontier pushes above the outer one's tree; if it escapes, the
+    ;; outer one puts back both, and if it is stepped again itself it
+    ;; puts back only its own.
     (define (search f)
       (define items (amb-frontier-items f))
       (cond
@@ -542,23 +563,33 @@
           (loop (flight-below fl))))
       (set-amb-frontier-current! f base))
     (define ((make make-sequence empty-sequence raise-empty-sequence-error)
-             thk [handler amb-fail])
+             thk [handler amb-fail] #:frontier [root #f])
       (if (equal? thk amb-fail)
           empty-sequence
-          (make-sequence
-           (λ ()
-             (define f (new-frontier handler))
-             (push-front! f (make-amb-root thk f))
-             ;; the stack of `f` when the current step began; #t while
-             ;; no step is running
-             (define base #t)
-             (let loop ()
-               ;; still in a step: the last one escaped
-               (unless (eq? base #t) (land! f base))
-               (set! base (amb-frontier-current f))
-               (define v* (search f))
-               (set! base #t)
-               (values v* (if v* loop raise-empty-sequence-error)))))))
+          (let ([loop #f])
+            (make-sequence
+             ;; Set up once: if the first step escapes, the sequence calls
+             ;; this again, which must not push another root.
+             (λ ()
+               (unless loop
+                 (when (and root (not (eq? handler amb-fail)))
+                   (raise-arguments-error
+                    'in-amb "an empty handler and a frontier cannot both be given"
+                    "handler" handler "frontier" root))
+                 (define f (or root (new-frontier handler)))
+                 (push-front! f (make-amb-root thk f))
+                 ;; the stack of `f` when the current step began; #t
+                 ;; while no step is running
+                 (define base #t)
+                 (set! loop
+                       (λ ()
+                         ;; still in a step: the last one escaped
+                         (unless (eq? base #t) (land! f base))
+                         (set! base (amb-frontier-current f))
+                         (define v* (search f))
+                         (set! base #t)
+                         (values v* (if v* loop raise-empty-sequence-error)))))
+               (loop))))))
     (values (make make-stream   empty-stream   raise-empty-stream-error)
             (make make-sequence empty-sequence raise-empty-sequence-error))))
 
@@ -572,6 +603,9 @@
            (#,derived-stx (λ () expr)))]
         [(_ expr #:empty-handler handler)
          (quasisyntax/loc stx
-           (#,derived-stx (λ () expr) handler))]))
+           (#,derived-stx (λ () expr) handler))]
+        [(_ expr #:frontier frontier)
+         (quasisyntax/loc stx
+           (#,derived-stx (λ () expr) #:frontier frontier))]))
     (values (make #'in-amb*)
             (make #'in-amb*/do))))
