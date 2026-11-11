@@ -451,8 +451,10 @@ each resumption calls @racket[more?] to check for remaining
 
 @defform[(in-amb expr maybe-empty)
          #:grammar ([maybe-empty (code:line)
-                                 (code:line #:empty-handler handler-expr)])
-         #:contracts ([handler-expr (-> any)])]{
+                                 (code:line #:empty-handler handler-expr)
+                                 (code:line #:frontier frontier-expr)])
+         #:contracts ([handler-expr (-> any)]
+                      [frontier-expr (or/c #f amb-frontier?)])]{
 Constructs a lazy @tech/refer{stream} of @tech{amb-tree} leaves from
 the ambiguous expression @racket[expr].  All @racket[amb] operations
 within @racket[expr] are delimited by a @tech/refer{prompt} installed
@@ -461,7 +463,14 @@ by @racket[in-amb].
 The form @racket[(in-amb expr)] expands to
 @racket[(in-amb* (λ () expr))], and
 @racket[(in-amb expr #:empty-handler handler-expr)] to
-@racket[(in-amb* (λ () expr) handler-expr)].
+@racket[(in-amb* (λ () expr) handler-expr)], and
+@racket[(in-amb expr #:frontier frontier-expr)] to
+@racket[(in-amb* (λ () expr) #:frontier frontier-expr)].
+
+The search runs a @deftech{root frontier}: a fresh
+@tech{amb-frontier} whose @tech{empty handler} is
+@racket[handler-expr], or, with @racket[#:frontier], the given one,
+whose own handler is used (see @secref["frontiers"]).
 
 The @tech{empty handler} answers @racket[(amb)].  When the computation
 reaches @racket[(amb)], the handler is called there, in the dynamic
@@ -476,6 +485,12 @@ the recursion ends only if the handler changes some state on the way.
 It should return as many values as @racket[expr] does: Typed Racket
 checks this, and otherwise the mismatch is reported only where the leaf
 is received.
+
+An exception raised by the computation or by the handler leaves the
+search where it was, except that the alternative being tried is used
+up: asked for the next result again, the search goes on with the
+rest.  If @racket[expr] itself raises before making any choice, the
+search has nothing left and ends.
 
 @amb-examples[
 (define n 0)
@@ -540,9 +555,15 @@ non-empty, it eagerly evaluates the next leaf.
 }
 
 
-@defproc[(in-amb* [thk (-> any)] [handler (-> any) amb-fail]) stream?]{
+@defproc[(in-amb* [thk (-> any)] [handler (-> any) amb-fail]
+                  [#:frontier frontier (or/c #f amb-frontier?) #f])
+         stream?]{
 The procedural backend of @racket[in-amb]; @racket[handler] answers
-@racket[(amb)], as with @racket[#:empty-handler].
+@racket[(amb)], as with @racket[#:empty-handler], and
+@racket[frontier], when not @racket[#f], is the @tech{root frontier},
+as with @racket[#:frontier].  Giving both a @racket[handler] other than
+@racket[amb-fail] and a @racket[frontier] is an error, raised when the
+search starts.
 
 @amb-examples[
 (define (choices)
@@ -555,8 +576,10 @@ The procedural backend of @racket[in-amb]; @racket[handler] answers
 
 @defform[(in-amb/do expr maybe-empty)
          #:grammar ([maybe-empty (code:line)
-                                 (code:line #:empty-handler handler-expr)])
-         #:contracts ([handler-expr (-> any)])]{
+                                 (code:line #:empty-handler handler-expr)
+                                 (code:line #:frontier frontier-expr)])
+         #:contracts ([handler-expr (-> any)]
+                      [frontier-expr (or/c #f amb-frontier?)])]{
 Similar to @racket[in-amb], but returns a generic @tech/refer{sequence}
 rather than specifically a lazy @tech/refer{stream}.  The sequence is
 single-pass: results are not retained, so iterating it consumes them,
@@ -565,9 +588,14 @@ makes it cheaper than @racket[in-amb] when the results are needed only
 once.
 }
 
-@defproc[(in-amb*/do [thk (-> any)] [handler (-> any) amb-fail]) sequence?]{
+@defproc[(in-amb*/do [thk (-> any)] [handler (-> any) amb-fail]
+                     [#:frontier frontier (or/c #f amb-frontier?) #f])
+         sequence?]{
 The procedural backend of @racket[in-amb/do].
 }
+
+@history[#:changed "2.2" @elem{Added @racket[#:frontier].  An
+exception in the first step no longer restarts the search.}]
 
 
 @section{Parameters}
@@ -665,4 +693,72 @@ The default value is @racket[void] (no shuffling).
 (parameterize ([current-amb-shuffler vector-reverse!])
   (stream->list (in-amb (amb 1 2 3 4 5))))
 ]
+}
+
+
+@section[#:tag "frontiers"]{Frontiers}
+
+An @tech{amb-frontier} is a first-class value: a mutable deque of
+pending @tech{amb-trees}, and the @tech{empty handler} that answers
+@racket[(amb)] in it.  A search runs its @tech{root frontier}, fresh by
+default, or one given with @racket[#:frontier].
+
+A frontier given to a search may already hold trees, and may be given
+to several searches, even one running inside another: their trees take
+turns in it, and may then be resumed by a search other than the one
+that created them, which outputs their results, so the results of all
+these searches should have the same type.  While a tree is being
+resumed it is not in the frontier.  A search that is abandoned before
+its end (by @racket[for/first], say) leaves its pending trees there,
+and the next search run on that frontier resumes them.
+
+@amb-examples[
+(define f (make-amb-frontier))
+(for/first ([x (in-amb/do (amb 1 2 3) #:frontier f)]) x)
+(amb-frontier-length f)
+(for/list ([x (in-amb/do (amb 'p 'q) #:frontier f)]) x)
+]
+
+@defproc[(make-amb-frontier [handler (-> any) (code:line the handler of the current search)])
+         amb-frontier?]{
+Returns a new, empty @tech{amb-frontier} whose @tech{empty handler} is
+@racket[handler].  By default the handler is that of the innermost
+search, or @racket[amb-fail] outside any search.
+
+@amb-examples[
+(define f (make-amb-frontier (λ () 'F)))
+(stream->list (in-amb (amb 1 (amb) 2) #:frontier f))
+]
+
+@history[#:added "2.2"]
+}
+
+@defproc[(amb-frontier? [v any/c]) boolean?]{
+Returns @racket[#t] if @racket[v] is an @tech{amb-frontier}.
+
+@history[#:added "2.2"]
+}
+
+@defproc[(amb-frontier-empty-handler [frontier amb-frontier?]) (-> any)]{
+Returns the @tech{empty handler} of @racket[frontier].
+
+@history[#:added "2.2"]
+}
+
+@defproc[(amb-frontier-length [frontier amb-frontier?])
+         exact-nonnegative-integer?]{
+Returns the number of trees waiting in @racket[frontier].  The tree
+being resumed is not one of them.
+
+@amb-examples[
+(define f (make-amb-frontier))
+(stream->list (in-amb (amb (amb-frontier-length f) (amb-frontier-length f))
+                      #:frontier f))
+]
+
+Reading the length observes the state of the search, which depends on
+the strategy and on how the program is written, not only on the
+@tech{amb-tree}.
+
+@history[#:added "2.2"]
 }
