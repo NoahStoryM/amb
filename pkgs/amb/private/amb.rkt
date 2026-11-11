@@ -90,26 +90,46 @@
 (define current-amb-shuffler     (make-parameter void))
 
 
-;; ---- Prompt Tags ----
+;; ---- Prompt Tags and Marks ----
 
 ;; `amb-prompt-tag` delimits the leaf-labeled tree.  Every `shift-at`,
 ;; `amb-fail`, `unsafe-fail`, `amb-empty-handler`, and `make-amb-root`
-;; communicates through this prompt; `amb-empty-handler` also looks up
-;; the search's empty handler no further out than it.
+;; communicates through this prompt; the frontier mark (below) is looked
+;; up no further out than it.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
+
+;; The frontier of a search is kept as a continuation mark: the root
+;; frame of each search (`make-amb-root`) carries an `amb-search` record
+;; of its frontier, fresh for each search, unless the frontier has the
+;; default handler (then no mark is found, and none is needed).  Every continuation of the
+;; search is captured inside the root frame, so the mark comes back
+;; whenever a tree of the search is resumed, and an inner search's own
+;; mark is found first.
+(define frontier-key (make-continuation-mark-key 'amb-frontier))
+(struct amb-search (frontier) #:authentic)
+(define (marked-frontier)
+  (continuation-mark-set-first #f frontier-key #f amb-prompt-tag))
+(define (unmark m)
+  (if (amb-search? m) (amb-search-frontier m) m))
+;; Inside a search only (where `amb-prompt-tag` is available): in
+;; `amb-empty-handler`, where the error for `(amb)` outside any search
+;; comes from.
+(define (frontier-in-prompt)
+  (unmark (marked-frontier)))
 
 
 ;; ---- Frontiers ----
 
 ;; A frontier is a mutable handle on an immutable deque of pending
-;; trees.  The deque operations are not exported.
+;; trees, and the empty handler that answers `(amb)` in it.  The deque
+;; operations are not exported.
 ;;
 ;; `current` is the stack of trees popped whose resumption has not
 ;; returned yet (see `land!` in the driver).
-(struct amb-frontier ([items #:mutable] [current #:mutable])
+(struct amb-frontier ([items #:mutable] empty-handler [current #:mutable])
   #:authentic)
-(define (new-frontier)
-  (amb-frontier empty-ideque #f))
+(define (new-frontier handler)
+  (amb-frontier empty-ideque handler #f))
 
 ;; A tree being resumed, on the `current` stack of its frontier:
 ;; `below` is the rest of the stack.
@@ -142,14 +162,9 @@
 ;; tree directly.  The `first?` flag produces exactly one leaf on the
 ;; first invocation and returns `dead` on the second, so the
 ;; root is naturally discarded from the frontier after its sole result.
-;;
-;; The search's empty handler (see `amb-empty-handler`) is attached to
-;; the root frame as a continuation mark.  Every continuation of this
-;; search is captured inside that frame, so the mark comes back whenever
-;; a tree of this search is resumed, and an inner search's own mark is
-;; found first.  The default handler, `amb-fail`, is not attached: the
-;; lookup stops at this search's prompt and falls back to it anyway.
-(define (make-amb-root thk [handler amb-fail])
+;; The root mark is attached here (see `frontier-key`).
+(define (make-amb-root thk frontier)
+  (define search (amb-search frontier))
   (define first? #t)
   (define depth-first? (current-amb-depth-first?))
   (define fair? (current-amb-fair?))
@@ -158,14 +173,17 @@
       (cond
         [first?
          (set! first? #f)
-         (if (eq? handler amb-fail)
+         (if (eq? (amb-frontier-empty-handler frontier) amb-fail)
+             ;; Not attached for the default handler, which a lookup that
+             ;; finds no mark falls back to anyway: a frame with a mark
+             ;; makes every resumption of the search slower.
              (call-with-values thk list)
              ;; Not in tail position of `reset-at`: a mark on the
              ;; prompt's own frame can reappear innermost when a
              ;; continuation captured across another prompt is applied
              ;; again (seen on Racket v9.3 CS), which would hide the
              ;; mark of a search started inside this one.
-             (let ([vs (with-continuation-mark empty-handler-key handler
+             (let ([vs (with-continuation-mark frontier-key search
                          (call-with-values thk list))])
                vs))]
         [else dead])))
@@ -198,12 +216,12 @@
 (define (false-thunk) #f)
 
 ;; `(amb)` is a choice among no alternatives: the computation ends
-;; here.  What it ends *with* is decided by the innermost search's
-;; *empty handler*, given as `#:empty-handler` to `in-amb` / `in-amb/do`
-;; (default `amb-fail`).  `amb-empty-handler` looks that handler up,
+;; here.  What it ends *with* is decided by the *empty handler* of the
+;; innermost search's frontier, given as `#:empty-handler` to `in-amb` /
+;; `in-amb/do` (default `amb-fail`).  `amb-empty-handler` looks it up,
 ;; calls it at the point of `(amb)`, in its dynamic context, and outputs
 ;; the values it returns as one answer of the search; with the default
-;; handler, `(amb)` is `(amb-fail)`.  The handler belongs to the search,
+;; handler, `(amb)` is `(amb-fail)`.  The handler belongs to the search (its frontier),
 ;; not to the dynamic extent, so an inner search that was given no
 ;; handler fails at its own `(amb)` even inside an outer one that was.
 ;; Either way `amb-empty-handler` never returns, and the tree being
@@ -216,10 +234,9 @@
 ;; so the answer is that of the innermost call.  It ends only if the
 ;; handler changes some state; an inner search inside the handler has
 ;; its own mark and handler.
-(define empty-handler-key (make-continuation-mark-key 'amb-empty-handler))
 (define (amb-empty-handler)
-  (define handler
-    (continuation-mark-set-first #f empty-handler-key amb-fail amb-prompt-tag))
+  (define f (frontier-in-prompt))
+  (define handler (if f (amb-frontier-empty-handler f) amb-fail))
   (cond
     [(eq? handler amb-fail) (amb-fail)]
     [else
@@ -530,8 +547,8 @@
           empty-sequence
           (make-sequence
            (λ ()
-             (define f (new-frontier))
-             (push-front! f (make-amb-root thk handler))
+             (define f (new-frontier handler))
+             (push-front! f (make-amb-root thk f))
              ;; the stack of `f` when the current step began; #t while
              ;; no step is running
              (define base #t)
