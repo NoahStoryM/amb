@@ -73,6 +73,14 @@
   (check-equal? (run (λ () (k (amb/local (x) (y))))) '(pause C B A))
   (check-equal? (run (λ () (amb/local (k (x)) (k (y))))) '(pause C B A)))
 
+(test-case "for/amb/local and for*/amb/local act as amb/local"
+  (define expected '(1 2 3 pause 7 8 pause 4 5 6 9 pause))
+  (check-equal? (run (λ () (for/amb/local ([s (list s1 s2)]) (s)))) expected)
+  (check-equal? (run (λ () (for/amb/local #:length 2 ([s (list s1 s2)]) (s)))) expected)
+  (check-equal? (run (λ () (for*/amb/local ([l (list (list s1 s2))] [s l]) (s)))) expected)
+  ;; no alternative at all: (amb), answered by the handler
+  (check-equal? (run (λ () (for/amb/local ([s '()]) s))) '(pause)))
+
 (test-case "the handler's values pass through the frontiers unchanged"
   (define (go handler)
     (for/list ([(a b) (in-amb (amb/local (amb/local (values 1 2) (amb) (values 3 4))

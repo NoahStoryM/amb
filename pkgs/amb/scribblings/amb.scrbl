@@ -813,7 +813,8 @@ computation moved into each @tech{alternative}:
 (stream->list (in-amb (amb/local (k (amb/local 'a 'b)) (k 'c))))
 ]
 
-This holds for the frontiers of @racket[amb/local], each fresh and
+This holds for the frontiers of @racket[amb/local],
+@racket[for/amb/local] and @racket[for*/amb/local], each fresh and
 around a single choice.  A frontier given with @racket[#:frontier], or
 used at several places, is scheduled as described here, but the order
 may then depend on how the program is grouped.
@@ -844,9 +845,20 @@ and the next search run on that frontier resumes them.
 (for/list ([x (in-amb/do (amb 'p 'q) #:frontier f)]) x)
 ]
 
-@defform[(amb/local expr ...)]{
-@racket[amb] in a fresh @tech{local frontier}, whose @tech{empty
-handler} is that of the current frontier.
+@deftogether[(@defform[(amb/local expr ...)]
+              @defform[(for/amb/local maybe-length (for-clause ...) break-clause ... body ...+)]
+              @defform[(for*/amb/local maybe-length (for-clause ...) break-clause ... body ...+)])]{
+@racket[amb], @racket[for/amb], and @racket[for*/amb] in a fresh
+@tech{local frontier}, whose @tech{empty handler} is that of the
+current frontier.  The clauses of @racket[for/amb/local] and
+@racket[for*/amb/local] are those of @racket[for/amb].
+
+@amb-examples[
+(define (s1) (amb 1 2 3 (amb) 4 5 6))
+(define (s2) (amb 7 8 (amb) 9 (amb)))
+(stream->list (in-amb (for/amb/local ([s (list s1 s2)]) (s))
+                      #:empty-handler (λ () 'pause)))
+]
 
 @history[#:added "2.2"]
 }

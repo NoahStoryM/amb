@@ -102,7 +102,7 @@
 
 (provide make-amb
          amb for/amb for*/amb
-         amb/local
+         amb/local for/amb/local for*/amb/local
          in-amb  in-amb/do
          in-amb* in-amb*/do
          current-amb-depth-first?
@@ -564,11 +564,20 @@
 
 ;; ---- Local Choices ----
 
-;; `amb/local` is `amb` in a fresh frontier.
+;; `amb/local` and `for/amb/local` are `amb` and `for/amb` in a fresh
+;; frontier.
 (define-syntax (amb/local stx)
   (syntax-parse stx
     [(_ expr* ...)
      (syntax/loc stx (call-with-local-frontier (λ () (amb expr* ...))))]))
+(define-syntaxes (for/amb/local for*/amb/local)
+  (let ()
+    (define ((make for/amb) stx)
+      (syntax-parse stx
+        [(_ . rest)
+         (quasisyntax/loc stx
+           (call-with-local-frontier (λ () (#,for/amb . rest))))]))
+    (values (make #'for/amb) (make #'for*/amb))))
 
 
 ;; ---- Search Driver ----
