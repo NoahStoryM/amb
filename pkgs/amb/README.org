@@ -81,7 +81,7 @@ so different parts of a computation can use different strategies via
 * Implementation
 
 The search tree is driven by composable continuations (=shift=/=reset=)
-with an immutable double-ended queue as the frontier.  Each =amb= or
+with a double-ended queue as the frontier.  Each =amb= or
 =for/amb= captures a composable continuation delimited by
 =amb-prompt-tag= and packages it into an =amb-tree= struct that also
 records the search strategy parameters in effect at capture time.
