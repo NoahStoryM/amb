@@ -46,9 +46,10 @@
           [current-amb-depth-first? (parameter/c boolean?)]
           [current-amb-fair?        (parameter/c boolean?)]
           [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]
+          [current-amb-frontier     (parameter/c (or/c #f amb-frontier?))]
           [make-amb-frontier          (->* () ((-> any)) amb-frontier?)]
           [amb-frontier?              (-> any/c boolean?)]
-          [amb-frontier-length        (-> amb-frontier? exact-nonnegative-integer?)]
+          [amb-frontier-length        (->* () (amb-frontier?) exact-nonnegative-integer?)]
           [amb-frontier-empty-handler (-> amb-frontier? (-> any))]))
 
 

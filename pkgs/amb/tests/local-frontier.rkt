@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; Local frontiers (`amb/local`).
+;; Local frontiers (`amb/local`, `current-amb-frontier`).
 ;; A choice made with `amb/local` schedules what is created below it in a
 ;; frontier of its own, where `(amb)` ends a turn.
 (require rackunit racket/stream racket/list amb)
@@ -80,6 +80,13 @@
   (check-equal? (run (λ () (for*/amb/local ([l (list (list s1 s2))] [s l]) (s)))) expected)
   ;; no alternative at all: (amb), answered by the handler
   (check-equal? (run (λ () (for/amb/local ([s '()]) s))) '(pause)))
+
+(test-case "make-amb in a frontier installed with parameterize acts as amb/local"
+  (check-equal? (run (λ () (let ([l (list s1 s2)])
+                             ((parameterize ([current-amb-frontier (make-amb-frontier)])
+                                (make-amb (λ () (pair? l))
+                                          (λ () (begin0 (car l) (set! l (cdr l))))))))))
+                '(1 2 3 pause 7 8 pause 4 5 6 9 pause)))
 
 (test-case "the handler's values pass through the frontiers unchanged"
   (define (go handler)
