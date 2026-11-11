@@ -469,10 +469,26 @@ context of @racket[(amb)], and the values it returns are produced as
 one leaf; the rest of that branch is abandoned, as with failure.  The
 default handler is @racket[amb-fail], which makes @racket[(amb)] a
 failure.  The handler may also call @racket[amb-fail] itself, make
-choices of its own, or raise an exception; if it reaches @racket[(amb)]
-of the same search, @racket[exn:fail:contract] is raised.  It should return as many
-values as @racket[expr] does: Typed Racket checks this, and otherwise
-the mismatch is reported only where the leaf is received.
+choices of its own, or raise an exception.  If it reaches @racket[(amb)]
+of the same search, the handler is called again there: the inner call
+abandons the outer one, so the leaf is the innermost call's result, and
+the recursion ends only if the handler changes some state on the way.
+It should return as many values as @racket[expr] does: Typed Racket
+checks this, and otherwise the mismatch is reported only where the leaf
+is received.
+
+@amb-examples[
+(define n 0)
+(stream->list
+ (in-amb (amb)
+         #:empty-handler (λ ()
+                           (set! n (add1 n))
+                           (if (< n 3) (list 'never (amb)) n))))
+]
+
+@history[#:changed "2.2" @elem{Reaching @racket[(amb)] of the same
+search inside the empty handler calls the handler again, instead of
+raising @racket[exn:fail:contract].}]
 
 Since the search is lazy, the dynamic context of @racket[(amb)] is the
 one in which the search is resumed, that is, the consumer's, as for any
