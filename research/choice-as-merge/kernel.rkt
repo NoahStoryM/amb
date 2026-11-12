@@ -100,13 +100,11 @@
 ;;
 ;; A pause and a lazy rest are thunks, and so is t: to pass the turn on
 ;; is to exchange the two arguments.
-
-;; Depth-first search: all of s, then t.
-(define (amb-append s t)
-  (cond
-    [(null? s) (t)]
-    [(pair? s) (cons (car s) (λ () (amb-append ((cdr s)) t)))]
-    [else (λ () (amb-append (s) t))]))
+;;
+;; These equations are the definitions; model.rkt has all four as code.
+;; amb-interleave and amb-alternate below are their equations.
+;; amb-append and amb-level are associative, and are written to use it
+;; (see "Associative strategies").
 
 ;; The interleaving of miniKanren (microKanren's `mplus`, the second
 ;; edition's `append-inf`): the turn passes on at each pause.
@@ -124,18 +122,83 @@
     [(pair? s) (cons (car s) (λ () (amb-alternate (t) (cdr s))))]
     [else (λ () (amb-alternate (t) s))]))
 
+
+;; ---- Associative strategies ----
+;;
+;; Written from its equations, a merge is a closure around s, and an event
+;; of s passes through one closure for every choice it is under: n nested
+;; choices cost n steps for each answer.  For an associative merge,
+;;
+;;   (s ∨ t) ∨ u  =  s ∨ (t ∨ u)
+;;
+;; the grouping does not matter, so a stream that is not finished can be a
+;; record of what is left to do, in a list, and a record whose s is a
+;; record of the same strategy is one record: the two lists are appended
+;; when it is forced.  An event then costs a constant number of steps.
+;;
+;; A record is a thunk, like every stream that waits, so a strategy
+;; that looks at its arguments only by their events (all of them do)
+;; needs to know nothing about it, and the records of one strategy end
+;; where a choice of another strategy begins.
+
+;; Depth-first search: all of s, then t.
+;;
+;;   (appended s ts)   the stream (s), then the streams of the thunks ts
+(struct appended (s ts)
+  #:property prop:procedure
+  (λ (self) (append-run (appended-s self) (appended-ts self))))
+
+(define (amb-append s t)
+  (cond
+    [(null? s) (t)]
+    [(pair? s) (cons (car s) (appended (cdr s) (list t)))]
+    [else (appended s (list t))]))
+
+(define (append-run s ts)
+  (if (appended? s)
+      (append-run (appended-s s) (append (appended-ts s) ts))
+      (let loop ([s (s)] [ts ts])
+        (cond
+          [(pair? s) (cons (car s) (appended (cdr s) ts))]
+          [(procedure? s) (appended s ts)]
+          [(null? ts) '()]
+          [else (loop ((car ts)) (cdr ts))]))))
+
 ;; Breadth-first search by pauses: when s pauses, t runs up to its own
-;; pause, and then the merged stream pauses once.
+;; pause, and then the merged stream pauses once.  The merged stream is a
+;; sequence of rounds; in a round, each stream runs up to its pause.
+;;
+;;   (leveled ws s ts)   the rest of a round: the thunks ws have paused
+;;                       in it (the last one first), (s) is running, and
+;;                       the thunks ts have yet to run; then one pause,
+;;                       and the next round
+(struct leveled (ws s ts)
+  #:property prop:procedure
+  (λ (self) (level-run (leveled-ws self) (leveled-s self) (leveled-ts self))))
+
 (define (amb-level s t)
   (cond
     [(null? s) (t)]
-    [(pair? s) (cons (car s) (λ () (amb-level ((cdr s)) t)))]
-    [else
-     (let loop ([u (t)])
-       (cond
-         [(null? u) s]
-         [(pair? u) (cons (car u) (λ () (loop ((cdr u)))))]
-         [else (λ () (amb-level (s) u))]))]))
+    [(pair? s) (cons (car s) (leveled '() (cdr s) (list t)))]
+    [else (level-run (list s) t '())]))
+
+(define (level-run ws s ts)
+  (if (leveled? s)
+      (level-run (append (leveled-ws s) ws) (leveled-s s) (append (leveled-ts s) ts))
+      (let ([s (s)])
+        (cond
+          [(pair? s) (cons (car s) (leveled ws (cdr s) ts))]
+          [(null? s) (level-next ws ts)]
+          [else (level-next (cons s ws) ts)]))))
+
+;; The next stream of the round; or the end of the round: the pause, and
+;; then the streams that have paused, in their order.
+(define (level-next ws ts)
+  (cond
+    [(pair? ts) (level-run ws (car ts) (cdr ts))]
+    [(null? ws) '()]
+    [(null? (cdr ws)) (car ws)]
+    [else (let ([ss (reverse ws)]) (leveled '() (car ss) (cdr ss)))]))
 
 ;; The strategy belongs to the choice point: `amb` reads it when the
 ;; choice is made.
@@ -181,13 +244,15 @@
         (amb-fail)
         (apply values (car s)))))
 
-;; An element of the sequence, chosen lazily.
-(define (amb-from seq)
+;; An element of the sequence: one choice among all of them, merged from
+;; the right as in `amb*`, and generated as the search goes on.
+(define (amb-from seq [merge (current-amb-merge)])
   (define-values (more? get) (sequence-generate seq))
-  (let loop ()
-    (if (more?)
-        (let ([v (get)]) (amb v (loop)))
-        (amb-fail))))
+  (shift-at tag k
+    (let loop ()
+      (if (more?)
+          (let ([v (get)]) (merge (k v) loop))
+          '()))))
 
 
 ;; ---- Observing a stream ----

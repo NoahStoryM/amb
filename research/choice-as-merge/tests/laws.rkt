@@ -20,14 +20,8 @@
 (require racket/list
          racket/match
          rackunit
-         "../kernel.rkt"
          "../model.rkt")
 
-(define merges
-  (list (cons 'append amb-append)
-        (cons 'interleave amb-interleave)
-        (cons 'alternate amb-alternate)
-        (cons 'level amb-level)))
 
 (define laws
   `([conj-assoc   (seq (seq a b) c)   (seq a (seq b c))]
@@ -114,12 +108,12 @@
   (define show? (getenv "LAWS_VERBOSE"))
   (printf "~a  ~a\n" (make-string 12 #\space)
           (apply string-append
-                 (for*/list ([mode '(direct book)] [m (map car merges)])
+                 (for*/list ([mode '(direct book)] [m strategies])
                    (format "~a/~a  " (substring (symbol->string mode) 0 1) m))))
   (for ([law laws] [row expected])
     (match-define (list name lhs rhs) law)
     (define results
-      (for*/list ([mode (list direct book)] [m (map cdr merges)])
+      (for*/list ([mode (list direct book)] [m strategies])
         (define-values (result witness) (classify (mode m) lhs rhs))
         (cons result witness)))
     (printf "~a ~a\n"
@@ -129,7 +123,7 @@
     (check-equal? (map car results) (cdr row) (symbol->string name))
     (when show?
       (for ([r results]
-            [label (for*/list ([mode '(direct book)] [m (map car merges)])
+            [label (for*/list ([mode '(direct book)] [m strategies])
                      (format "~a/~a" mode m))])
         (match r
           [(cons 'events _) (void)]
