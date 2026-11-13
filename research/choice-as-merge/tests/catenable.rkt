@@ -69,8 +69,10 @@
 
 (test-case "constant amortized time, every list used once"
   ;; `cat-rest` counts a step for each link and for each element of a
-  ;; queue that it reverses.  By the theorem, the steps are at most a
-  ;; constant times the number of operations; here the constant is 3.
+  ;; queue that it reverses.  By the theorem, the steps of a sequence of
+  ;; operations are, in all, at most a constant times the number of the
+  ;; operations; here the constant is 3.  One operation may take many:
+  ;; the first `cat-rest` of n elements added one by one takes n.
   (define-syntax-rule (check-steps operations e)
     (let ([steps (steps-of e)])
       (check-true (<= steps (* 3 operations))

@@ -1,6 +1,6 @@
 # 选择即合并：搜索是从计算到事件流的折叠
 
-研究分支 `research/choice-as-merge-20261112`，基于 amb master `6340911`。只新增本目录，不改动 `pkgs/`。讨论在 [#22](https://github.com/NoahStoryM/amb/issues/22)；Astra 对 `1ac7057` 的数学审阅是其中的[这一条](https://github.com/NoahStoryM/amb/issues/22#issuecomment-6821738392)，下文「Astra 证明了」都指它（数学证明或逐分支模拟，没有机器验证）。
+研究分支 `research/choice-as-merge-20261112`，基于 amb master `6340911`。只新增本目录，不改动 `pkgs/`。讨论在 [#22](https://github.com/NoahStoryM/amb/issues/22)；Astra 对 `1ac7057` 的数学审阅是其中的[这一条](https://github.com/NoahStoryM/amb/issues/22#issuecomment-6821738392)，下文「Astra 证明了」都指它和她对 `32acf32` 的[复核](https://github.com/NoahStoryM/amb/issues/22#issuecomment-6842391845)（数学证明或逐分支模拟，没有机器验证）。
 
 按约定，这一轮**没有阅读** PR #10–21（`local-frontier`、`split/*` 分支）的实现代码，只看了它们的标题和 diff 行数；ambKanren 的 `research/local-frontier-20261110` 是那套接口的使用方，也没有读。读过的是：amb master、ambKanren master / `lawful-search` / `research/local-search-20261109`、miniKanren-typed master。ambKanren issue #14 的正文我这里打不开，对它的了解来自研究分支里的 `README.md`、`VERSIONS.md` 和各个 `.out` 文件。
 
@@ -130,27 +130,31 @@ Astra 建议把「可消去括号」「何时强制」「一次操作的代价�
 
 范围和现状：
 
-- Astra 对 `1ac7057` 的代码做了逐分支模拟。那一版的 `ws` 是逆序的 Racket 列表，`ts` 用 `append` 拼接；现在的表示（可拼接表，`ws` 正序）改动了她检查过的那几行，**新代码只有测试**：`tests/flat.rkt` 在随机的流表达式上（四种策略混用，中途取走若干事件后再合并）比较内核与方程的事件和每个 thunk 被强制的时刻，`tests/model.rkt` 比较 `direct` 与 `spec`。
+- Astra 先对 `1ac7057` 做了逐分支模拟（那一版的 `ws` 是逆序的 Racket 列表，`ts` 用 `append` 拼接），又对 `32acf32` 的新表示（可拼接表，`ws` 正序）[复核](https://github.com/NoahStoryM/amb/issues/22#issuecomment-6842391845)过：把可拼接表读成元素的序列，上面两条不变量成立。她点明了一处：`cat-rest` 会 `force` 表内部延迟链接的 promise，里面装的是表的节点；源流的 thunk 是节点的**元素**，这一步只搬运它，不运行它。测试：`tests/flat.rkt` 在随机的流表达式上（四种策略混用，中途取走若干事件后再合并）比较内核与方程的事件和每个 thunk 被强制的时刻，`tests/model.rkt` 比较 `direct` 与 `spec`。
 - 观察器也在范围内。`amb-events` 上一版在收满之后多强制了一步（Astra 复现的 `(amb-events (cons '(a) (λ () (error "tail forced"))) 1)`），已修正；`tests/kernel.rkt` "amb-events stops at the last event it was asked for" 对「最后一个事件是答案」「是暂停」各有一个尾 thunk 一强制就报错的测试，`amb-take` 同样。
 - 自定义的 merge 若检查记录的身份、调用栈或内部闭包的身份，就超出了「按构造子观察」这个接口，命题不管它。
 
 ### 命题三：一次操作的代价
 
-> 单遍使用时（每个 thunk 至多强制一次），设 M 是 `amb-append`、`amb-level` 被调用的次数，R 是这两种策略的代码发出请求（调用一个 thunk）的次数；展开不是请求。那么快路径自己做的全部工作（不算被请求的 thunk 内部做的事）是 O(M + R)。
+> 设每份残余状态（一条记录，连同它的两张表）至多被消费一次，并且从空的调度状态开始计费。设 M 是 `amb-append`、`amb-level` 被调用的次数，R 是这两种策略的代码发出请求（调用一个 thunk）的次数；展开不是请求。那么这两种快路径自己做的全部工作（不算被请求的 thunk 内部做的事）是 O(M + R)。
+
+前提是所有权条件，比「每个 thunk 至多调用一次」强（按 Astra 的复核改写）：**被另一条记录展开同样算一次消费**，即使没有调用它的 `prop:procedure`，否则通过别名反复展开同一条记录不受约束；所有输入记录的构造都计入同一段历史，若从一条已经建好的大记录中途开始量，要另计初始势能。只读字段、查看首元素可以重复。
 
 由命题二，这 R 次请求方程也都要发出，所以快路径没有增加请求，自己的开销摊到每次 merge 调用、每次请求上是常数。论证分三步：
 
 1. **一次运行做什么。** 一次运行（强制一条记录，或 `amb-level` 在左流暂停时直接开始）先做若干次展开，再发出至少一次请求，最后至多新建一条记录就返回。每次展开、每次请求只做常数次表操作（`cat-append`、`cat-first`、`cat-rest`、`cat-of`）和常数的其他工作。
-2. **数展开。** 记录只在两处新建：一次 merge 调用至多一条（`amb-level` 直接开始的那次运行所建的一条算在这里），一次强制返回时至多一条；设记录被强制 F 次，则新建的记录不超过 M + F 条。单遍使用时每条记录至多被消费一次：被强制，或被展开。所以展开数 E 满足 E + F ≤ M + F，即 **E ≤ M**。每次运行至少一次请求，所以运行数不超过 R。于是表操作的总数是 O(M + R)。
-3. **表操作是均摊常数。** `catenable.rkt` 是 Okasaki 的可拼接表（博士论文 CMU-CS-96-177 §7.2.1，定理 7.1；书 §10.2.1）：拼接是给根加一个孩子，取尾是把根的孩子链成一条表，链的后半段延迟到用到时才做。定理 7.1 说，给定常数时间的队列，`++` 和 `tail` 都是均摊常数。这里的队列是一对列表，它在每个队列值只用一次时是均摊常数（每个元素至多被翻转一次）；单遍使用时每张表只用一次（表只存在记录的字段里，记录只被消费一次），延迟的链接由 promise 记忆、只算一次，所以每个队列也只用一次。
+2. **数展开。** 记录只在两处新建：一次 merge 调用至多一条（`amb-level` 直接开始的那次运行所建的一条算在这里），一次强制返回时至多一条；设记录被强制 F 次，则新建的记录不超过 M + F 条。由所有权条件，每条记录至多被消费一次：被强制，或被展开。所以展开数 E 满足 E + F ≤ M + F，即 **E ≤ M**。每次运行至少一次请求，所以运行数不超过 R。于是表操作的总数 K 是 O(M + R)。
+3. **K 次表操作的代价是 O(K)。** 两层均摊分开算（Astra 的写法，避免把「均摊常数的队列」直接代进定理）：
+   - *只数调用。* 先把一次队列原语记作单位成本。`cat-append` / `link-all` 对应 Okasaki 博士论文（CMU-CS-96-177）§7.2.1 的图 7.5（书 §10.2.1），只是直接存已经建好的第二棵子树，省去一个平凡的 suspension。由定理 7.1，K 次表操作发出 O(K) 次队列原语，包括执行延迟的链接时发出的。
+   - *再付队列的实际代价。* 队列是一对列表。给每个活着的队列的 rear 里每个格子存常数个信用：入队新建一个格子，出队时若要翻转 rear，按格子花掉信用。要检查的是信用只转移一次：`cat-append` 把旧根的 kids 移给新根并接入右边的表；`link-all` 出队后把孩子的 kids 移给结果，把余下的队列只移进**一个**记忆化的 promise。旧的残余丢弃之后，没有第二条更新历史能再花同一批信用。所以所有翻转的长度之和不超过入队的总数（计步用的 `length` 再扫一遍，只改常数）。
 
 命题之外：
 
 - **R 不以事件数为界。** `append` 的每次请求要么带回一个事件，要么消掉一个待办，所以 R ≤ M + F，F 是记录被强制的次数，也就是从合并的流里取走的事件数。`level` 每轮要请求每条还活着的流一次，这是方程规定的，不是快路径加的。
-- **重复强制。** 流不记忆（第 6 节代价 2）。把同一条记录强制两次，结果仍然正确（表是持久的，只有 promise 被赋值），但第 3 步的前提没有了，界不成立；`tests/catenable.rkt` 最后一个测试是这种情况。
+- **重复强制。** 流不记忆（第 6 节代价 2）。把同一条记录强制两次，结果仍然正确（表是持久的，只有 promise 被赋值），但所有权条件不成立，界也就不成立；`tests/catenable.rkt` 最后一个测试是这种情况。
 - **`interleave`、`alternate`** 仍照方程写，一个事件要穿过它上方所有开着的 merge。这是现在这个实现的代价，不是下界（命题一）。
 
-证据和现状：这个论证是我的，Astra 没有审过；定理 7.1 是 Okasaki 的，第 3 步里把它和两列表队列接起来的部分是我的。`tests/catenable.rkt` 数取尾的步数（每次链接一步，翻转队列时每个元素一步）：随机的单遍操作序列、先全部接在后面再逐个取、交替进行，都不超过每个操作 3 步。`tests/flat.rkt` "merged again and again: the steps" 在 Astra 的单遍例子 `sᵢ₊₁ = ((cdr (amb-append sᵢ (λ () '()))))` 上，n = 10³、10⁴、10⁵ 都不超过 4n 步。时间（`bench/amb.rkt` "merged again and again"，ms）：
+证据和现状：Astra [复核](https://github.com/NoahStoryM/amb/issues/22#issuecomment-6842391845)后同意这个端到端的 O(M + R) 均摊界，前提和第 3 步的写法是按她的意见改的。它是快路径自身的成本，不是每个答案等待时间的上界，单次操作也不是常数：10000 个元素从左到右拼成的表，第一次 `cat-rest` 就是 10000 步（她实测），正是均摊界允许的。`tests/catenable.rkt` 数取尾的步数（每次链接一步，翻转队列时每个元素一步）：随机的操作序列、先全部接在后面再逐个取、交替进行，所测的整段序列**平均**每个操作不超过 3 步。`tests/flat.rkt` "merged again and again: the steps" 在 Astra 的单遍例子 `sᵢ₊₁ = ((cdr (amb-append sᵢ (λ () '()))))` 上，n = 10³、10⁴、10⁵ 总共都不超过 4n 步。时间（`bench/amb.rkt` "merged again and again"，ms）：
 
 | n | 5000 | 10000 | 20000 | 40000 |
 |---|--:|--:|--:|--:|
@@ -169,7 +173,7 @@ Astra 第 7 问的建议。`amb*` 接受任何 `Stream × (→ Stream) → Strea
 
 - 把后续分发给各分支（第 3 节合取的结合律、右分配律）对 merge **没有任何要求**，不结合、没有单位元也成立。
 - 把失败当作析取的单位元，用到 `0 ∨ t = t` 和 `s ∨ 0 = s`。内核里有三处用到右单位律：`amb*` 对最后一个备选不再调用 merge；`amb-from` 则在序列用完时以 `'()` 收尾，两者一致要靠它；`amb-reflect` 对已知只有一个答案的流直接返回（即把 `k a ∨ 0` 化成 `k a`）。
-- 命题二、三只对内置的四种成立。自定义的 merge 要自己保证不提前强制第二个参数，并且只按构造子观察它的参数。
+- 命题二涵盖四种内置策略及其混用，命题三估计的是其中 `append`、`level` 两种快路径；两者都不涵盖自定义的 merge，它要自己保证不提前强制第二个参数，并且只按构造子观察它的参数。
 
 ## 2. 公平必须保证什么，什么只是策略
 
@@ -288,24 +292,24 @@ master 的两个策略参数（`tests/master-flags.rkt`）：`current-amb-depth-
 
 ## 5. 验证了什么，没有证明什么
 
-**Astra 证明了的**（对 `1ac7057`，以 `model.rkt` 的四个 merge 和 `spec` 为准；数学证明或逐分支模拟，没有机器验证；出处是 #22 的[审阅](https://github.com/NoahStoryM/amb/issues/22#issuecomment-6821738392)）：
+**Astra 证明了的**（对 `1ac7057`，命题二、三另对 `32acf32`；以 `model.rkt` 的四个 merge 和 `spec` 为准；数学证明或逐分支模拟，没有机器验证；出处是 #22 的[审阅](https://github.com/NoahStoryM/amb/issues/22#issuecomment-6821738392)）：
 
 - 模型：流是 `νX. 1 + (V × X) + X`；选择是按策略标记的代数操作，由 merge 解释，`(merge (k a) (λ () (k b)))` 对不结合的 merge 也成立；`local` 是带作用域的操作，后续不能移进作用域（第 3 节的 `pause C B A` / `pause B C A` 是见证）。没有给 Racket 的可变状态、参数、`dynamic-wind` 建模。
 - 四种 merge 的双侧单位律；`append`、`level` 的结合律（含无穷的流）；`interleave`、`alternate` 不结合的反例。
 - 命题一（忘掉括号的充要条件）。
-- 命题二对 `1ac7057` 的快路径成立（逐分支模拟）。
+- 命题二：对 `1ac7057` 的快路径逐分支模拟，对 `32acf32` 的新表示复核。
+- 命题三：端到端的 O(M + R) 均摊界（复核 `32acf32`；论证是我起的，前提和计费口径按她的意见改）。
 - 三种公平策略的完备性，前提见第 2 节。
 - `(amb)` 是零元、暂停是一元构造子，两者分开时四种策略都守单位律。
 
 **有论证、没有审过的**（我的）：
 
-- 命题三的代价论证。
 - 直接风格下合取的结合律、右分配律、单位律（在 `spec` 上按定义展开，两行，第 3 节）。Astra 的第 1 问从自由代数的折叠得到同一个式子。
 - `amb-level` 与 ambKanren 全局前沿的顺序相同（书中例子 284/285 逐答案相同，加上论证；没有形式化）。
 
 **只有测试的**：
 
-- 命题二对**现在的**快路径（可拼接表、`ws` 正序）。`tests/flat.rkt` 4 组各 5000 个随机表达式，比较事件和强制时刻；`tests/model.rkt`。对内核和 `catenable.rkt` 做过 12 处故意改错（两个表的拼接顺序、丢掉内层已暂停的线程、把已暂停的线程排到前面、提前恢复、丢暂停、队列不翻转、链接的顺序、`cat-append` 的两个参数对调、`amb-events` 多强制一步等），每一处都至少被 `tests/catenable.rkt`、`tests/kernel.rkt`、`tests/flat.rkt`、`tests/model.rkt` 中的一个发现。
+- 快路径的随机测试和改错测试：`tests/flat.rkt` 4 组各 5000 个随机表达式，比较事件和强制时刻；`tests/model.rkt`。对内核和 `catenable.rkt` 做过 12 处故意改错（两个表的拼接顺序、丢掉内层已暂停的线程、把已暂停的线程排到前面、提前恢复、丢暂停、队列不翻转、链接的顺序、`cat-append` 的两个参数对调、`amb-events` 多强制一步等），每一处都至少被 `tests/catenable.rkt`、`tests/kernel.rkt`、`tests/flat.rkt`、`tests/model.rkt` 中的一个发现。
 - `direct = spec`；`direct + 每个合取局部 = book`；`book(interleave)` = `trs2-impl.scm` 的 `append-inf`/`append-map-inf`。各 3000 个随机有限目标，比较完整事件序列。`spec`、`book` 用照方程写的 merge，`direct` 用内核的。
 - 第 3 节的规律表：成立的格子是 2400 × 2 次随机试验未见反例（其中析取的单位律、结合律两行现在有 Astra 的证明）；不成立的格子有具体反例，是确定的。bag 一级的格子只对表里用到的上下文成立。
 - TRS2 285 例、TRS1 228 例、issue #14 的对照程序（期望值与 miniKanren-typed 的输出核对过）、`pause-escape` 反例、公平性表。换成可拼接表之后，`level` 的 285 例和 TRS1 的 228 例重跑过，结果与之前逐项相同。
@@ -360,7 +364,7 @@ Astra 已经给了建议的两项：
 | `tests/kernel.rkt` | 内核的例子：效应、策略的定义方程、括号的反例、轮次份额、局部搜索、观察器不多强制 |
 | `tests/model.rkt` | `direct = spec`，`direct + local = book`，`book = trs2` |
 | `tests/flat.rkt` | 内核的 merge = 定义方程：事件与强制时刻；合并了再合并的例子及其步数 |
-| `tests/catenable.rkt` | 可拼接表：内容，以及每个操作的步数 |
+| `tests/catenable.rkt` | 可拼接表：内容，以及一段操作序列的平均步数 |
 | `tests/laws.rkt` | 规律表与最小反例 |
 | `tests/fairness.rkt` | 公平性表，等待时间 |
 | `tests/kanren.rkt` | issue #14 的对照程序、`once`/`ifte`、Astra 的例子 |

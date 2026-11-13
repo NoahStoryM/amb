@@ -18,9 +18,11 @@
 ;;            until it is itself the first child of a root.
 ;;
 ;; Theorem 7.1 there: `append` and `rest` take constant amortized time,
-;; given a queue with constant-time operations.  The queue here is a pair
-;; of lists, whose operations take constant amortized time as long as no
-;; queue is used twice; and none is, when no list is used twice.
+;; counting an operation of the queue as one step.  The queue here is a
+;; pair of lists, and what it takes more is paid for once: an element is
+;; reversed once, as long as no queue is used twice; and none is, when
+;; no list is used twice.  (`append` and `rest` here are Figure 7.5,
+;; except that a child that is already built is stored as it is.)
 ;;
 ;; Nothing here is mutated except the promises of the delayed links, so a
 ;; list that is used twice still has the same elements.  Only the bound
