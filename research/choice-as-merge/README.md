@@ -359,10 +359,10 @@ Astra 已经给了建议的两项：
 | 文件 | 内容 |
 |---|---|
 | `amb/base.rkt` | 核心：效应 `amb-fail`、`amb-pause`、选择 `amb-choose`（向量）/`amb-choose-from`（序列），以及把计算折叠成流的 `amb-reify`；n 路策略的结构 `amb-strategy` |
-| `amb/merge.rkt` | 二路策略：四种 merge（结合的两种是扁平的）；只看流，不依赖 `amb/base` |
+| `amb/merge.rkt` | 二路策略：四种 merge（结合的两种是扁平的）；文件头说明两个参数的角色（已启动的流、尚未启动的挂起）；只经由 step stream 的操作看流，不依赖 `amb/base` |
 | `amb/main.rkt` | 在核心之上定义：`amb`、`amb*`（含 shuffler）、`amb-from`、`for/amb`、默认策略、`amb-reflect`/`amb-local`/`amb-once`、`in-amb` |
 | `amb/nary.rkt` | 两种 n 路策略：`amb-rotate`、`amb-dovetail` |
-| `amb/private/data/stream.rkt` | 流的表示，以及观察流的工具 `in-answers`、`amb-take`、`amb-events` |
+| `amb/private/data/step-stream.rkt` | step stream（带步的流，即 `Stream (Maybe a)`）：表示、构造（`step-stream-cons`、`step-stream-delay`……）、拆解（`step-stream-case`、`step-stream-force`）和观察（`in-answers`、`amb-take`、`amb-events` 的实现）；其它模块只经由这些操作使用流 |
 | `amb/private/data/catenable.rkt` | 常数时间拼接的表（Okasaki），快路径的两个待办列表 |
 | `kernel.rkt`、`nary.rkt`、`catenable.rkt` | 只是转发：分别重新导出 `amb/main.rkt`、`amb/nary.rkt`、`amb/private/data/catenable.rkt`，供测试、书中例子和基准使用 |
 | `CHOICES.md` | 选择的形式：向量、生成器、shuffler、n 路策略（接口提案） |

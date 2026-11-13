@@ -24,7 +24,8 @@
 ;;                  an alternative has paused or not.  It is not one of
 ;;                  the merges between two alternatives.
 
-(require "base.rkt")
+(require "base.rkt"
+         "private/data/step-stream.rkt")
 
 (provide amb-rotate amb-dovetail amb-dovetail/unguarded)
 
@@ -41,19 +42,21 @@
   (amb-strategy
    (λ (next)
      (define (run s front back more?)
-       (cond
-         [(pair? s) (cons (car s) (λ () (run ((cdr s)) front back more?)))]
-         [(null? s) (turn front back more?)]
-         [else (λ () (turn front (cons s back) more?))]))
+       (step-stream-case s
+         [() (turn front back more?)]
+         [(answer vs rest)
+          (step-stream-cons vs (step-stream-delay
+                                (run (step-stream-force rest) front back more?)))]
+         [(step next) (step-stream-delay (turn front (cons next back) more?))]))
      (define (turn front back more?)
        (cond
-         [(pair? front) (run ((car front)) (cdr front) back more?)]
+         [(pair? front) (run (step-stream-force (car front)) (cdr front) back more?)]
          [more?
           (let ([s (next)])
             (if s
                 (run s (reverse back) '() #t)
                 (turn (reverse back) '() #f)))]
-         [(null? back) '()]
+         [(null? back) empty-step-stream]
          [else (turn (reverse back) '() #f)]))
      (turn '() '() #t))))
 
@@ -80,21 +83,23 @@
   (amb-strategy
    (λ (next)
      (define (run s front back more)
-       (cond
-         [(pair? s) (cons (car s) (λ () (run ((cdr s)) front back more)))]
-         [(null? s) (turn front back more)]
-         [else (turn front (cons s back) more)]))
+       (step-stream-case s
+         [() (turn front back more)]
+         [(answer vs rest)
+          (step-stream-cons vs (step-stream-delay
+                                (run (step-stream-force rest) front back more)))]
+         [(step next) (turn front (cons next back) more)]))
      (define (turn front back more)
        (cond
-         [(pair? front) (run ((car front)) (cdr front) back more)]
+         [(pair? front) (run (step-stream-force (car front)) (cdr front) back more)]
          [(eq? more 'start)
           (let ([s (next)])
             (if s
                 (run s '() back 'started)
                 (turn '() back #f)))]
-         [(pair? back) (λ () (turn (reverse back) '() (and more 'start)))]
-         [(not more) '()]
-         [guarded? (λ () (turn '() '() 'start))]
+         [(pair? back) (step-stream-delay (turn (reverse back) '() (and more 'start)))]
+         [(not more) empty-step-stream]
+         [guarded? (step-stream-delay (turn '() '() 'start))]
          [else (turn '() '() 'start)]))
      (turn '() '() 'start))))
 

@@ -9,9 +9,9 @@
 ;; An observer of a search sees a sequence of events over time: an answer,
 ;; or "not yet" (a pause).  So a search is a function from the tree to
 ;;
-;;   Stream = '()                     ; no more events
-;;          | (cons vs (→ Stream))    ; an answer, then (lazily) the rest
-;;          | (→ Stream)              ; a pause, then the rest
+;;   StepStream = '()                         ; no more events
+;;              | (cons vs (→ StepStream))    ; an answer, then (lazily) the rest
+;;              | (→ StepStream)              ; a step (a pause), then the rest
 ;;
 ;; and every operation says what it contributes to that stream, in terms
 ;; of the stream `(k v)` of the rest of the computation:
@@ -26,7 +26,7 @@
 ;; stream.  Everything else is defined from these:
 ;;
 ;;   amb/base        this module; the stream itself, and observing it,
-;;                   are in private/data/stream.rkt
+;;                   are in private/data/step-stream.rkt
 ;;   amb/merge       strategies of a choice between two alternatives;
 ;;                   they only see streams, and need nothing from here
 ;;   amb (main)      `amb`, `for/amb`, the default strategy, the
@@ -35,11 +35,11 @@
 ;;   amb/nary        strategies that see all the alternatives of a choice
 ;;
 ;; and under private/data, what they are written with: the stream and
-;; observing it (stream.rkt), and the lists that amb/merge appends in
+;; observing it (step-stream.rkt), and the lists that amb/merge appends in
 ;; constant time (catenable.rkt).
 
 (require racket/control
-         "private/data/stream.rkt")
+         "private/data/step-stream.rkt")
 
 (provide
  ;; the operations
@@ -57,17 +57,17 @@
 ;; no effect of (thk) reaches the enclosing search, and nothing runs after
 ;; an event until the stream is forced further.
 (define (amb-reify thk)
-  (reset-at tag (unit (call-with-values thk list))))
+  (reset-at tag (step-stream-unit (call-with-values thk list))))
 
 ;; In the three effects, `k` is the rest of the computation, up to the
 ;; search: (k v) is the stream of the events of the rest when the
 ;; operation returns v.
 
 (define (amb-fail)
-  (shift-at tag k '()))
+  (shift-at tag k empty-step-stream))
 
 (define (amb-pause)
-  (shift-at tag k (λ () (k (void)))))
+  (shift-at tag k (step-stream-delay (k (void)))))
 
 
 ;; ---- Choices ----
@@ -115,14 +115,14 @@
              (let ([alt (take! alts i)])
                (set! i (add1 i))
                (k alt)))))]
-    [(zero? n) '()]
+    [(zero? n) empty-step-stream]
     [else
      ;; the last alternative is merged with nothing
      (let loop ([i 0])
        (define s (k (take! alts i)))
        (if (= (add1 i) n)
            s
-           (m s (λ () (loop (add1 i))))))]))
+           (m s (step-stream-delay (loop (add1 i))))))]))
 
 ;; A choice among the elements of the sequence, which are generated as
 ;; the search goes on.  The sequence is not asked whether it has another
@@ -138,4 +138,4 @@
         (let loop ()
           (if (more?)
               (let ([v (get)]) (m (k v) loop))
-              '())))))
+              empty-step-stream)))))

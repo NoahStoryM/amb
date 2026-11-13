@@ -21,7 +21,7 @@
          racket/stream
          "base.rkt"
          "merge.rkt"
-         "private/data/stream.rkt")
+         "private/data/step-stream.rkt")
 
 (provide
  ;; effects
@@ -34,7 +34,10 @@
  ;; strategies
  amb-append amb-interleave amb-alternate amb-level
  ;; observing a stream
- in-amb in-answers amb-take amb-events)
+ in-amb
+ (rename-out [in-step-stream-answers in-answers]
+             [step-stream-take amb-take]
+             [step-stream-events amb-events]))
 
 
 ;; ---- Choices ----
@@ -105,25 +108,27 @@
 ;; ---- From a stream back to the computation ----
 
 ;; Passes the pauses at the front of `s` on to the enclosing search, and
-;; returns the rest: '() or a stream that starts with an answer.
+;; returns the rest: the end, or a stream that starts with an answer.
 (define (amb-await s)
-  (cond
-    [(procedure? s) (amb-pause) (amb-await (s))]
-    [else s]))
+  (step-stream-case s
+    [() s]
+    [(answer vs rest) s]
+    [(step next) (amb-pause) (amb-await (step-stream-force next))]))
 
 ;; Returns an answer of `s`, as a choice of the enclosing search among
 ;; all of them; the pauses of `s` are pauses of the enclosing search.
 ;; This is the `bind` of the stream: each answer of `s` is followed by
 ;; the rest of the computation.
 (define (amb-reflect s [merge (current-amb-merge)])
-  (let ([s (amb-await s)])
-    (cond
-      [(null? s) (amb-fail)]
-      [(eq? (cdr s) done) (apply values (car s))]
-      [else
-       (amb-choose merge
-                   (vector (λ () (apply values (car s)))
-                           (λ () (amb-reflect ((cdr s)) merge))))])))
+  (step-stream-case (amb-await s)
+    [() (amb-fail)]
+    [(answer vs rest)
+     (if (eq? rest step-stream-done)
+         (apply values vs)
+         (amb-choose merge
+                     (vector (λ () (apply values vs))
+                             (λ () (amb-reflect (step-stream-force rest) merge)))))]
+    [(step next) (error 'amb-reflect "internal: a step after amb-await")]))
 
 ;; (amb-local e) has the answers of e, searched for on their own: the
 ;; choices of e are merged with each other before the rest of the
@@ -133,15 +138,15 @@
 
 ;; The first answer of (thk), or failure.
 (define (amb-once thk)
-  (let ([s (amb-await (amb-reify thk))])
-    (if (null? s)
-        (amb-fail)
-        (apply values (car s)))))
+  (step-stream-case (amb-await (amb-reify thk))
+    [() (amb-fail)]
+    [(answer vs rest) (apply values vs)]
+    [(step next) (error 'amb-once "internal: a step after amb-await")]))
 
 
 ;; ---- Observing a stream ----
 
-;; The answers of (e), searched for on their own; see also `in-answers`,
-;; `amb-take` and `amb-events` in private/data/stream.rkt.
+;; The answers of (e), searched for on their own; `in-answers`, `amb-take`
+;; and `amb-events` are those of private/data/step-stream.rkt.
 (define-syntax-rule (in-amb e)
-  (in-answers (amb-reify (λ () e))))
+  (in-step-stream-answers (amb-reify (λ () e))))
