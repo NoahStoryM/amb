@@ -75,14 +75,12 @@
                          (list 'b (count 0)))))
    '((a 0) pause (b 0) pause (a 1) pause (b 1) pause (a 2))))
 
+(define (str . es)                      ; a stream from its events
+  (cond [(null? es) '()]
+        [(eq? (car es) 'pause) (λ () (apply str (cdr es)))]
+        [else (cons (list (car es)) (λ () (apply str (cdr es))))]))
+
 (test-case "the defining equations"
-  (define (done) '())
-  (define a '(a))
-  (define b '(b))
-  (define (str . es)                    ; a stream from its events
-    (cond [(null? es) '()]
-          [(eq? (car es) 'pause) (λ () (apply str (cdr es)))]
-          [else (cons (list (car es)) (λ () (apply str (cdr es))))]))
   (define (merged merge l r) (amb-events (merge (apply str l) (λ () (apply str r)))))
   (for ([merge strategies])
     (check-equal? (merged merge '() '(pause x y)) '(pause x y))
@@ -91,6 +89,39 @@
   (check-equal? (merged amb-interleave '(a pause b) '(x pause y)) '(a pause x pause b y))
   (check-equal? (merged amb-alternate  '(a pause b) '(x pause y)) '(a x pause pause b y))
   (check-equal? (merged amb-level      '(a pause b) '(x pause y)) '(a x pause b y)))
+
+(test-case "the grouping shows, unless the strategy is associative"
+  ;; (s ∨ t) ∨ u and s ∨ (t ∨ u), for the streams of the events s, t, u
+  (define (groupings merge s t u)
+    (list (amb-events (merge (merge (apply str s) (λ () (apply str t)))
+                             (λ () (apply str u))))
+          (amb-events (merge (apply str s)
+                             (λ () (merge (apply str t) (λ () (apply str u))))))))
+  ;; the two examples of Astra's review (#22)
+  (check-equal? (groupings amb-interleave '(pause) '(b) '(c)) '((pause c b) (pause b c)))
+  (check-equal? (groupings amb-alternate '(a) '(b) '(c)) '((a c b) (a b c)))
+  (check-equal? (groupings amb-append '(pause) '(b) '(c)) '((pause b c) (pause b c)))
+  (check-equal? (groupings amb-level '(pause) '(b) '(c)) '((b c pause) (b c pause)))
+  (for ([merge (list amb-append amb-level)])
+    (check-equal? (groupings merge '(a) '(b) '(c)) '((a b c) (a b c))))
+  ;; a round of amb-level that has no answers is still a round
+  (check-equal? (groupings amb-level '(pause) '(pause pause b) '(c pause))
+                '((c pause pause b) (c pause pause b)))
+  ;; the same answers in another order are other answers to an observer
+  ;; that takes the first one
+  (with amb-interleave
+    (check-equal? (events (amb-once (λ () (amb (amb (begin (amb-pause) (amb)) 'b) 'c))))
+                  '(pause c))
+    (check-equal? (events (amb-once (λ () (amb (begin (amb-pause) (amb)) (amb 'b 'c)))))
+                  '(pause b))))
+
+(test-case "no alternatives is failure; a pause is not"
+  (check-equal? (events (begin (amb) 'x)) '())
+  (check-equal? (events (begin (amb-pause) 'x)) '(pause x))
+  (for ([merge strategies])
+    (with merge
+      (check-equal? (events (amb (amb) (begin (amb-pause) 'x))) '(pause x))
+      (check-equal? (events (amb (begin (amb-pause) 'x) (amb))) '(pause x)))))
 
 (test-case "turns among three alternatives"
   ;; how many of the first 1200 answers come from each alternative
@@ -105,8 +136,19 @@
   ;; between the other two
   (check-equal? (shares amb-interleave) '(1/2 1/4 1/4))
   (check-equal? (shares amb-alternate) '(1/2 1/4 1/4))
-  ;; amb-level is associative: nesting does not show
-  (check-equal? (shares amb-level) '(1/3 1/3 1/3)))
+  ;; amb-level runs every stream up to its pause in each round, and
+  ;; each of these three has one answer in a round
+  (check-equal? (shares amb-level) '(1/3 1/3 1/3))
+  ;; with two answers in a round for the first, and one for the others,
+  ;; the shares of the answers are those of the answers in a round:
+  ;; associativity says that the grouping does not show, and no more
+  (define (count2 n) (amb n n (begin (amb-pause) (count2 (add1 n)))))
+  (define es
+    (with amb-level
+      (filter pair? (events/fuel 2500 (amb (list 'a (count2 0)) (list 'b (count 0)) (list 'c (count 0)))))))
+  (check-equal? (for/list ([x '(a b c)])
+                  (/ (for/sum ([e es]) (if (eq? (car e) x) 1 0)) (length es)))
+                '(1/2 1/4 1/4)))
 
 (test-case "a local search is a value"
   ;; the choices of the local search are not choices of the enclosing one
@@ -154,6 +196,29 @@
                   '(pause B C A))
     (check-equal? (events (then (amb 'a (amb 'b 'c))))
                   '(pause B C A))))
+
+;; ---- the observers force no more than they return ----
+
+(define (never) (error "tail forced"))
+
+(test-case "amb-events stops at the last event it was asked for"
+  ;; the last event is an answer: its rest is not forced
+  (check-equal? (amb-events (cons '(a) never) 1) '(a))
+  (check-equal? (amb-events (cons '(a) (λ () (cons '(b) never))) 2) '(a b))
+  ;; the last event is a pause: the stream is not resumed
+  (check-equal? (amb-events (λ () (never)) 1) '(pause))
+  (check-equal? (amb-events (cons '(a) (λ () never)) 2) '(a pause))
+  ;; nothing was asked for
+  (check-equal? (amb-events (cons '(a) never) 0) '())
+  ;; with one more event asked for, the tail is forced
+  (check-exn #rx"tail forced" (λ () (amb-events (cons '(a) never) 2)))
+  (check-exn #rx"tail forced" (λ () (amb-events (λ () (never)) 2))))
+
+(test-case "amb-take stops at the last answer it was asked for"
+  (check-equal? (amb-take 1 (cons '(a) never)) '(a))
+  (check-equal? (amb-take 2 (cons '(a) (λ () (λ () (cons '(b) never))))) '(a b))
+  (check-equal? (amb-take 0 never) '())
+  (check-exn #rx"tail forced" (λ () (amb-take 2 (cons '(a) never)))))
 
 ;; ---- two things a public interface would have to settle ----
 

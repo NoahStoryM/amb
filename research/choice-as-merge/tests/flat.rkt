@@ -16,6 +16,7 @@
 
 (require racket/match
          rackunit
+         "../catenable.rkt"
          "../model.rkt")
 
 ;; The list of (cons event log): each event of e, with the thunks that
@@ -78,6 +79,46 @@
     (for ([_ 5000])
       (define e (random-expression (add1 (random 12)) ms))
       (check-true (same? e) (format "~s" e)))))
+
+;; ---- merging a stream again and again (issue #22) ----
+;;
+;;   s₀ has n + 1 answers;   sᵢ₊₁ = the rest of (sᵢ ∨ t)
+;;
+;; Each step takes one answer, adds a thunk that has yet to run, and
+;; drops the old stream: a single pass.  The record of sᵢ has i thunks to
+;; run, and the new one comes after them all.
+
+(define (again m n)
+  (for/fold ([e `(stream 0 ,@(build-list (add1 n) values))]) ([i (in-range 1 (add1 n))])
+    `(drop 1 (,m ,i ,e (stream ,(- i))))))
+
+(test-case "merged again and again: the equations"
+  (for* ([m '(append level)] [n '(1 2 3 10 200)])
+    (check-true (same? (again m n)) (format "~a ~a" m n)))
+  ;; the same, when the streams that are added have events
+  (for* ([m '(append level)] [n '(1 2 3 10 200)])
+    (define e
+      (for/fold ([e `(stream 0 ,@(build-list (add1 n) values))]) ([i (in-range 1 (add1 n))])
+        `(drop 1 (,m ,i ,e (stream ,(- i) pause ,(- i))))))
+    (check-true (same? e) (format "~a ~a" m n))))
+
+(test-case "merged again and again: the steps"
+  ;; The steps that the lists of the records take (catenable.rkt) are
+  ;; proportional to n; a list that is copied at each step takes n²/2.
+  (define (steps merge n)
+    (define before (cat-steps))
+    (define s
+      (for/fold ([s (let loop ([i 0])
+                      (if (> i n) '() (cons (list i) (λ () (loop (add1 i))))))])
+                ([_ n])
+        ((cdr (merge s (λ () '()))))))
+    (let loop ([s s])                   ; and to the end of the stream
+      (cond [(pair? s) (loop ((cdr s)))]
+            [(procedure? s) (loop (s))]))
+    (- (cat-steps) before))
+  (for* ([merge (list (kernel-merge 'append) (kernel-merge 'level))]
+         [n '(1000 10000 100000)])
+    (check-true (<= (steps merge n) (* 4 n)))))
 
 (test-case "what the observation sees"
   ;; a merge that runs the second stream too early is not the same,

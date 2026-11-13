@@ -25,7 +25,8 @@
 ;; frontier of the search is not a data structure; it is the part of the
 ;; stream expression that has not been evaluated yet.
 
-(require racket/control)
+(require racket/control
+         "catenable.rkt")
 
 (provide
  ;; effects
@@ -132,14 +133,20 @@
 ;;   (s ∨ t) ∨ u  =  s ∨ (t ∨ u)
 ;;
 ;; the grouping does not matter, so a stream that is not finished can be a
-;; record of what is left to do, in a list, and a record whose s is a
-;; record of the same strategy is one record: the two lists are appended
-;; when it is forced.  An event then costs a constant number of steps.
+;; record of what is left to do.  When the thunk that a record is to run
+;; next is a record of the same strategy, the two are one record: what is
+;; left of the inner one, and then what is left of the outer one.
 ;;
-;; A record is a thunk, like every stream that waits, so a strategy
-;; that looks at its arguments only by their events (all of them do)
-;; needs to know nothing about it, and the records of one strategy end
-;; where a choice of another strategy begins.
+;; A record is a thunk, like every stream that waits, so a strategy that
+;; looks at its arguments only by their events (all of them do) needs to
+;; know nothing about it.
+;;
+;; The equation says that the streams are the same.  That a record runs
+;; the thunks it was given when the equations do, and no sooner, is a
+;; second property, and how many steps it takes is a third; see README.
+;;
+;; What is left to do is kept in lists that are appended in constant time
+;; (catenable.rkt), because either of the two lists can be the long one.
 
 ;; Depth-first search: all of s, then t.
 ;;
@@ -151,27 +158,27 @@
 (define (amb-append s t)
   (cond
     [(null? s) (t)]
-    [(pair? s) (cons (car s) (appended (cdr s) (list t)))]
-    [else (appended s (list t))]))
+    [(pair? s) (cons (car s) (appended (cdr s) (cat-of t)))]
+    [else (appended s (cat-of t))]))
 
 (define (append-run s ts)
   (if (appended? s)
-      (append-run (appended-s s) (append (appended-ts s) ts))
+      (append-run (appended-s s) (cat-append (appended-ts s) ts))
       (let loop ([s (s)] [ts ts])
         (cond
           [(pair? s) (cons (car s) (appended (cdr s) ts))]
           [(procedure? s) (appended s ts)]
           [(null? ts) '()]
-          [else (loop ((car ts)) (cdr ts))]))))
+          [else (loop ((cat-first ts)) (cat-rest ts))]))))
 
 ;; Breadth-first search by pauses: when s pauses, t runs up to its own
 ;; pause, and then the merged stream pauses once.  The merged stream is a
 ;; sequence of rounds; in a round, each stream runs up to its pause.
 ;;
 ;;   (leveled ws s ts)   the rest of a round: the thunks ws have paused
-;;                       in it (the last one first), (s) is running, and
-;;                       the thunks ts have yet to run; then one pause,
-;;                       and the next round
+;;                       in it, (s) is running, and the thunks ts have
+;;                       yet to run; then one pause, and the next round,
+;;                       in which they run in the same order
 (struct leveled (ws s ts)
   #:property prop:procedure
   (λ (self) (level-run (leveled-ws self) (leveled-s self) (leveled-ts self))))
@@ -179,26 +186,31 @@
 (define (amb-level s t)
   (cond
     [(null? s) (t)]
-    [(pair? s) (cons (car s) (leveled '() (cdr s) (list t)))]
-    [else (level-run (list s) t '())]))
+    [(pair? s) (cons (car s) (leveled '() (cdr s) (cat-of t)))]
+    [else (level-run (cat-of s) t '())]))
 
 (define (level-run ws s ts)
   (if (leveled? s)
-      (level-run (append (leveled-ws s) ws) (leveled-s s) (append (leveled-ts s) ts))
+      (level-run (cat-append ws (leveled-ws s))
+                 (leveled-s s)
+                 (cat-append (leveled-ts s) ts))
       (let ([s (s)])
         (cond
           [(pair? s) (cons (car s) (leveled ws (cdr s) ts))]
           [(null? s) (level-next ws ts)]
-          [else (level-next (cons s ws) ts)]))))
+          [else (level-next (cat-append ws (cat-of s)) ts)]))))
 
 ;; The next stream of the round; or the end of the round: the pause, and
-;; then the streams that have paused, in their order.
+;; then the streams that have paused.
 (define (level-next ws ts)
   (cond
-    [(pair? ts) (level-run ws (car ts) (cdr ts))]
+    [(not (null? ts)) (level-run ws (cat-first ts) (cat-rest ts))]
     [(null? ws) '()]
-    [(null? (cdr ws)) (car ws)]
-    [else (let ([ss (reverse ws)]) (leveled '() (car ss) (cdr ss)))]))
+    [else
+     (let ([s (cat-first ws)] [ws (cat-rest ws)])
+       (if (null? ws)
+           s
+           (leveled '() s ws)))]))
 
 ;; The strategy belongs to the choice point: `amb` reads it when the
 ;; choice is made.
@@ -280,10 +292,13 @@
              [v (in-answers s)])
     v))
 
-;; The first `fuel` events: each answer (one value), or 'pause.
+;; The first `fuel` events: each answer (one value), or 'pause.  Nothing
+;; is forced after the last of them.
 (define (amb-events s [fuel +inf.0])
   (let loop ([s s] [fuel fuel])
     (cond
       [(or (null? s) (<= fuel 0)) '()]
-      [(pair? s) (cons (caar s) (loop ((cdr s)) (sub1 fuel)))]
-      [else (cons 'pause (loop (s) (sub1 fuel)))])))
+      [(pair? s)
+       (cons (caar s) (if (<= fuel 1) '() (loop ((cdr s)) (sub1 fuel))))]
+      [else
+       (cons 'pause (if (<= fuel 1) '() (loop (s) (sub1 fuel))))])))

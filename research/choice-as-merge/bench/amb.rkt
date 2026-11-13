@@ -171,3 +171,30 @@
 (for ([n '(250 500 1000)])
   (bench/kernel (format "~a streams, 20 rounds" n) level
                 (for/sum ([x (in-amb (rows n 20))]) x)))
+
+
+;; ---- a stream merged again and again (issue #22) ----
+;;
+;;   s₀ has n + 1 answers;   sᵢ₊₁ = the rest of (sᵢ ∨ t)
+;;
+;; A single pass: each step takes one answer, adds a thunk that has yet
+;; to run, and drops the old stream.  The stream of step i has i thunks
+;; to run, and the new one comes after them all.
+
+(header "merged again and again")
+
+(define (naturals n)
+  (let loop ([i 0])
+    (if (> i n) '() (cons (list i) (λ () (loop (add1 i)))))))
+
+(define (again n)
+  (define merge (current-amb-merge))
+  (amb-events
+   (for/fold ([s (naturals n)]) ([_ n])
+     ((cdr (merge s (λ () '())))))))
+
+(for* ([m '(append level)] [n '(5000 10000 20000 40000)])
+  (define name (format "~a, n = ~a" m n))
+  (if (eq? m 'append)
+      (bench/kernel name append (again n))
+      (bench/kernel name level (again n))))

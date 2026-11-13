@@ -23,8 +23,10 @@
 ;;   spec     every goal takes the rest of the computation as an explicit
 ;;            function `k`; a disjunction merges the streams of its two
 ;;            goals.  No control operators, and the four merges are
-;;            written from their equations: this is the specification,
-;;            and it uses nothing of kernel.rkt.
+;;            written from their equations.  This is the specification;
+;;            its definitions (the streams, the merges, `spec`) call
+;;            nothing of kernel.rkt, which this module requires for
+;;            `direct` only.
 ;;   direct   runs a goal in direct style, with the effects and the
 ;;            strategies of kernel.rkt.
 ;;   book     goals return streams, and conjunction is the `bind` of the
