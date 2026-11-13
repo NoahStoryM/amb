@@ -74,6 +74,14 @@
        (for/sum ([x (m:in-amb/do (m:for/amb ([i (in-range N)]) i))]) x)
        (for/sum ([x (in-amb (amb-from (in-range N)))]) x))
 
+;; the same choice, written as for/amb
+(bench "wide: for/amb" append
+       (for/sum ([x (m:in-amb/do (m:for/amb ([i (in-range N)]) i))]) x)
+       (for/sum ([x (in-amb (for/amb ([i (in-range N)]) i))]) x))
+(bench "wide: for/amb #:length" append
+       (for/sum ([x (m:in-amb/do (m:for/amb #:length N ([i (in-range N)]) i))]) x)
+       (for/sum ([x (in-amb (for/amb #:length N ([i (in-range N)]) i))]) x))
+
 ;; Pythagorean triples
 (define M 60)
 (bench "triples below 60" append
@@ -115,6 +123,46 @@
 (bench "8 queens, all solutions" append
        (for/list ([s (m:in-amb/do (m:queens 8))]) s)
        (for/list ([s (in-amb (queens 8))]) s))
+(define (queens/vector n)
+  (let loop ([k 0] [qs '()])
+    (cond
+      [(= k n) qs]
+      [else
+       (define q (for/amb #:length n ([i (in-range n)]) i))
+       (unless (ok? q qs) (amb))
+       (loop (add1 k) (cons q qs))])))
+(bench "8 queens, for/amb #:length" append
+       (for/list ([s (m:in-amb/do (m:queens 8))]) s)
+       (for/list ([s (in-amb (queens/vector 8))]) s))
+;; ten queens: all 724 solutions
+(bench "10 queens, amb-from" append
+       (for/list ([s (m:in-amb/do (m:queens 10))]) s)
+       (for/list ([s (in-amb (queens 10))]) s))
+(bench "10 queens, for/amb #:length" append
+       (for/list ([s (m:in-amb/do (m:queens 10))]) s)
+       (for/list ([s (in-amb (queens/vector 10))]) s))
+(define (queens/for n)
+  (let loop ([k 0] [qs '()])
+    (cond
+      [(= k n) qs]
+      [else
+       (define q (for/amb ([i (in-range n)]) i))
+       (unless (ok? q qs) (amb))
+       (loop (add1 k) (cons q qs))])))
+(bench "10 queens, for/amb" append
+       (for/list ([s (m:in-amb/do (m:queens 10))]) s)
+       (for/list ([s (in-amb (queens/for 10))]) s))
+(define (m:queens/amb qs)
+  (define q (m:amb 0 1 2 3 4 5 6 7))
+  (unless (ok? q qs) (m:amb))
+  (if (= (length qs) 7) (cons q qs) (m:queens/amb (cons q qs))))
+(define (queens/amb qs)
+  (define q (amb 0 1 2 3 4 5 6 7))
+  (unless (ok? q qs) (amb))
+  (if (= (length qs) 7) (cons q qs) (queens/amb (cons q qs))))
+(bench "8 queens, (amb 0 ... 7)" append
+       (for/list ([s (m:in-amb/do (m:queens/amb '()))]) s)
+       (for/list ([s (in-amb (queens/amb '()))]) s))
 
 ;; many choice points with two alternatives each, all open at once
 (define (m:bits n) (if (zero? n) 0 (+ (m:amb 0 1) (* 2 (m:bits (sub1 n))))))

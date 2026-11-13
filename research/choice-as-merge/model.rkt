@@ -175,7 +175,7 @@
       [`(seq ,g1 ,g2) (run g2 (run g1 s))]
       [`(alt ,g1 ,g2) (amb (run g1 s) (run g2 s))]
       [`(alt ,m ,g1 ,g2)
-       (amb* (kernel-merge m) (list (λ () (run g1 s)) (λ () (run g2 s))))]
+       (amb* (kernel-merge m) (vector (λ () (run g1 s)) (λ () (run g2 s))))]
       [`(local ,g) (amb-local (run g s))]
       [`(once ,g) (amb-once (λ () (run g s)))]
       [`(ifte ,g1 ,g2 ,g3)

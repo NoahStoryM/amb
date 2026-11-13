@@ -25,19 +25,23 @@
 ;; frontier of the search is not a data structure; it is the part of the
 ;; stream expression that has not been evaluated yet.
 
-(require racket/control
+(require (for-syntax racket/base syntax/parse)
+         racket/control
+         racket/stream
          "catenable.rkt")
 
 (provide
  ;; effects
- amb amb* amb-fail amb-pause current-amb-merge
+ amb amb* amb-from for/amb for*/amb amb-fail amb-pause
+ current-amb-merge current-amb-shuffler
+ ;; strategies that see all the alternatives of a choice
+ amb-strategy amb-strategy? amb-strategy-proc
  ;; a local search, as a value, and back
  amb-reify amb-reflect amb-await amb-local amb-once
  ;; strategies
  amb-append amb-interleave amb-alternate amb-level
  ;; observing a stream
- in-amb in-answers amb-take amb-events
- amb-from)
+ in-amb in-answers amb-take amb-events)
 
 
 ;; ---- Streams ----
@@ -69,17 +73,84 @@
 (define (amb-pause)
   (shift-at tag k (λ () (k (void)))))
 
-;; A choice among the thunks `alts`, merged from the right:
-;;   (merge (k a) (λ () (merge (k b) (λ () (k c)))))
-;; The chosen thunk is called where the choice was made, so a choice made
-;; inside an alternative is a choice of the same search.
-(define (amb* merge alts)
-  ((shift-at tag k
-     (let loop ([alts alts])
-       (cond
-         [(null? alts) '()]
-         [(null? (cdr alts)) (k (car alts))]
-         [else (merge (k (car alts)) (λ () (loop (cdr alts))))])))))
+;; ---- Choices ----
+;;
+;; A choice has alternatives, and a strategy says how their streams are
+;; merged.  The strategy is one of
+;;
+;;   a merge       (merge s t): the stream s, and the stream of the thunk
+;;                 t.  A choice among more than two alternatives is
+;;                 merged from the right:
+;;                   (merge (k a) (λ () (merge (k b) (λ () (k c)))))
+;;   a strategy    (amb-strategy proc), which sees all the alternatives:
+;;                 (proc next), where (next) is the stream of the next
+;;                 alternative, or #f when there are no more.  Each
+;;                 alternative starts to run when (next) is called.
+;;
+;; and the alternatives come in a vector or from a sequence.
+
+(struct amb-strategy (proc))
+
+;; A choice among the thunks of the mutable vector `alts`, which is used
+;; up.  The chosen thunk is called where the choice was made, so a choice
+;; made inside an alternative is a choice of the same search.
+;;
+;; `current-amb-shuffler` is called on the vector first, where the choice
+;; is made, to put the alternatives in another order.
+(define current-amb-shuffler (make-parameter void))
+
+(define (amb* m alts)
+  (when (> (vector-length alts) 1)
+    ((current-amb-shuffler) alts))
+  (choose m alts))
+
+(define (choose m alts)
+  ((shift-at tag k (merge-vector m k alts))))
+
+;; A slot is emptied when its thunk is taken, so that a choice does not
+;; hold on to the alternatives it is done with.
+(define (take! alts i)
+  (define alt (vector-ref alts i))
+  (unless alt
+    (error 'amb "an alternative is taken twice; a stream is single-pass"))
+  (vector-set! alts i #f)
+  alt)
+
+(define (merge-vector m k alts)
+  (define n (vector-length alts))
+  (cond
+    [(amb-strategy? m)
+     (define i 0)
+     ((amb-strategy-proc m)
+      (λ ()
+        (and (< i n)
+             (let ([alt (take! alts i)])
+               (set! i (add1 i))
+               (k alt)))))]
+    [(zero? n) '()]
+    [else
+     ;; the last alternative is merged with nothing
+     (let loop ([i 0])
+       (define s (k (take! alts i)))
+       (if (= (add1 i) n)
+           s
+           (m s (λ () (loop (add1 i))))))]))
+
+;; An element of the sequence: a choice among all of them, which are
+;; generated as the search goes on.  The sequence is not asked whether it
+;; has another element before the turn passes on to it, so the end of the
+;; sequence is merged as a stream of its own: a merge m is used as
+;;   (m (k a) (λ () (m (k b) (λ () '()))))
+;; which is the choice among a vector when s ∨ '() = s.
+(define (amb-from seq [m (current-amb-merge)])
+  (define-values (more? get) (sequence-generate seq))
+  (shift-at tag k
+    (if (amb-strategy? m)
+        ((amb-strategy-proc m) (λ () (and (more?) (k (get)))))
+        (let loop ()
+          (if (more?)
+              (let ([v (get)]) (m (k v) loop))
+              '())))))
 
 
 ;; ---- Strategies ----
@@ -216,8 +287,49 @@
 ;; choice is made.
 (define current-amb-merge (make-parameter amb-append))
 
-(define-syntax-rule (amb e ...)
-  (amb* (current-amb-merge) (list (λ () e) ...)))
+(define-syntax amb
+  (syntax-rules ()
+    [(_) (amb-fail)]
+    [(_ e ...) (amb* (current-amb-merge) (vector (λ () e) ...))]))
+
+;; (for/amb (clause ...) body ...) is a choice among the values of the
+;; body, one alternative for each iteration; the body runs where the
+;; choice was made.
+;;
+;;   with #:length n   the alternatives are collected in a vector first,
+;;                     as by for/vector (at most n of them), and the
+;;                     choice is that of `amb*`
+;;   without           the iterations go on as the search does, and the
+;;                     choice is that of `amb-from`
+(define-syntaxes (for/amb for*/amb)
+  (let ()
+    (define-splicing-syntax-class break
+      [pattern (~seq (~or* #:break #:final) guard:expr)])
+    (define ((expander for/vector for/stream) stx)
+      (syntax-parse stx
+        [(_ #:length n (clause ...) b:break ... body ...+)
+         #:with (b* ...) #'((~@ . b) ...)
+         (quasisyntax/loc stx
+           (amb* (current-amb-merge)
+                 (trim (#,for/vector #:length n #:fill #f (clause ...) b* ...
+                        (λ () body ...)))))]
+        [(_ (clause ...) b:break ... body ...+)
+         #:with (b* ...) #'((~@ . b) ...)
+         (quasisyntax/loc stx
+           ((amb-from (#,for/stream (clause ...) b* ... (λ () body ...)))))]))
+    (values (expander #'for/vector #'for/stream)
+            (expander #'for*/vector #'for*/stream))))
+
+;; The vector without the slots at its end that were not filled.
+(define (trim alts)
+  (let loop ([n (vector-length alts)])
+    (cond
+      [(and (positive? n) (not (vector-ref alts (sub1 n)))) (loop (sub1 n))]
+      [(= n (vector-length alts)) alts]
+      [else
+       (let ([v (make-vector n #f)])
+         (vector-copy! v 0 alts 0 n)
+         v)])))
 
 
 ;; ---- From a stream back to the computation ----
@@ -239,9 +351,9 @@
       [(null? s) (amb-fail)]
       [(eq? (cdr s) done) (apply values (car s))]
       [else
-       (amb* merge
-             (list (λ () (apply values (car s)))
-                   (λ () (amb-reflect ((cdr s)) merge))))])))
+       (choose merge
+               (vector (λ () (apply values (car s)))
+                       (λ () (amb-reflect ((cdr s)) merge))))])))
 
 ;; (amb-local e) has the answers of e, searched for on their own: the
 ;; choices of e are merged with each other before the rest of the
@@ -255,16 +367,6 @@
     (if (null? s)
         (amb-fail)
         (apply values (car s)))))
-
-;; An element of the sequence: one choice among all of them, merged from
-;; the right as in `amb*`, and generated as the search goes on.
-(define (amb-from seq [merge (current-amb-merge)])
-  (define-values (more? get) (sequence-generate seq))
-  (shift-at tag k
-    (let loop ()
-      (if (more?)
-          (let ([v (get)]) (merge (k v) loop))
-          '()))))
 
 
 ;; ---- Observing a stream ----

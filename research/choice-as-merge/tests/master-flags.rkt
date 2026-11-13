@@ -16,7 +16,7 @@
 ;; ---- depth-first? #f ----
 
 (define-syntax-rule (amb/bfs e ...)
-  (begin (amb-pause) (amb* amb-level (list (λ () e) ...))))
+  (begin (amb-pause) (amb* amb-level (vector (λ () e) ...))))
 
 (test-case "breadth-first search is a pause at every choice"
   (check-equal?
@@ -61,11 +61,11 @@
 ;; alternatives wait for a pause (and every other choice merges with
 ;; amb-level, as in one global frontier).
 (define-syntax-rule (amb/alternate e ...)
-  (amb* amb-alternate (list (λ () e) ...)))
+  (amb* amb-alternate (vector (λ () e) ...)))
 (define-syntax amb/later
   (syntax-rules ()
     [(_ e) e]
-    [(_ e0 e ...) (amb* amb-level (list (λ () e0) (λ () (amb-pause) (amb/later e ...))))]))
+    [(_ e0 e ...) (amb* amb-level (vector (λ () e0) (λ () (amb-pause) (amb/later e ...))))]))
 
 (test-case "fair? is a place in the global frontier, not a merge"
   ;; first example of "Test fair search" in tests/amb.rkt
@@ -90,7 +90,7 @@
       x))
   (check-equal? master
                 '((0 1 4) (0 2 4) (0 3 4) (0 1 5) (0 2 5) (0 3 5) (0 1 6) (0 2 6) (0 3 6)))
-  (define-syntax-rule (amb/level e ...) (amb* amb-level (list (λ () e) ...)))
+  (define-syntax-rule (amb/level e ...) (amb* amb-level (vector (λ () e) ...)))
   (check-equal? (for/list ([x (in-amb (after amb/level amb/later))]) x)
                 master)
   (check-equal? (for/list ([x (in-amb (after amb/level amb/alternate))]) x)

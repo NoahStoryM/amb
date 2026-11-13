@@ -107,7 +107,7 @@
 ;; mplus and mplusi: a choice.
 (define-syntax-rule (if-aux merge g0 g1 g2)
   (λ (s)
-    (amb* merge (list (λ () ((all g0 g1) s))
+    (amb* merge (vector (λ () ((all g0 g1) s))
                       (λ () (g2 s))))))
 (define-syntax-rule (ife g0 g1 g2) (if-aux amb-append    g0 g1 g2))
 (define-syntax-rule (ifi g0 g1 g2) (if-aux amb-alternate g0 g1 g2))

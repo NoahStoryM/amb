@@ -7,7 +7,7 @@
 ## 结论
 
 1. **直接风格的公平搜索只需要一个新效应和一个参数。** 新效应是 `pause`（暂停）；参数是每个选择点上的 `merge`：一个把两条事件流合成一条的二元运算。frontier 不必作为数据结构出现：它就是流表达式里还没求值的那部分。
-2. 内核 [`kernel.rkt`](kernel.rkt) 一共 135 行代码（不计注释），其中控制部分是四个定义、十来行：就是用 `shift`/`reset` 写非确定性的教科书写法 `(shift k (append (k a) (k b)))`，把列表换成带暂停的惰性流，把 `append` 换成参数。四种 merge 的定义方程各五六行，写在规格 [`model.rkt`](model.rkt) 里；内核里结合的两种（`append`、`level`）走扁平的快路径，共 55 行，另加 [`catenable.rkt`](catenable.rkt) 44 行（常数时间拼接的表）。
+2. 内核 [`kernel.rkt`](kernel.rkt) 一共 194 行代码（不计注释；其中选择的各种形式——向量、生成器、`for/amb`、shuffler——约 60 行，见 [`CHOICES.md`](CHOICES.md)），其中控制部分是四个定义、十来行：就是用 `shift`/`reset` 写非确定性的教科书写法 `(shift k (append (k a) (k b)))`，把列表换成带暂停的惰性流，把 `append` 换成参数。四种 merge 的定义方程各五六行，写在规格 [`model.rkt`](model.rkt) 里；内核里结合的两种（`append`、`level`）走扁平的快路径，共 55 行，另加 [`catenable.rkt`](catenable.rkt) 44 行（常数时间拼接的表）。
 3. `disj = amb`、`conj = 函数复合`、`defrel = 先 pause`，配上 `amb-interleave`（即 `append-inf` / `mplus`），TRS2 书中 285 个例子有 **283 个与原书逐答案相同**，耗时与 miniKanren-typed 的流实现持平（11.1 s 对 12.0 s）；ambKanren master 是 270 个、353 s。
 4. 把 `conj` 改成「先局部搜索第一个目标」（一行），就是原书的 `bind`：285 个全同。所以原书与直接风格的差别**只有这一处**，而合取的结合律、分配律也正是在这一处丢掉的。
 5. 换成 `amb-level`，得到的就是 ambKanren 现在的全局前沿顺序（285 例中 284 例逐答案相同，另一例的原因见下）。所以「全局前沿」不是另一种机制，而是一种 merge。
@@ -34,14 +34,15 @@ Stream = '()                     没有更多事件
 (define (amb-fail)  (shift-at tag k '()))
 (define (amb-pause) (shift-at tag k (λ () (k (void)))))
 (define (amb* merge alts)               ; (merge (k a) (λ () (merge (k b) (λ () (k c)))))
-  ((shift-at tag k
-     (let loop ([alts alts])
-       (cond [(null? alts) '()]
-             [(null? (cdr alts)) (k (car alts))]
-             [else (merge (k (car alts)) (λ () (loop (cdr alts))))])))))
+  ((shift-at tag k                      ; alts 是 thunk 的向量；这里略去 shuffler、槽位的释放和 n 路策略
+     (let loop ([i 0])
+       (define s (k (vector-ref alts i)))
+       (if (= (add1 i) (vector-length alts))
+           s
+           (merge s (λ () (loop (add1 i)))))))))
 ```
 
-`(amb e ...)` 是 `(amb* (current-amb-merge) (list (λ () e) ...))`。策略属于选择点（在选择时读取参数），同一次搜索里可以混用（惰性带来的一个注意点见第 6 节代价 3）。
+`(amb e ...)` 是 `(amb* (current-amb-merge) (vector (λ () e) ...))`，`(amb)` 是 `(amb-fail)`。`amb-from`、`for/amb`、`for*/amb`、`current-amb-shuffler` 和看得到全部备选的 n 路策略（`amb-rotate`、`amb-dovetail`）见 [`CHOICES.md`](CHOICES.md)。策略属于选择点（在选择时读取参数），同一次搜索里可以混用（惰性带来的一个注意点见第 6 节代价 3）。
 
 **策略只是一条方程。** 四种 merge 对「已就绪的答案」和「结束的流」处理相同，区别只在 `s` 暂停时怎么办：
 
@@ -203,7 +204,7 @@ Astra 第 7 问的建议。`amb*` 接受任何 `Stream × (→ Stream) → Strea
 
 > 树由返回、失败、暂停和**有限分支**的选择组成，**展开单个节点耗时有限**，每条无限路径上有无穷多个暂停。那么用 `interleave`、`alternate` 或 `level`，持续请求结果时，每条有限路径上的答案都会在有限步内出现。
 
-证明用 König 引理（截到各路径的第一个暂停，这一片是有限的）。它给的是「最终出现」，没有统一的延迟上界，也不把 `once` 剪掉的叶子算作答案。前提不能简写成「找不到一条没有暂停的路径」：`(amb (let loop () (loop)) 'x)` 的第一个分支连一个节点都不交出；`(amb-from (in-naturals))` 这种不暂停的无限选择仍会饿死右边的兄弟（它展开成一条没有暂停的无限右梳）。`defrel` 保证的是第三个条件。公平是活性性质，不是等式：`append` 和 `level` 都是幺半群，公平性却不同。
+证明用 König 引理（截到各路径的第一个暂停，这一片是有限的）。它给的是「最终出现」，没有统一的延迟上界，也不把 `once` 剪掉的叶子算作答案。前提不能简写成「找不到一条没有暂停的路径」：`(amb (let loop () (loop)) 'x)` 的第一个分支连一个节点都不交出；`(amb-from (in-naturals))` 这种不暂停的无限选择仍会饿死右边的兄弟（它展开成一条没有暂停的无限右梳）；点名使用 `amb-dovetail` 可以解决，代价是多出来的暂停，见 [`CHOICES.md`](CHOICES.md) 第 4 节。`defrel` 保证的是第三个条件。公平是活性性质，不是等式：`append` 和 `level` 都是幺半群，公平性却不同。
 
 **公平不等于及时。** x 前面有 d 个永远暂停的分支时，x 之前的暂停数：`interleave` 是 2^d − 1，`level` 是 0（同一测试文件 "how long x waits"）。这是 `conde` 靠后的子句「理论上公平、实际上等不到」的来源，是 `mplus` 二元嵌套的结果，不是公平性的要求。
 
@@ -324,13 +325,13 @@ master 的两个策略参数（`tests/master-flags.rkt`）：`current-amb-depth-
 
 我的判断：**是，前提是接受「搜索结果是一条带暂停的流」这个视角。** 概念只有四个（事件流、三个效应、merge、reify/reflect），每个策略是一条方程，规格是一个十几行的解释器，合取的规律可以用展开证明而不是靠测试。没有 frontier、没有树结构体上的策略标志、没有挂在 continuation mark 上的 handler、没有「入队位置」的推理。
 
-与 PR #10 的比较：我没有读它的代码，只看了标题和规模（PR #10 `local-frontier`：15 个文件，+1674 −190，其中 `private/amb.rkt` 改动 536 行）。两者的对应关系见 #22 第 1–3 点（不是我做的对照）：#10 的 `amb/local` 就是这里的 `amb` 配 `amb-interleave`，它物化的 frontier 树就是 merge 闭包组成的树，只有多路选择不同。本目录的内核是 304 行（代码 135 行），加上 `catenable.rkt` 96 行（代码 44 行）。两边功能不对等（见下面的代价 1）。
+与 PR #10 的比较：我没有读它的代码，只看了标题和规模（PR #10 `local-frontier`：15 个文件，+1674 −190，其中 `private/amb.rkt` 改动 536 行）。两者的对应关系见 #22 第 1–3 点（不是我做的对照）：#10 的 `amb/local` 就是这里的 `amb` 配 `amb-interleave`，它物化的 frontier 树就是 merge 闭包组成的树，只有多路选择不同。本目录的内核是 406 行（代码 194 行），加上 `catenable.rkt` 96 行（代码 44 行）。两边功能不对等（见下面的代价 1）。
 
 与 ambKanren 已有研究的关系：`research/local-search-20261109` 的 `trs2-shift` 已经用 shift/reset 把目标 reify 成流，这里不是全新的想法。区别在 merge 放在哪里。`trs2-shift` 的 `disj2` 先把两个分支各自 reify（不带续延），合并之后再用 `append-map-inf` 把续延接回去，所以得到原书的顺序，也得到原书缺的规律，并且每一层析取都多一次 reify/reflect。这里的选择点直接合并带着续延的两个分支，`(merge (k a) (λ () (k b)))`：不需要 reflect，规律成立，Kanren 一侧只剩 `amb` 和函数复合，而 merge 作为 amb 的参数对 Kanren 以外的程序同样可用。
 
 代价：
 
-1. **没有实现 master 的全部 API。** 没有 `for/amb #:length`、shuffler、contract、Typed 包装、文档；`amb-from` 是 `for/amb` 的简化替身。
+1. **没有实现 master 的全部 API。** `for/amb`（有无 `#:length`）、`for*/amb`、shuffler 有了原型（[`CHOICES.md`](CHOICES.md)）；没有 `#:fill`、contract、Typed 包装、文档。
 2. **流不记忆。** 每个 thunk 只应强制一次（单遍，和 `in-amb/do` 一样）；重复强制会重跑续延（`tests/kernel.rkt` "a stream is single-pass"），命题三的代价界也以单遍为前提。公开接口需要在边界上包一层记忆化的流。
 3. **参数在强制流的地方读取。** 搜索是惰性的，所以包在搜索外面的 `(parameterize ([current-amb-merge …]) (amb-reify …))` 只管到第一个事件；之后的选择读到的是强制流那一刻的值。写在搜索里面的 `parameterize` 属于续延，没有这个问题。master 的 `in-amb` 对它的参数也是这样（同一测试文件 "a parameter is read where the stream is forced"）。本目录的测试都在 `parameterize` 之内把流取完。
 4. **`interleave`、`alternate` 的事件仍要经过它上方所有开着的 merge。** 它们照方程写，一次暂停要让路径上每一层都换边（流实现也一样）。这是现在这个实现的代价，**不是下界**：命题一只禁止从不带标注的叶子序列恢复结果，带着分组信息的更便宜的表示也许存在，我没有找。`append`、`level` 是扁平的，代价见命题三；为此多了 `catenable.rkt` 的 44 行和 `racket/promise`。
@@ -343,7 +344,7 @@ master 的两个策略参数（`tests/master-flags.rkt`）：`current-amb-depth-
 Astra 已经给了建议的两项：
 
 - **`(amb)` 固定为失败，让出用显式的暂停**（第 7 问）。空选择若改成「发一个暂停」，`P 0 ≠ 0`，单位律就没有了；可重解释的 empty-handler 可以是另一套效应接口。本目录已经是这样。
-- **`amb` 继续右嵌套**（第 5 问），保证 `(amb a b c)` 这个缩写可以展开，便于解释和复现 TRS2。若要 n 个同级分支等轮次，另给明确的 n 路选择 / 策略接口，它的二元特例与相应的二路策略一致。注意 n 路节点再嵌套 n 路节点仍然有分组，除非接口明确规定合并调度域；n 路的 `interleave`（各自暂停时发出该暂停并轮转）与 `level`（一轮的暂停合成一个）也不是一回事。本目录没有 n 路接口。
+- **`amb` 继续右嵌套**（第 5 问），保证 `(amb a b c)` 这个缩写可以展开，便于解释和复现 TRS2。若要 n 个同级分支等轮次，另给明确的 n 路选择 / 策略接口，它的二元特例与相应的二路策略一致。注意 n 路节点再嵌套 n 路节点仍然有分组，除非接口明确规定合并调度域；n 路的 `interleave`（各自暂停时发出该暂停并轮转）与 `level`（一轮的暂停合成一个）也不是一回事。n 路接口的原型和两种 n 路策略见 [`CHOICES.md`](CHOICES.md)。
 
 还开着的：
 
@@ -358,11 +359,14 @@ Astra 已经给了建议的两项：
 | 文件 | 内容 |
 |---|---|
 | `kernel.rkt` | 内核：效应、四种 merge（结合的两种是扁平的）、reify/reflect、观察流的工具 |
+| `nary.rkt` | 两种 n 路策略：`amb-rotate`、`amb-dovetail` |
+| `CHOICES.md` | 选择的形式：向量、生成器、shuffler、n 路策略（接口提案） |
 | `catenable.rkt` | 常数时间拼接的表（Okasaki），快路径的两个待办列表 |
 | `model.rkt` | 规格：流、四种 merge 的定义方程、小目标语言的 `spec`（显式续延）；以及 `direct`（内核）、`book`（流 + bind）、`trs2`（原书代码） |
 | `kanren.rkt` / `kanren1.rkt` | TRS2 / TRS1 的语言，`Goal : Substitution → Substitution` |
 | `tests/kernel.rkt` | 内核的例子：效应、策略的定义方程、括号的反例、轮次份额、局部搜索、观察器不多强制 |
 | `tests/model.rkt` | `direct = spec`，`direct + local = book`，`book = trs2` |
+| `tests/choices.rkt` | `amb`/`amb*`/`amb-from`/`for/amb` 的展开、shuffler、槽位释放、n 路策略的轨迹 |
 | `tests/flat.rkt` | 内核的 merge = 定义方程：事件与强制时刻；合并了再合并的例子及其步数 |
 | `tests/catenable.rkt` | 可拼接表：内容，以及一段操作序列的平均步数 |
 | `tests/laws.rkt` | 规律表与最小反例 |
