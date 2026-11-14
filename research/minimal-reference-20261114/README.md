@@ -1,5 +1,7 @@
 # amb v3：可执行的最小参考语义
 
+正式版的最新决定与 amb/base、amb/main、amb/merge 模块边界见 [V3-PLAN.md](V3-PLAN.md)，供实现前审核。
+
 Noah 后续调整的、与 v2 风格对齐的自然数暂停 demo 见 [DEMO.md](DEMO.md) 和 [demo.rkt](demo.rkt)；以下内容记录前一个参考模型。
 
 先读 [DESIGN.md](DESIGN.md)，再读 [kernel.rkt](kernel.rkt)。阶段 A 的设计在实现前单独提交；本目录是阶段 B/C 的实现与验证，不替换正式包或前两版研究目录。
