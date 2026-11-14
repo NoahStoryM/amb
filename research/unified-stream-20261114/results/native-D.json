@@ -1,0 +1,77 @@
+{
+  "allocated_bytes": {
+    "max": 26021338.24,
+    "median": 26018712.32,
+    "min": 26018696.32
+  },
+  "cpu_ms": {
+    "max": 5.24,
+    "median": 5.0,
+    "min": 4.92
+  },
+  "gc_ms": {
+    "max": 0.04,
+    "median": 0.04,
+    "min": 0.04
+  },
+  "n": 200000,
+  "racket": "9.3",
+  "real_ms": {
+    "max": 5.24,
+    "median": 5.0,
+    "min": 4.96
+  },
+  "repetitions": 25,
+  "result": [
+    200000,
+    0,
+    19999900000
+  ],
+  "samples": [
+    {
+      "allocated_bytes": 26018696.32,
+      "cpu_ms": 5.08,
+      "gc_ms": 0.04,
+      "real_ms": 5.12
+    },
+    {
+      "allocated_bytes": 26018712.32,
+      "cpu_ms": 5.2,
+      "gc_ms": 0.04,
+      "real_ms": 5.2
+    },
+    {
+      "allocated_bytes": 26021338.24,
+      "cpu_ms": 5.0,
+      "gc_ms": 0.04,
+      "real_ms": 5.0
+    },
+    {
+      "allocated_bytes": 26018712.32,
+      "cpu_ms": 4.92,
+      "gc_ms": 0.04,
+      "real_ms": 4.96
+    },
+    {
+      "allocated_bytes": 26018712.32,
+      "cpu_ms": 5.24,
+      "gc_ms": 0.04,
+      "real_ms": 5.24
+    },
+    {
+      "allocated_bytes": 26021335.68,
+      "cpu_ms": 4.96,
+      "gc_ms": 0.04,
+      "real_ms": 4.96
+    },
+    {
+      "allocated_bytes": 26018712.32,
+      "cpu_ms": 5.0,
+      "gc_ms": 0.04,
+      "real_ms": 5.0
+    }
+  ],
+  "variant": "D",
+  "vm": "chez-scheme",
+  "workload": "native"
+}

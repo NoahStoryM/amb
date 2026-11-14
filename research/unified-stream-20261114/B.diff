@@ -1,0 +1,42 @@
+--- baseline/kernel.rkt
++++ b.rkt
+@@ -11,0 +12 @@
++;; B experimental double-producer merge; stream constructors stay as A.
+@@ -134 +135 @@
+-       (define s (k (take! alts i)))
++       (define s (λ () (k (take! alts i))))
+@@ -136 +137 @@
+-           s
++           (s)
+@@ -152 +153 @@
+-              (let ([v (get)]) (m (k v) loop))
++              (let ([v (get)]) (m (λ () (k v)) loop))
+@@ -183 +184 @@
+-(define (amb-interleave s t)
++(define (amb-interleave/ready s t)
+@@ -186,2 +187,2 @@
+-    [(pair? s) (cons (car s) (λ () (amb-interleave ((cdr s)) t)))]
+-    [else (λ () (amb-interleave (t) s))]))
++    [(pair? s) (cons (car s) (λ () (amb-interleave/ready ((cdr s)) t)))]
++    [else (λ () (amb-interleave/ready (t) s))]))
+@@ -191 +192 @@
+-(define (amb-alternate s t)
++(define (amb-alternate/ready s t)
+@@ -194,2 +195,2 @@
+-    [(pair? s) (cons (car s) (λ () (amb-alternate (t) (cdr s))))]
+-    [else (λ () (amb-alternate (t) s))]))
++    [(pair? s) (cons (car s) (λ () (amb-alternate/ready (t) (cdr s))))]
++    [else (λ () (amb-alternate/ready (t) s))]))
+@@ -229 +230 @@
+-(define (amb-append s t)
++(define (amb-append/ready s t)
+@@ -257 +258 @@
+-(define (amb-level s t)
++(define (amb-level/ready s t)
+@@ -285,0 +287,6 @@
++
++;; B: force the left producer now, preserving A startup timing.
++(define (amb-interleave s t) (amb-interleave/ready (s) t))
++(define (amb-alternate s t) (amb-alternate/ready (s) t))
++(define (amb-append s t) (amb-append/ready (s) t))
++(define (amb-level s t) (amb-level/ready (s) t))

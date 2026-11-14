@@ -1,0 +1,7 @@
+Racket 9.3 CS (chez-scheme), x86_64 Linux
+CPU exposed by /proc/cpuinfo: AMD EPYC 9V74 80-Core Processor
+lscpu unavailable: /sys/devices/system/cpu/possible missing.
+CPU quota unavailable: /sys/fs/cgroup/cpu.max missing.
+No CPU affinity, fixed frequency, or exclusive host isolation.
+Installer URL: https://github.com/NoahStoryM/racket-dist/releases/download/v9.3/racket-9.3-x86_64-linux-buster-cs.sh
+Installer SHA256 (downloaded bytes): 30dc59d9b5af083eacf793253d35782c5231e8bfb7a7331fe32ccd9a41fd792f

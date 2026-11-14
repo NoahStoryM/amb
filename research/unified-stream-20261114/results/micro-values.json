@@ -1,0 +1,69 @@
+{
+  "allocated_bytes": {
+    "max": 16912,
+    "median": 16912,
+    "min": 16912
+  },
+  "checksum": 2000003000000,
+  "cpu_ms": {
+    "max": 7,
+    "median": 7,
+    "min": 6
+  },
+  "gc_ms": {
+    "max": 0,
+    "median": 0,
+    "min": 0
+  },
+  "mode": "values",
+  "n": 2000000,
+  "real_ms": {
+    "max": 7,
+    "median": 7,
+    "min": 6
+  },
+  "samples": [
+    {
+      "allocated_bytes": 16912,
+      "cpu_ms": 7,
+      "gc_ms": 0,
+      "real_ms": 7
+    },
+    {
+      "allocated_bytes": 16912,
+      "cpu_ms": 7,
+      "gc_ms": 0,
+      "real_ms": 7
+    },
+    {
+      "allocated_bytes": 16912,
+      "cpu_ms": 7,
+      "gc_ms": 0,
+      "real_ms": 7
+    },
+    {
+      "allocated_bytes": 16912,
+      "cpu_ms": 7,
+      "gc_ms": 0,
+      "real_ms": 7
+    },
+    {
+      "allocated_bytes": 16912,
+      "cpu_ms": 7,
+      "gc_ms": 0,
+      "real_ms": 7
+    },
+    {
+      "allocated_bytes": 16912,
+      "cpu_ms": 6,
+      "gc_ms": 0,
+      "real_ms": 6
+    },
+    {
+      "allocated_bytes": 16912,
+      "cpu_ms": 7,
+      "gc_ms": 0,
+      "real_ms": 7
+    }
+  ]
+}

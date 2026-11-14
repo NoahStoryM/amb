@@ -1,0 +1,2 @@
+Racket 9.3 CS. timeout 45s raco test choice-as-merge/tests/{kernel,model,flat,catenable,choices}.rkt
+Exit 0; 59 tests passed. Original files unchanged.

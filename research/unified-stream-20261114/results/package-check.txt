@@ -1,0 +1,6 @@
+Historical checkpoint before Git publication; subsequent publication is described in REVIEW.md.
+Relocated archive check, no compiled/ files included.
+raco make semantics.rkt bench.rkt: exit 0
+raco test semantics.rkt: exit 0; 11 cases, 28,939 comparisons.
+Original tracked files: git diff --exit-code succeeded.
+Only research/unified-stream-20261114/ is untracked; no remote writes.
