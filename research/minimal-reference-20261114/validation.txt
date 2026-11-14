@@ -1,0 +1,13 @@
+raco test: (file "tests.rkt")
+13152 explicit comparisons; finite fuel; seed 20261114
+21 tests passed
+(11 12 13)
+(0 1 4 9 16)
+(3 7)
+(() (#f pause))
+(0 1 2 3 4)
+(paused 42)
+(append (left 0) pause (left 1) pause (left 2) pause (left 3) pause (left 4))
+(interleave (left 0) pause (right 0) pause (left 1) pause (right 1) pause (left 2))
+(alternate (left 0) (right 0) pause pause (left 1) (right 1) pause pause (left 2))
+(level (left 0) (right 0) pause (left 1) (right 1) pause (left 2) (right 2) pause)
