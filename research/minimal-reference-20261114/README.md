@@ -1,5 +1,7 @@
 # amb v3：可执行的最小参考语义
 
+Noah 后续调整的、与 v2 风格对齐的自然数暂停 demo 见 [DEMO.md](DEMO.md) 和 [demo.rkt](demo.rkt)；以下内容记录前一个参考模型。
+
 先读 [DESIGN.md](DESIGN.md)，再读 [kernel.rkt](kernel.rkt)。阶段 A 的设计在实现前单独提交；本目录是阶段 B/C 的实现与验证，不替换正式包或前两版研究目录。
 
 内核只有一个文件，按协议、merge、choice、sequence 边界、派生语法排列；没有公开的 Stream 抽象、reify/reflect 层、优化记录、catenable 队列或暂停聚合。raw generator 是 Racket 的过程与两值返回，不是另外一种数据结构。

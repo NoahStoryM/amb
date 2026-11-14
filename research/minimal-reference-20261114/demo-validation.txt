@@ -1,0 +1,3 @@
+raco test: (file "amb/research/minimal-reference-20261114/demo-tests.rkt")
+1050 comparisons; all observations bounded
+8 tests passed
