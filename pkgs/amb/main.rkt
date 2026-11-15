@@ -21,6 +21,7 @@
          racket/stream
          racket/vector
          "base.rkt"
+         (only-in "private/core.rkt" supplying)
          (rename-in "private/observe.rkt"
                     [in-amb*    -in-amb*]
                     [in-amb*/do -in-amb*/do]))
@@ -66,7 +67,7 @@
 ;; A choice among the thunks of the mutable vector `thk*`; the chosen
 ;; thunk is returned, to be called where the choice was made.
 (define (choose thk*)
-  ((current-amb-shuffler) thk*)
+  (supplying (begin0 ((current-amb-shuffler) thk*) (void)))
   (sequence->amb thk*))
 
 ;; (amb e ...) is a choice among the expressions: none of them is
@@ -103,8 +104,9 @@
          #:with (break* ...) #'((~@ . break) ...)
          (quasisyntax/loc stx
            ((choose
-             (trim (#,for/vector #:length n #:fill fill
-                    (clause ...) break* ... (λ () body ...))))))]))
+             (supplying
+              (trim (#,for/vector #:length n #:fill fill
+                     (clause ...) break* ... (λ () body ...)))))))]))
     (values (make-for/amb #'for/vector  #'for/stream)
             (make-for/amb #'for*/vector #'for*/stream))))
 

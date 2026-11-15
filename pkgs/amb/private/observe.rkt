@@ -13,7 +13,7 @@
 ;; element, in the place of the pause.  They do not go back into the
 ;; search.
 
-(require "../base.rkt"
+(require "core.rkt"
          "generator.rkt"
          "data/sequence.rkt"
          "data/stream.rkt")
