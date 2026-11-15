@@ -414,6 +414,14 @@ values that it returns are the element; if it leaves the handler, the
 first case applies.  The handler may read the elements that the stream
 has read before.
 
+These observers do not guarantee thread safety.  A concurrent read of
+an element whose pause handler is running raises the reentrancy error
+described above.  If the handler's thread is killed while the handler
+is running, its exit cleanup does not run: that element stays in the
+running state, and subsequent reads raise the same reentrancy error.
+Resuming a handler's continuation multiple times must not be used to
+consume the single-pass search state more than once.
+
 @amb-examples[
 (define-values (more? get)
   (sequence-generate (in-amb/do (amb 1 (error "boom") 3))))
