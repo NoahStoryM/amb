@@ -3,13 +3,15 @@
 ;; Runtime support for the choice syntax in amb/main and typed/amb.
 ;; Keep it here so the typed front end only needs to give it types.
 
-(require "core.rkt")
+(require "core.rkt"
+         (only-in "generator.rkt" end))
 
 (provide sequence->amb
          amb-local*
          current-amb-shuffler
          thunks choose choose-none
-         make-choice-generator)
+         make-choice-generator
+         mutable-vector-generate*)
 
 ;; An element of the sequence: a choice among all of them.
 (define (sequence->amb seq)
@@ -41,9 +43,45 @@
   (list->vector (cons thk thk*)))
 
 ;; Return the chosen thunk; the syntax calls it at the choice point.
+;; `thk*` is a vector that the syntax has just made, so no one but the
+;; shuffler has seen it, and the slots can be cleared as they are taken.
+;; (A vector of a user goes to `sequence->amb`, and is not changed.)
 (define (choose thk*)
   (with-amb-mark ((current-amb-shuffler) thk*))
-  (sequence->amb thk*))
+  (make-amb (λ () (mutable-vector-generate* thk*))))
+
+;; (mutable-vector-generate* vec) -> (values Result Generator)
+;;
+;; As (sequence-generate* vec), for a vector that is the caller's alone:
+;; each slot is cleared when its element is taken.  A thunk that has
+;; been chosen, and what only it refers to, is then not kept until the
+;; last alternative of the choice is supplied, as it would be by the
+;; vector that the generators of `sequence-generate*` hold.
+;;
+;; The generators are single-pass (private/generator.rkt), and since a
+;; slot is empty once it is taken, a generator that is called again is
+;; an error, not a second supply of the same slots.  The generator that
+;; is returned with #f is that of `sequence-generate*`: calling it is
+;; the error "sequence has no more values".
+(define (mutable-vector-generate* vec)
+  (define len (vector-length vec))
+  (define pos 0)                        ; the slot of the live generator
+  (define ((take i))
+    (unless (eq? i pos) (raise-called-again-error))
+    (set! pos (add1 i))
+    (if (< i len)
+        (let ([v (vector-ref vec i)])
+          (vector-set! vec i #f)
+          (values (list v) (take (add1 i))))
+        (end)))
+  ((take 0)))
+
+(define (raise-called-again-error)
+  (raise (exn:fail:contract
+          (string-append
+           "amb: a generator of a choice was called again;\n"
+           " a generator, and each generator that it returns, is called at most once")
+          (current-continuation-marks))))
 
 ;; There is no slot a shuffler can mutate in this shared vector.
 (define mutable-empty-vector (vector))

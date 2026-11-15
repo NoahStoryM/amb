@@ -318,6 +318,11 @@ where the choice is made, on the vector of the alternatives of every
 vector may be empty.  It is not called for the alternatives of a
 sequence.  The default is @racket[void].
 
+After the shuffler returns, the vector belongs to the choice: each slot
+is cleared when its alternative is taken, so that a thunk that has been
+chosen is not kept while the rest of the alternatives are supplied.  A
+shuffler should not keep the vector, or look at it later.
+
 @amb-examples[
 (eval:alts (require (only-in srfi/43 vector-reverse!)) (void))
 (eval:alts

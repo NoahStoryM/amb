@@ -43,7 +43,8 @@
   (check-eq? amb-local* choice:amb-local*)
   (check-eq? current-amb-shuffler choice:current-amb-shuffler)
   (for* ([module '(amb amb/base)]
-         [name '(thunks choose choose-none make-choice-generator)])
+         [name '(thunks choose choose-none make-choice-generator
+                 mutable-vector-generate*)])
     (check-exn exn:fail? (λ () (dynamic-require module name)))))
 
 (test-case "the parameters check their values"
