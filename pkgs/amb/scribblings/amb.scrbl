@@ -392,13 +392,16 @@ There are two cases, and they are different.
 
 @itemlist[
 @item{@bold{The pause handler raises.}  The pause is over.  The next
-      read goes on with the search after that pause.}
+      read goes on with the search after that pause, and the handler
+      is not called for it again.  This holds for the stream of
+      @racket[in-amb] as for the sequence of @racket[in-amb/do]; the
+      stream has no element for that pause.}
 @item{@bold{The computation of the search raises}, or control leaves
       it through a continuation jump.  The search cannot go on: what
-      it had run cannot be run again.  The next read of the sequence
-      raises @racket[exn:fail:contract] with the message
-      @litchar{in-amb: the search cannot go on}; a stream reports that
-      its delay is broken.}
+      it had run cannot be run again.  The next read, of the sequence
+      or of the stream, raises @racket[exn:fail:contract] with the
+      message @litchar{in-amb: the search cannot go on}.  The elements
+      that a stream has read before stay in it.}
 ]
 
 @amb-examples[

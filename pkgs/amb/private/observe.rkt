@@ -25,7 +25,8 @@
 ;;
 ;; A generator is called once.  The procedure returned here can be
 ;; called again only when it did not return: the sequence and the
-;; stream ask again for an element that they did not get.
+;; stream (data/stream.rkt keeps no delay that an exception would
+;; break) ask again for an element that they did not get.
 ;;
 ;;   - A pause is over before its handler is called: if the handler
 ;;     raises, the next call goes on after the pause.
@@ -41,7 +42,8 @@
          (exn:fail:contract
           (string-append
            "in-amb: the search cannot go on;\n"
-           " its last step did not return: it raised an exception, or control left it")
+           " its last step did not return: it is still running, it raised an exception,\n"
+           " or control left it")
           (current-continuation-marks))))
       (let-values ([(v next) (gen*)])
         (cond

@@ -177,7 +177,10 @@
     (check-equal? (events (amb)) '())
     (check-equal? (events (for/amb #:length 5 ([i 3]) i)) '(2 1 0))
     (check-equal? (events (for/amb #:length 0 ([i 3]) i)) '())
-    (check-equal? (reverse sizes) '(3 1 0 3 0))
+    (check-equal? (events (for/amb #:length 0 #:fill 9 ([i 3]) i)) '())
+    (check-equal? (events (for*/amb #:length 0 ([i 3]) i)) '())
+    (check-equal? (events (for/amb #:length 3 ([i 0]) i)) '())
+    (check-equal? (reverse sizes) '(3 1 0 3 0 0 0 0))
     ;; not for the alternatives of a sequence
     (set! sizes '())
     (check-equal? (events (for/amb ([i 3]) i)) '(0 1 2))
@@ -352,12 +355,13 @@
   (check-exn #rx"the search cannot go on" get)
   (check-exn #rx"the search cannot go on" more?)
   (check-equal? runs 1)
-  ;; the stream too
+  ;; the stream too, with the same error; what it has read stays
   (define s (in-amb (amb 1 (begin (set! runs (add1 runs)) (error "boom")) 3)))
   (check-equal? (stream-first s) 1)
   (check-exn #rx"boom" (λ () (stream-first (stream-rest s))))
-  ;; (the stream itself refuses to be forced again)
-  (check-exn exn:fail? (λ () (stream-first (stream-rest s))))
+  (check-exn #rx"in-amb: the search cannot go on" (λ () (stream-first (stream-rest s))))
+  (check-exn #rx"in-amb: the search cannot go on" (λ () (stream->list s)))
+  (check-equal? (stream-first s) 1)
   (check-equal? runs 2)
   ;; a handler that raises is another matter: the pause is over
   (define-values (more?* get*)
@@ -381,3 +385,48 @@
   ;; a supplier
   (check-exn #rx"amb-pause: not allowed while the alternatives of a choice are supplied"
              (λ () (events (sequence->amb (in-amb/do (with pausing (amb 1 2))))))))
+
+(test-case "in-amb goes on after its handler raised, as in-amb/do does"
+  ;; the example of the review of PR #24
+  (define s
+    (in-amb (begin (amb-pause) 42)
+            #:on-pause (λ () (error 'handler "boom"))))
+  (check-exn #rx"handler: boom" (λ () (stream-first s)))
+  (check-equal? (stream-first s) 42)
+  (check-equal? (stream->list s) '(42))
+  ;; nothing is computed again, and the handler is not called again
+  (define runs 0)
+  (define calls 0)
+  (define-syntax-rule (search)
+    (begin (set! runs (add1 runs))
+           (make-amb (source 3 '(a) 1 '(b)))))
+  (define (handler)
+    (set! calls (add1 calls))
+    (if (even? calls) (error "even") calls))
+  (define t (in-amb (search) #:on-pause handler))
+  (define d (in-amb/do (search) #:on-pause handler))
+  ;; the elements, with `raised` for a read that raised
+  (define (read-all next!)
+    (let loop ()
+      (define x (with-handlers ([exn:fail? (λ (e) 'raised)]) (next!)))
+      (if (eq? x 'end) '() (cons x (loop)))))
+  (define-values (more? get) (sequence-generate d))
+  (define from-sequence (read-all (λ () (if (more?) (get) 'end))))
+  (check-equal? from-sequence '(1 raised 3 a raised b))
+  (check-equal? (list runs calls) '(1 4))
+  ;; the stream, read in the same way
+  (set! calls 0)
+  (define rest t)
+  (define from-stream
+    (read-all (λ () (if (stream-empty? rest)
+                        'end
+                        (begin0 (stream-first rest) (set! rest (stream-rest rest)))))))
+  (check-equal? from-stream from-sequence)
+  ;; and it has kept the elements that it got: the pauses whose handler
+  ;; raised are not in it
+  (check-equal? (stream->list t) '(1 3 a b))
+  (check-equal? (stream->list t) '(1 3 a b))
+  (check-equal? (list runs calls) '(2 4))
+  ;; a stream that is asked for an element while it computes it
+  (define u (in-amb (stream-first u)))
+  (check-exn #rx"in-amb: the search cannot go on" (λ () (stream-first u))))
