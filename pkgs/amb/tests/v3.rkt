@@ -158,9 +158,6 @@
   (check-equal? (events (let-values ([(v next) (amb-generate* (λ () (amb-pause) (amb 1 2)))]) v))
                 '(1)))
 
-;; the local search of e: its answers, searched for on their own
-(define-syntax-rule (amb-local e)
-  (make-amb (λ () (amb-generate* (λ () e)))))
 ;; the first answer of (thk), or failure; its pauses are passed on
 (define (once thk)
   (let loop ([gen (λ () (amb-generate* thk))])
@@ -170,6 +167,14 @@
           [else (for ([_ v]) (amb-pause)) (loop next)])))
 
 (test-case "a local search is make-amb of amb-generate*"
+  (for ([m mergers])
+    (with m
+      (check-equal? (events (list (amb-local (amb (later 1 1) 2)) (amb 'x (later 1 'y))))
+                    (events (list (make-amb (λ () (amb-generate* (λ () (amb (later 1 1) 2)))))
+                                  (amb 'x (later 1 'y)))))))
+  ;; several values
+  (check-equal? (for/list ([(a b) (in-amb/do (amb-local (amb (values 1 'x) (values 2 'y))))]) (list a b))
+                '((1 x) (2 y)))
   ;; with nothing after it, the same events for the standard mergers
   (for ([m mergers])
     (with m
@@ -188,6 +193,12 @@
                   '((2 x) P (2 y) (1 x) P (1 y)))))
 
 (test-case "once, written with amb-generate*, amb-pause and amb-fail"
+  ;; (for/first ([v (in-amb* thk)]) v) is the first answer too, but the
+  ;; pauses of (thk) stay in its search: the search around it gets no
+  ;; turn before the answer is there
+  (with amb-interleave
+    (check-equal? (events (amb (for/first ([v (in-amb* (λ () (amb (later 2 'a) 'b)))]) v) 'x))
+                  '(b x)))
   (check-equal? (events (once (λ () (amb 1 2 3)))) '(1))
   (check-equal? (events (once (λ () (amb)))) '())
   (with amb-interleave

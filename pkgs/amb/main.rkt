@@ -36,6 +36,7 @@
 (provide (all-from-out "base.rkt")
          amb for/amb for*/amb
          sequence->amb
+         amb-local
          current-amb-shuffler
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do)
@@ -48,6 +49,16 @@
   (unless (sequence? seq)
     (raise-argument-error 'sequence->amb "sequence?" seq))
   (make-amb (λ () (sequence-generate* seq))))
+
+;; (amb-local expr) is an answer of expr, searched for on its own: the
+;; choices of expr are merged with each other before the rest of the
+;; computation sees any of its answers.  The answers of the search of
+;; expr are the alternatives of one choice.
+(define-syntax (amb-local stx)
+  (syntax-parse stx
+    [(_ expr)
+     (syntax/loc stx
+       (make-amb (λ () (amb-generate* (λ () expr)))))]))
 
 ;; Called once on the vector of the alternatives of every `amb` and
 ;; every `for/amb` with `#:length`, where the choice is made, to put

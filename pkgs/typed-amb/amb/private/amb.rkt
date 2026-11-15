@@ -17,7 +17,7 @@
          racket/vector)
 
 (provide Generatorof Generator Merger
-         amb
+         amb amb-local
          for/amb for*/amb
          in-amb  in-amb/do)
 
@@ -144,6 +144,17 @@
      (syntax/loc stx (choose-none))]
     [(_ expr* ...)
      (syntax/loc stx ((choose (thunks (λ () expr*) ...))))]))
+
+
+;; ---- amb-local Syntax ----
+
+;; Identical to the untyped version; defined here so that it expands in
+;; a typed context.
+(define-syntax (amb-local stx)
+  (syntax-parse stx
+    [(_ expr)
+     (syntax/loc stx
+       (make-amb (λ () (amb-generate* (λ () expr)))))]))
 
 
 ;; ---- for/amb: Nondeterministic Choice over Sequences ----

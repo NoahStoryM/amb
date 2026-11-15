@@ -434,19 +434,53 @@ v2
 v3
 ]
 
-With @racket[make-amb], it gives the searches inside a search that the
-library does not provide as such.  A @deftech{local search} of an
-expression finds its answers on their own: the choices of the
-expression are merged with each other before the rest of the
-computation sees any answer.
+With @racket[make-amb], it gives the searches inside a search:
+@racket[amb-local] below, and others that the library does not
+provide, such as the first answer of a search.
+}
+
+@defform[(amb-local expr)]{
+An answer of @racket[expr], searched for on its own: a @deftech{local
+search}.  The choices of @racket[expr] are merged with each other
+before the rest of the computation sees any of its answers, and these
+answers are the alternatives of one choice.  It is
 
 @racketblock[
-(define-syntax-rule (amb-local expr)
-  (make-amb (λ () (amb-generate* (λ () expr)))))
+(make-amb (λ () (amb-generate* (λ () expr))))
 ]
 
-The first answer of a search, passing its pauses on to the search
-around it:
+The pauses of the local search are pauses of the search around it.
+
+With nothing after it, @racket[(amb-local expr)] has the events of
+@racket[expr] itself under the mergers of @racketmodname[amb/merge].
+With a continuation it need not: the answers are found before the
+continuation runs, so their order can differ.  With
+@racket[amb-append] it never does.
+
+@amb-examples[
+(define (pause-then x) (amb-pause) x)
+(parameterize ([current-amb-merger amb-level])
+  (list (stream->list
+         (in-amb (list (amb (pause-then 1) 2)
+                       (amb 'x (pause-then 'y)))))
+        (stream->list
+         (in-amb (list (amb-local (amb (pause-then 1) 2))
+                       (amb 'x (pause-then 'y)))))))
+]
+}
+
+The first answer of a search can be written in two ways, which differ
+in what happens to the pauses of that search.
+
+@racketblock[
+(define (first-answer thk)
+  (for/first ([v (in-amb* thk)]) v))
+]
+
+Here the pauses stay in the search of @racket[(thk)]: for the search
+around it, finding the answer is one step, and no merger gets a turn
+before it is done.  If @racket[(thk)] pauses for ever, so does the
+search around it, whatever its merger.
 
 @racketblock[
 (define (amb-once thk)
@@ -458,11 +492,10 @@ around it:
       [else (for ([_ v]) (amb-pause)) (loop next)])))
 ]
 
-With nothing after it, a local search has the events of the expression
-itself under the mergers of @racketmodname[amb/merge].  With a
-continuation, it need not: the answers are found before the
-continuation runs, and the order of the events can differ.
-}
+Here every pause of the search of @racket[(thk)] is passed on as a
+pause of the search around it, which stays fair; and no answer is a
+failure.  This is the one that the committed choice of a miniKanren
+needs.
 
 
 @section[#:tag "mergers"]{Mergers}

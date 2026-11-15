@@ -53,7 +53,12 @@
   (check-equal? v3 '(2))
   ;; a local search
   (check-equal? (events (make-amb (λ () (amb-generate* (λ () : Integer (amb 1 (begin (amb-pause) 2)))))))
-                '(1 P 2)))
+                '(1 P 2))
+  (check-equal? (events (amb-local (amb 1 (begin (amb-pause) 2)))) '(1 P 2))
+  (check-equal? (for/list : (Listof (List Integer Symbol))
+                  ([(a b) (in-amb (amb-local (amb (values 1 'x) (values 2 'y))))])
+                  (list a b))
+                '((1 x) (2 y))))
 
 (test-case "the shuffler"
   (define sizes : (Listof Integer) '())
