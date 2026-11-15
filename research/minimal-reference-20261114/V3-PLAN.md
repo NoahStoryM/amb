@@ -242,7 +242,7 @@ current-amb-merger : (Parameter Merger)
 
 ## 11. 实施状态
 
-实现在 PR #24（分支 `v3`，到 `b5b05ff`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
+实现在 PR #24（分支 `v3`，到 `6e34312`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
 
 已完成：
 
@@ -255,17 +255,17 @@ current-amb-merger : (Parameter Merger)
 - `Merger` 类型（§2；先为 rank-2，后改为 dotted 并采用可信的 unsafe 导入边界）；
 - scribble 文档和 `README.org`，包括观察器不在保证之内的三点（`bf25d1c`）；
 - `amb/demo`；
-- 选择向量的槽位释放（`b5b05ff`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6897989664)）：宏新建的 thunk 向量（`amb`、`#:length`，两个前端共用 `choose`）由私有的 `mutable-vector-generate*` 供应，槽位取走即清空，重复调用旧的 next 报错；用户交给 `sequence->amb` 的向量不修改。无长度的协程供应经检查没有同类保留。§7 的“交给 `sequence->amb`”现在只在事件意义上成立；
+- 选择向量的槽位释放（`b5b05ff`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6897989664)）：宏新建的 thunk 向量（`amb`、`#:length`，两个前端共用 `choose`）由私有的 `mutable-vector-generate*` 供应，槽位取走即清空，重复调用旧的 next 报错；长向量（至少 256 个槽）取走一半后用 `vector-copy` 压缩（`6e34312`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6898300726)）；用户交给 `sequence->amb` 的向量不修改。无长度的协程供应经检查没有同类保留。§7 的“交给 `sequence->amb`”现在只在事件意义上成立；
 - 测试：v2 测试全部移植并整理出冲突表；§3 两种相等的差分测试；调用前缀的在线检查、单遍检测、merger 内部异常注入；只用 `amb/base` 写的 kanren 层及其规律测试。书中例子测试已移交 ambKanren，本仓库删去，`build-deps` 中的 `typed-racket-lib` 一并去掉（`48c97bb`）。
 
-验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；amb 与 typed-amb 共 304 个测试通过（`b5b05ff`）。
+验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；amb 与 typed-amb 共 306 个测试通过（`6e34312`）。
 
 **ambKanren 迁移**：[ambKanren#17](https://github.com/NoahStoryM/ambKanren/pull/17)，版本 3.0，711 个测试通过。书中例子对照见 [迁移报告](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/MIGRATION-V3.md) 与 [逐例差异](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/research/v3-results/DIFFERENCES.md)。与 miniKanren-typed 原生实现相比，TRS1、TRS2 的耗时约为原生的 1.4 倍（[comment](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6897552500)）。
 
 待做：
 
-1. Astra 复核 `c0c8fd9` 的类型与信任边界（§2）、`b5b05ff` 的槽位释放，以及 ambKanren#17 中 `once`、`conda`、`condu` 的语义和书中例子的差异说明。
+1. Astra 复核 `c0c8fd9` 的类型与信任边界（§2）、`b5b05ff` 和 `6e34312` 的槽位释放与压缩，以及 ambKanren#17 中 `once`、`conda`、`condu` 的语义和书中例子的差异说明。
 2. 发布：合并 PR #24 → 包目录更新到 3.0 → ambKanren 的 CI 改回从包目录安装 → 合并 ambKanren#17。
 3. 处理 ambKanren 中较早的 PR #16（lawful-search）和 #15（研究草稿）：确认是否已被 #17 取代。
 4. 旧 PR #10、#13–#21、#23 与 issue #11：关闭，分支保留；#22 在 PR #24 合并后关闭。
-5. 之后：性能。kanren 层约为原生的 1.4 倍，原因还没分析；还有纯暂停空轮的合并。v2 的槽位释放已完成（见上）；v2 的向量压缩不移植：v3 截掉未填的槽，按位置取用，不需要跳过哨兵。
+5. 之后：性能。kanren 层约为原生的 1.4 倍，原因还没分析；还有纯暂停空轮的合并。v2 的槽位释放和长向量压缩已完成（见上）；v2 压缩中的二分查找和重新整理不移植：v3 截掉未填的槽，按位置取用，不需要跳过哨兵。
