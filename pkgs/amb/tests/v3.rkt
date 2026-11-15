@@ -5,6 +5,7 @@
 ;; are those of V3-PLAN.md.
 
 (require rackunit
+         racket/list
          racket/stream
          amb
          amb/merge
@@ -117,6 +118,46 @@
   (check-equal? (with amb-interleave (events (three))) '(P b P P c a))
   (check-equal? (with amb-alternate (events (three))) '(P b P P a c))
   (check-equal? (with amb-level (events (three))) '(b P c P a)))
+
+
+(test-case "an initial pause does not make an answer-only remainder interleave fairly"
+  (define (search)
+    (for/amb ([n (in-naturals)])
+      (amb-pause)
+      (if (zero? n) (for/amb ([i (in-naturals)]) 'a) n)))
+  (define (prefix merge)
+    (with merge
+      (for/list ([_ (in-range 16)]
+                 [v (in-amb/do (search) #:on-pause (λ () 'P))])
+        v)))
+  ;; A finite prefix illustrating the equation: interleave switches
+  ;; only on a pause, whereas alternate also switches on an answer.
+  (check-equal? (prefix amb-interleave) (append '(P P) (make-list 14 'a)))
+  (define alternating (prefix amb-alternate))
+  (for ([answer '(1 2 3)])
+    (check-not-false (member answer alternating))))
+
+(test-case "level finishes a finite round; supplier pauses can guard an infinite supply"
+  (with amb-level
+    (for ([width '(1 4 20)])
+      (define started 0)
+      (check-equal? (for/first ([v (in-amb/do
+                                   (for/amb ([n (in-range width)])
+                                     (set! started (add1 started))
+                                     (amb-pause)
+                                     n)
+                                   #:on-pause (λ () 'P))])
+                      v)
+                    'P)
+      (check-equal? started width))
+    ;; The supplier itself pauses before each alternative.  This is
+    ;; different from an unpaused infinite supply of paused bodies.
+    (define ((supply n))
+      (values 1 (λ () (values (list n) (supply (add1 n))))))
+    (check-equal? (for/list ([_ (in-range 6)]
+                           [v (in-amb/do (make-amb (supply 0)) #:on-pause (λ () 'P))])
+                    v)
+                  '(P 0 P 1 P 2))))
 
 
 ;; ---- 7. choices ----

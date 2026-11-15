@@ -641,12 +641,37 @@ is at a finite depth, provided that
 
 The usual way to meet the last condition is to pause at the entry of
 every recursive procedure, as miniKanren does at every relation.
+These conditions concern all choices and paths of the search: mixing
+in an unfair merger, or hiding the pauses inside a local observation,
+does not preserve this guarantee.
 
 A choice among infinitely many alternatives is outside these
-conditions.  With @racket[amb-interleave] and @racket[amb-alternate]
-it can still be searched when every alternative pauses before anything
-else, as here; with @racket[amb-level] it cannot, because a round has
-to start every alternative.
+conditions.  Suppose the supply produces one alternative at a time
+without pauses, and every alternative starts with a pause.  This
+initial pause alone is not enough for every merger:
+
+@itemlist[
+@item{With @racket[amb-interleave], every scheduled remainder must
+      pause or end after finite host computation and finitely many
+      answers.  Otherwise one alternative can keep producing answers
+      forever without giving the others another turn.}
+@item{With @racket[amb-alternate], every requested remainder must
+      produce its next event or end in finite host computation.
+      Answers also pass the turn on, so an infinite sequence of
+      answers need not contain additional pauses.}
+@item{With @racket[amb-level], this particular supply cannot finish
+      the first round: before returning the first merged pause it
+      would have to start infinitely many alternatives.  This does
+      not rule out every infinite supply: pauses in the supplier
+      itself can let a round finish after a finite part of the supply.}
+]
+
+The supply must also advance in finite host computation; local
+observations must not hide the pauses needed for scheduling, and the
+participating choices must use the corresponding fair mergers.  Under
+their respective conditions, interleave and alternate reach each
+answer at a finite alternative index and finite event position.  The
+following search meets the conditions for @racket[amb-interleave]:
 
 @amb-examples[
 (define (pythagorean)
@@ -669,7 +694,8 @@ Some code runs for a choice without being part of the search: the
 @tech{generator} of @racket[make-amb]; the sequence of
 @racket[sequence->amb]; the @racket[_for-clause]s and
 @racket[_break-clause]s of @racket[for/amb] and @racket[for*/amb]; the
-procedure of @racket[current-amb-shuffler].  This code runs when the
+@racket[#:length] expression; and the procedure of
+@racket[current-amb-shuffler].  This code runs when the
 merger of the choice turns to the next alternative, which may be long
 after the choice was made, and in another dynamic context.  An effect
 there has no meaning for the search, and is an error:
