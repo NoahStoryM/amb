@@ -230,3 +230,44 @@
   (check-equal? (for/first ([x d]) x) 1)
   (check-equal? (for/list ([x d]) x) '(2 3))
   (check-equal? (for/list ([x d]) x) '()))
+
+(test-case "a search that raised cannot go on"
+  ;; what it has run is not run again
+  (define runs 0)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (amb 1 (begin (set! runs (add1 runs)) (error "boom")) 3))))
+  (check-equal? (get) 1)
+  (check-exn #rx"boom" get)
+  (check-exn #rx"the search cannot go on" get)
+  (check-exn #rx"the search cannot go on" more?)
+  (check-equal? runs 1)
+  ;; the stream too
+  (define s (in-amb (amb 1 (begin (set! runs (add1 runs)) (error "boom")) 3)))
+  (check-equal? (stream-first s) 1)
+  (check-exn #rx"boom" (λ () (stream-first (stream-rest s))))
+  ;; (the stream itself refuses to be forced again)
+  (check-exn exn:fail? (λ () (stream-first (stream-rest s))))
+  (check-equal? runs 2)
+  ;; a handler that raises is another matter: the pause is over
+  (define-values (more?* get*)
+    (sequence-generate
+     (in-amb/do (begin (amb-pause) 'x) #:on-pause (λ () (error "handler")))))
+  (check-exn #rx"handler" get*)
+  (check-equal? (get*) 'x))
+
+(test-case "an effect in a merger is not an effect of the search that it merges"
+  ;; The merger pauses before it calls its generators.  The pause is an
+  ;; effect of whatever search the merged generator is called in, and
+  ;; that is not a guarantee of anything: the first merge of a choice is
+  ;; called where the choice was made, in the search; the others are
+  ;; called by whoever asks for the next event.
+  (define ((pausing s t)) (amb-pause) ((amb-append s t)))
+  ;; (amb 1 2) is two merges.  The observer is not in a search:
+  (check-exn #rx"amb-pause: not in a search"
+             (λ () (with pausing (events (amb 1 2)))))
+  ;; it is in a search: that one pauses for the second merge
+  (check-equal? (events (with pausing (events (amb 1 2)))) '(P (P 1 2)))
+  ;; a supplier
+  (check-exn #rx"amb-pause: not allowed while the alternatives of a choice are supplied"
+             (λ () (events (sequence->amb (in-amb/do (with pausing (amb 1 2))))))))

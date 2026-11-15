@@ -10,6 +10,13 @@
 ;;                     called, in the same order.
 ;;
 ;; The raw results are not compared: they are not the same.
+;;
+;; Both sides are given the same leaves, in the same pieces; what is
+;; ignored is how often the mergers call each other.  The whole log is
+;; compared too, so the calls after the last event count: those before
+;; the end, and those before a call that raises.  This is a test of
+;; finite runs: a call that does not return is only stood for by one
+;; that raises.
 
 (require rackunit
          racket/list

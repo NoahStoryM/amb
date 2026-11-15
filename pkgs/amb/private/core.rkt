@@ -56,9 +56,16 @@
 ;;
 ;; (supplying e) evaluates e as such code.  An effect looks for its mark
 ;; no further than the nearest search, so a search of its own that the
-;; code runs, or goes on with, is not concerned: every time a search is
-;; resumed, it is delimited again (by `amb-generate*`, or by the
+;; code runs, or goes on with, is not concerned: the body of a search
+;; and the continuations that it captures run inside the boundary of
+;; that search (the reset of `amb-generate*`, and the prompt of every
 ;; continuation that `shift-at` hands out).
+;;
+;; That is all the boundary covers.  The other code that runs when a
+;; generator is called -- a supplier, a merger that is not one of
+;; amb/merge -- runs in the dynamic environment of whoever calls the
+;; generator: an effect there is not an effect of the search that the
+;; generator belongs to.
 (define supply-key (make-continuation-mark-key 'amb-supply))
 
 (define-syntax-rule (supplying e)

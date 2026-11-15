@@ -23,11 +23,26 @@
 ;; The elements of the generator `gen`, in the shape that
 ;; `sequence-generate*` returns: (values (or/c list? #f) next).
 ;;
-;; A pause is over before its handler is called: if the handler raises,
-;; the next call goes on after the pause.
+;; A generator is called once.  The procedure returned here can be
+;; called again only when it did not return: the sequence and the
+;; stream ask again for an element that they did not get.
+;;
+;;   - A pause is over before its handler is called: if the handler
+;;     raises, the next call goes on after the pause.
+;;
+;;   - If the search itself does not return (it raises, or control
+;;     leaves it), what it has run cannot be run again: the next call
+;;     raises.
 (define (elements gen handler)
   (λ ()
-    (let loop ([gen* gen])
+    (let loop ([gen* (begin0 gen (set! gen #f))])
+      (unless gen*
+        (raise
+         (exn:fail:contract
+          (string-append
+           "in-amb: the search cannot go on;\n"
+           " its last step did not return: it raised an exception, or control left it")
+          (current-continuation-marks))))
       (let-values ([(v next) (gen*)])
         (cond
           [(list? v) (values v (elements next handler))]

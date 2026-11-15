@@ -24,6 +24,10 @@
 ;; see "Associative mergers" below.  tests/spec-merge.rkt has all four
 ;; as equations, and tests/merge.rkt compares them.
 ;;
+;; A merger raises when a generator that it calls returns something that
+;; is not a result.  It does not check a generator that goes on by
+;; itself (end ∨ t = t): whoever calls that one does.
+;;
 ;; This module does not depend on the effects of amb/base.
 
 (require "private/generator.rkt"

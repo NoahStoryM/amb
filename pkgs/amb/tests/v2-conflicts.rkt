@@ -153,8 +153,9 @@
 ;; 10. With `current-amb-fair?`, v2 finds a Pythagorean triple among
 ;; three nested choices over the naturals, in a program without pauses
 ;; (depth-first + fair and breadth-first + fair; the other two diverge).
-;; In v3 no standard merger passes the turn on where nothing pauses, so
-;; the same program diverges with all four (not run here).  With a pause
+;; In v3 a merger passes the turn on at a pause (amb-alternate: at an
+;; answer too), and this program has neither before its first answer,
+;; so it diverges with all four (not run here).  With a pause
 ;; in every alternative, amb-interleave and amb-alternate find one.
 (define (pythagorean pause)
   (define a (for/amb ([n (in-naturals 1)]) (pause) n))
