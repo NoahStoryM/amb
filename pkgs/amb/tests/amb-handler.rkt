@@ -55,13 +55,12 @@
   ;; it may raise
   (check-exn #rx"boom" (λ () (for/list ([x (in-amb/do (amb-pause) #:on-pause (λ () (error "boom")))]) x))))
 
-;; CONFLICT: the function forms take the handler by keyword.
 (test-case "function forms take the handler as an optional argument"
-  (check-equal? (for/list ([x (in-amb*/do (λ () (suspend) 'x) #:on-pause P)]) x) '(P x))
-  (check-equal? (stream->list (in-amb* (λ () (suspend) 'x) #:on-pause P)) '(P x))
-  (check-equal? (for/list ([x (in-amb* (λ () (suspend) 'x) #:on-pause P)]) x) '(P x))
+  (check-equal? (for/list ([x (in-amb*/do (λ () (suspend) 'x) P)]) x) '(P x))
+  (check-equal? (stream->list (in-amb* (λ () (suspend) 'x) P)) '(P x))
+  (check-equal? (for/list ([x (in-amb* (λ () (suspend) 'x) P)]) x) '(P x))
   (check-equal? (for/list ([x (in-amb (begin (suspend) 'x) #:on-pause P)]) x) '(P x))
-  (check-equal? (for/list ([x (in-amb*/do (λ () (suspend) 'x) #:on-pause #f)]) x) '(x)))
+  (check-equal? (for/list ([x (in-amb*/do (λ () (suspend) 'x) #f)]) x) '(x)))
 
 (test-case "zero and several values"
   (check-equal? (for/list ([(a b) (in-amb/do (begin (suspend) (values 3 4)) #:on-pause (λ () (values 1 2)))])
@@ -128,8 +127,8 @@
   (check-equal? (for/list ([_ 5]) (and (more?) (get))) '(P P P P P)))
 
 (test-case "the handler must be a thunk"
-  (check-exn exn:fail:contract? (λ () (in-amb* (λ () 1) #:on-pause 'P)))
-  (check-exn exn:fail:contract? (λ () (for/list ([x (in-amb* (λ () 1) #:on-pause 'P)]) x))))
+  (check-exn exn:fail:contract? (λ () (in-amb* (λ () 1) 'P)))
+  (check-exn exn:fail:contract? (λ () (for/list ([x (in-amb* (λ () 1) 'P)]) x))))
 
 ;; CONFLICT: the shuffler is called once for every vector of
 ;; alternatives, the empty one too.
@@ -288,7 +287,7 @@
   (check-exn exn:fail:contract? (λ () (for/list ([x (in-amb (amb) #:on-pause 'P)]) x)))
   (check-exn exn:fail:contract? (λ () (in-amb/do (amb) #:on-pause 'P)))
   (check-exn exn:fail:contract? (λ () (for/list ([x (in-amb/do (amb) #:on-pause 'P)]) x)))
-  (check-exn exn:fail:contract? (λ () (in-amb*/do (λ () 1) #:on-pause 'P))))
+  (check-exn exn:fail:contract? (λ () (in-amb*/do (λ () 1) 'P))))
 
 (test-case "outside any search they are errors"
   (check-exn exn:fail? (λ () (amb)))

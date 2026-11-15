@@ -30,9 +30,9 @@
 ;; that uses `in-amb*` / `in-amb*/do` -- including through the `for`
 ;; clause expansion below -- is the one blamed for a bad argument.
 (define-module-boundary-contract in-amb*
-  -in-amb*    (->* ((-> any)) (#:on-pause (or/c #f (-> any))) stream?))
+  -in-amb*    (->* ((-> any)) ((or/c #f (-> any))) stream?))
 (define-module-boundary-contract in-amb*/do
-  -in-amb*/do (->* ((-> any)) (#:on-pause (or/c #f (-> any))) sequence?))
+  -in-amb*/do (->* ((-> any)) ((or/c #f (-> any))) sequence?))
 
 (provide (all-from-out "base.rkt")
          amb for/amb for*/amb
@@ -136,20 +136,22 @@
                (or (not handler)
                    (and (procedure? handler)
                         (procedure-arity-includes? handler 0))))
-    (in-amb* thk #:on-pause handler)))
+    (in-amb* thk handler)))
 
-;; `*in-amb*` is the public binding for `in-amb*`.
+;; `*in-amb*` is the public binding for `in-amb*`.  The function forms
+;; take the pause handler as an optional argument, not by keyword, as
+;; the empty handler of v2 was: a keyword argument costs at every call.
 (define-sequence-syntax *in-amb*
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
-      [[(id:id ...) (_ expr (~optional (~seq #:on-pause handler-expr)))]
+      [[(id:id ...) (_ expr (~optional handler-expr))]
        #:with handler-e (or (attribute handler-expr) #'#f)
        (syntax/loc stx
          [(id ...)
           (let ([thk expr] [handler handler-e])
             (check-args thk handler)
-            (-in-amb*/do thk #:on-pause handler))])])))
+            (-in-amb*/do thk handler))])])))
 
 
 ;; ---- in-amb (macro form) ----
@@ -161,7 +163,7 @@
       [(_ expr)
        (syntax/loc stx (-in-amb* (λ () expr)))]
       [(_ expr #:on-pause handler)
-       (syntax/loc stx (in-amb* (λ () expr) #:on-pause handler))]))
+       (syntax/loc stx (in-amb* (λ () expr) handler))]))
   (λ (stx)
     (syntax-parse stx
       [[(id:id ...) (_ expr)]
@@ -169,7 +171,7 @@
          [(id ...) (-in-amb*/do (λ () expr))])]
       [[(id:id ...) (_ expr #:on-pause handler)]
        (syntax/loc stx
-         [(id ...) (in-amb*/do (λ () expr) #:on-pause handler)])])))
+         [(id ...) (in-amb*/do (λ () expr) handler)])])))
 
 
 ;; ---- in-amb/do (macro form, sequence only) ----
@@ -180,4 +182,4 @@
     [(_ expr)
      (syntax/loc stx (in-amb*/do (λ () expr)))]
     [(_ expr #:on-pause handler)
-     (syntax/loc stx (in-amb*/do (λ () expr) #:on-pause handler))]))
+     (syntax/loc stx (in-amb*/do (λ () expr) handler))]))

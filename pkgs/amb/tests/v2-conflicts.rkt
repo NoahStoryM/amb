@@ -111,15 +111,8 @@
          (for/list ([x (in-amb/do (parameterize ([p 'inside]) (amb-pause) 'x) #:on-pause p)]) x))
   '(outside x))
 
-;; 7. "function forms take the handler as an optional argument".  v3: by
-;; keyword.
-(conflict "7. the handler of in-amb* and in-amb*/do is an optional argument"
-  #:v2 (for/list ([x (in-amb*/do (λ () (when (amb #t #f) (amb)) 'x) P)]) x)
-  (P x)
-  #:v3 (list (with-handlers ([exn:fail:contract? (λ (e) 'arity-error)])
-               (for/list ([x ((dynamic-require 'amb 'in-amb*/do) (λ () (amb-pause) 'x) P)]) x))
-             (for/list ([x (in-amb*/do (λ () (amb-pause) 'x) #:on-pause P)]) x))
-  '(arity-error (P x)))
+;; 7. (No longer a conflict: the function forms take the handler as an
+;; optional argument, as in v2.  The number is kept.)
 
 ;; 8. "(amb) inside the handler of the same search is an error; other
 ;; choices are fine", "reentry is detected through empty choices and

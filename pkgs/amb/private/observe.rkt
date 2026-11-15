@@ -41,7 +41,7 @@
                (loop next))]
           [else (raise-result-error 'in-amb v)])))))
 
-(define ((make make-sequence) thk #:on-pause [handler #f])
+(define ((make make-sequence) thk [handler #f])
   (make-sequence (elements (λ () (amb-generate* thk)) handler)))
 
 (define in-amb*    (make make-stream))
