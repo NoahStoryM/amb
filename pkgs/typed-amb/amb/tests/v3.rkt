@@ -33,6 +33,7 @@
   (check-equal? (parameterize ([current-amb-merger tick-append]) (events (amb 1 2)))
                 '(P 1 P 2))
   (for ([m : Merger (list amb-append amb-interleave amb-alternate amb-level)])
+    ;; (the type of a merger, and what it rules out: merger-types.rkt)
     (check-equal? (sort (parameterize ([current-amb-merger m])
                           (for/list : (Listof Integer)
                             ([x (in-amb (let ([x (amb 1 2 3)]) (amb-pause) x))])

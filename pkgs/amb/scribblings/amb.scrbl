@@ -825,18 +825,66 @@ those of @racketmodname[amb/base] and @racketmodname[amb/merge].
 
 @itemlist[
 @item{@racket[(Generatorof _a)] is the type of a @tech{generator}
-      whose answers have the type @racket[_a], a type of lists:
+      whose answers have the type @racket[_a]:
       @racket[(→ (Values (∪ _a #f Positive-Integer) (Generatorof _a)))].
+      @racket[_a] must be a type of lists, since an answer is the list
+      of the values of one element; nothing checks this.
       @racketidfont{Generator} is @racket[(Generatorof (Listof Any))].}
 @item{@racketidfont{Merger} is
-      @racket[(→ Generator Generator Generator)], and
-      @racket[current-amb-merger] is a @racket[(Parameter Merger)]: a
-      merger is called before the search has answers of a known type.
-      The four standard mergers are polymorphic in the answers, so
-      they are @racketidfont{Merger}s, and keep the type of the
-      generators that typed code applies them to.}
+      @racket[(∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a)))],
+      and @racket[current-amb-merger] is a @racket[(Parameter Merger)].
+      A merger is called before the search has answers of a known
+      type, so it is polymorphic in them: it can drop answers, repeat
+      them, put them in any order and add pauses, but it cannot make an
+      answer.  This is what lets @racket[in-amb] give its elements the
+      type of the computation, whatever the mergers of its choices
+      are.}
 @item{@racket[for/amb] and @racket[for*/amb] take the type
       annotations of the second forms of their grammar above.}
+]
+
+Since the type of the answers is not known to be a type of lists,
+@racket[list?] does not tell an answer from the other results in typed
+code.  A typed merger tests for @racket[#f] and for a number first;
+what is left is an answer:
+
+@racketblock[
+(: my-interleave Merger)
+(define ((my-interleave s t))
+  (let-values ([(v s) (s)])
+    (cond
+      [(not v) (t)]
+      [(exact-positive-integer? v)
+       (values 1 (my-interleave t (pauses (sub1 v) s)))]
+      [else (values v (my-interleave s t))])))
+
+(: pauses (∀ (a) (→ Natural (Generatorof a) (Generatorof a))))
+(define (pauses n g)
+  (if (zero? n)
+      g
+      (λ () (values 1 (pauses (sub1 n) g)))))
+]
+
+The type is a guarantee about mergers written in typed code.  The
+parameter is shared with untyped code, and there the guarantee ends:
+
+@itemlist[
+@item{When untyped code sets @racket[current-amb-merger], nothing is
+      checked.  A merger that makes an answer of another type breaks
+      the type of the typed code that observes the search, and the
+      error, if there is one, is raised wherever the wrong value is
+      used.}
+@item{An untyped merger that a shallow module imports with
+      @racket[require/typed] at the type @racketidfont{Merger} is
+      only checked to be a procedure.}
+@item{An untyped merger that a deep module imports at the type
+      @racketidfont{Merger} gets the contract of the type, which seals
+      the answers.  A merger that makes an answer is stopped there.
+      But a sealed answer is not a list any more: a merger that tells
+      answers by @racket[list?] raises a range error.  The mergers of
+      @racketmodname[amb/merge] do, when they are imported from
+      untyped code into a deep module, directly or inside another
+      merger; those of @racketidfont{typed/amb/merge} are not sealed.}
 ]
 
 On Racket 9.3, Typed Racket's @racket[for] type checker raises an

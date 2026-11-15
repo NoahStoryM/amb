@@ -49,10 +49,16 @@ The types of the generator protocol:
 (define-type (Generatorof a)                 ; a: the type of an answer, a list
   (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
 (define-type Generator (Generatorof (Listof Any)))
-(define-type Merger (→ Generator Generator Generator))
+(define-type Merger                          ; keeps the type of the answers
+  (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a))))
 
 (: current-amb-merger (Parameter Merger))
 #+end_src
+
+A typed merger cannot make an answer, so an observer can give the
+elements of a search the type of its computation.  This is checked for
+mergers written in typed code; see the documentation for mergers from
+untyped code.
 
 * Dependencies
 

@@ -27,19 +27,36 @@
 ;;   Generator = () -> (values Result Generator)
 ;;   Result    = list? | #f | exact-positive-integer?
 ;;
-;; (Generatorof a) is a generator whose answers have the type a, a type
-;; of lists: an answer is the list of the values of one element.
+;; (Generatorof a) is a generator whose answers have the type a.  The
+;; type a must be a type of lists: an answer is the list of the values
+;; of one element.  Nothing checks this, and a (Generatorof Integer)
+;; is not a generator.
 ;;
 ;; A merger does not know the answers of the search that it merges in:
-;; the choice that calls it is made before the search has any.  So the
-;; type of the mergers of `current-amb-merger` is that of generators of
-;; any answers.  The standard mergers are polymorphic, and so they are
-;; mergers in this sense too, and keep the type of the generators that
-;; typed code applies them to.
+;; the choice that calls it is made before the search has any.  So a
+;; merger is polymorphic in the answers, and `Merger` is a rank-2 type:
+;; a merger gets generators of answers of some type a that it cannot
+;; look into, and returns a generator of answers of the same type.  It
+;; can drop answers, repeat them and put them in any order, and add
+;; pauses; it cannot make an answer.  That is what lets an observer
+;; give the elements of a search the type of its computation, whatever
+;; the mergers of its choices are.
+;;
+;; Since a is not known to be a type of lists, `list?` does not tell an
+;; answer from the other results in typed code.  A typed merger tests
+;; for #f and for a number first; what is left is an answer:
+;;
+;;   (cond [(not v) ...]                       ; the end
+;;         [(exact-positive-integer? v) ...]   ; v pauses
+;;         [else ...])                         ; an answer
+;;
+;; The guarantee is static, and about typed mergers.  See "The typed
+;; interface" in the documentation of amb for mergers from untyped code.
 (define-type (Generatorof a)
   (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
 (define-type Generator (Generatorof (Listof Any)))
-(define-type Merger (→ Generator Generator Generator))
+(define-type Merger
+  (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a))))
 
 (define-type ⊥ Nothing)
 
@@ -47,10 +64,10 @@
 ;; ---- Typed Re-Exports ----
 
 (require/typed/provide amb/merge
-  [amb-append     (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a)))]
-  [amb-interleave (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a)))]
-  [amb-alternate  (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a)))]
-  [amb-level      (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a)))])
+  [amb-append     Merger]
+  [amb-interleave Merger]
+  [amb-alternate  Merger]
+  [amb-level      Merger])
 
 ;; `in-amb*` and `in-amb*/do` take an optional pause handler; the
 ;; sequence type is the union of the body's type and the handler's.
