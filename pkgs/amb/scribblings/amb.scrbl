@@ -8,7 +8,8 @@
                      racket/mutability
                      syntax/parse
                      (only-in srfi/43 vector-reverse!)
-                     amb)
+                     amb
+                     amb/merge)
           "utils.rkt")
 
 @title{amb: Ambiguous Operator}
@@ -18,338 +19,140 @@
 
 
 The @racketmodname[amb] library provides John McCarthy's ambiguous
-operator for nondeterministic programming.  All uses of @racket[amb]
-operators must occur within the @tech/refer{dynamic extent} of
-@racket[in-amb], which delimits an @tech{amb-tree}.  @racket[in-amb]
-traverses the @tech{amb-tree} and returns its leaves as a lazy
-@tech/refer{stream}.  The order of the leaves depends on the search
-strategy (see @secref["Parameters"]).
+operator for nondeterministic programming, in direct style: a choice
+is an ordinary expression, and the rest of the computation runs once
+for each alternative that is chosen.
 
-
-@section{Evaluation Model}
-
-An @deftech{amb-tree} is a @deftech{leaf-labeled tree}: internal nodes
-are pure branching points with no values of their own; only leaves
-carry the results of complete computations.  Structurally,
-a tree is either a leaf value or a @tech/refer{stream} of subtrees.
-Categorically, this is the @emph{free monad} over the
-@tech/refer{stream} functor.
-
-Each @racket[amb] expression creates an @tech{amb-tree} with one branch
-per @deftech{alternative}.  A branch that calls @racket[(amb)] is a
-@emph{dead end}: it is pruned and the search backtracks.
-
-Internally, @racket[in-amb] maintains an @deftech{amb-frontier}—an
-immutable deque of pending @tech{amb-trees}.  Each step pops a tree,
-runs one branch, and, depending on the outcome, either yields a leaf
-and suspends, enqueues a child tree and continues, discards the tree
-and continues (dead end), or just continues.
-
-The @tech{alternatives} in @racket[amb] are mutually exclusive—each is
-lazily evaluated only when that branch is selected.
+All uses of @racket[amb] and of the other @tech{effects} must occur
+within the @tech/refer{dynamic extent} of a @tech{search}, which
+@racket[in-amb] and its variants start.  The order in which a search
+finds its answers is decided by the @tech{mergers} of its choices (see
+@secref["mergers"]).
 
 @amb-examples[
-(stream->list (in-amb (amb (amb 1 2) (amb) (amb 'a 'b))))
+(for/list ([x (in-amb (let ([a (amb 1 2 3)]
+                            [b (amb 10 20)])
+                        (when (odd? (+ a b)) (amb))
+                        (list a b)))])
+  x)
 ]
 
-Corresponding @tech{amb-tree}:
-
-@verbatim|{
-(amb (amb 1 2) (amb) (amb 'a 'b))
-├── (amb 1 2)
-│   ├── 1
-│   └── 2
-├── (amb)
-└── (amb 'a 'b)
-    ├── 'a
-    └── 'b
-}|
-
-Nested @racket[amb] expressions are implicitly flattened: their
-@tech{alternatives} are inserted into the parent's choice list.  Under
-unfair depth-first order, @racket[(amb (amb 1 2) (amb) (amb 'a 'b))]
-therefore produces the same sequence of leaves as
-@racket[(amb 1 2 'a 'b)].
-
-@amb-examples[
-(stream->list (in-amb (amb 1 2 'a 'b)))
-]
-
-By contrast, when @racket[amb] expressions appear in order
-(e.g., via @racket[let*]), each subsequent @racket[amb] is in the
-@tech/refer{continuation} of the previous one.  The @tech{amb-tree}
-becomes a Cartesian product of all choices.
-
-@amb-examples[
-(stream->list
- (in-amb
-  (let* ([x (amb 1 2)]
-         [y (amb 'a 'b)]
-         [z (amb x y)])
-    z)))
-]
-
-Corresponding @tech{amb-tree}:
-
-@verbatim|{
-(amb 1 2)
-├── (amb 'a 'b)
-│   ├── (amb 1 'a)
-│   │   ├── 1
-│   │   └── 'a
-│   └── (amb 1 'b)
-│       ├── 1
-│       └── 'b
-└── (amb 'a 'b)
-    ├── (amb 2 'a)
-    │   ├── 2
-    │   └── 'a
-    └── (amb 2 'b)
-        ├── 2
-        └── 'b
-}|
-
-Since this is the free monad over the @tech/refer{stream} functor, it
-can be expressed purely with @tech/refer{streams}.  The correspondence
-is direct: @racket[amb] is @racket[stream], @racket[in-amb] is
-@racket[stream-flatten], and sequential @racket[amb] in @racket[let*]
-corresponds to @racket[for*/stream] composed with
-@racket[stream-flatten].  This is the interpretation without an
-@tech{empty handler}, in which an empty choice contributes nothing; it
-does not model the handler, whose leaf ends the whole branch.  The
-examples above, rewritten in this style:
-
-@racketblock[
-(define (stream-flatten s*)
-  (stream*
-   (if (stream-empty? s*)
-       s*
-       (call-with-values
-        (λ () (stream-first s*))
-        (λ (v . v*)
-          (define s (stream-rest s*))
-          (if (and (null? v*) (stream? v))
-              (if (stream-empty? v)
-                  (stream-flatten s)
-                  (stream-flatten (stream* (stream-first v) (stream-rest v) s)))
-              (stream-cons (apply values v v*) (stream-flatten s))))))))
-]
-
-@amb-examples[
-(code:comment "A single amb node with nested alternatives:")
-(stream->list
- (stream-flatten (stream (stream 1 2) (stream) (stream 'a 'b))))
-(code:comment "Sequential amb in let* form — the monadic bind —")
-(code:comment "for*/stream with stream-flatten at each level:")
-(stream->list
- (for*/stream ([x (stream-flatten (stream 1 2))]
-               [y (stream-flatten (stream 'a 'b))]
-               [z (stream-flatten (stream x y))])
-   z))
-]
-
-The translation extends to realistic programs.  Whereas @racket[in-amb]
-and nested @racket[amb] expressions both flatten implicitly, the
-@tech/refer{stream} encoding requires explicit @racket[stream-flatten]
-at each level.  Intermediate bindings use @racket[#:do], and
-@racket[(amb)] (dead end) becomes @racket[#:when] or @racket[#:unless].
-
-@amb-examples[
-(define sequence->amb (compose make-amb sequence-generate))
-(define (amb:pythagorean n)
-  (define a (sequence->amb (in-range 1 n)))
-  (define a² (* a a))
-  (define b (sequence->amb (in-range a n)))
-  (define b² (* b b))
-  (define c (sequence->amb (in-range b n)))
-  (define c² (* c c))
-  (unless (= (+ a² b²) c²) (amb))
-  (vector-immutable a b c))
-
-(define (stream:pythagorean n)
-  (for*/stream ([a (stream-flatten (in-range 1 n))]
-                #:do [(define a² (* a a))]
-                [b (stream-flatten (in-range a n))]
-                #:do [(define b² (* b b))]
-                [c (stream-flatten (in-range b n))]
-                #:do [(define c² (* c c))]
-                #:when (= (+ a² b²) c²))
-    (vector-immutable a b c)))
-
-(for/and ([n (in-inclusive-range 100 200 20)])
-  (printf "pythagorean ~a:\n" n)
-  (printf "  stream: ")
-  (define stream:sol*
-    (time (stream->list (stream:pythagorean n))))
-  (printf "     amb: ")
-  (define amb:sol*
-    (time (stream->list (in-amb (amb:pythagorean n)))))
-  (printf "  ~a solutions\n" (length stream:sol*))
-  (equal? amb:sol* stream:sol*))
-]
-
-The difference is in the traversal mechanism.  @racket[stream-flatten]
-relies on the implicit program stack as its frontier, yielding unfair
-depth-first order (LIFO).  @racket[in-amb] replaces the stack with an
-@tech{amb-frontier} to make the traversal order configurable
-(see @secref["Parameters"]).
-
-Despite the @tech/refer{continuation} capture and deque management,
-the overhead is negligible in practice—on the Pythagorean triple
-example above, the @racket[amb] version runs at roughly the same speed
-as the @racket[stream] version.
-
-The @racket[stream-flatten] wrappers in the @racket[stream] version
-serve a specific purpose: they mirror @racket[amb]'s implicit
-flattening of nested @tech{amb-trees}, so that each loop variable can
-traverse a @tech{leaf-labeled tree} rather than just a flat
-@tech/refer{stream}.  When the iteration source is already flat—as it
-is for @racket[in-range] or @racket[in-stream] over a plain
-@tech/refer{stream}—wrapping it in @racket[stream-flatten] adds
-significant overhead.  In those cases, omit @racket[stream-flatten]
-and iterate directly:
-
-@amb-examples[
-(define (pythagorean n)
-  (for*/stream ([a (in-range 1 n)]
-                #:do [(define a² (* a a))]
-                [b (in-range a n)]
-                #:do [(define b² (* b b))]
-                [c (in-range b n)]
-                #:do [(define c² (* c c))]
-                #:when (= (+ a² b²) c²))
-    (vector-immutable a b c)))
-(for ([n (in-inclusive-range 100 200 20)])
-  (printf "pythagorean ~a:\n  " n)
-  (define sol* (time (stream->list (pythagorean n))))
-  (printf "  ~a solutions\n" (length sol*)))
-]
+This is version 3 of the library.  It is not compatible with version
+2; @secref["v2"] lists the differences.
 
 
-@subsection[#:tag "empty-handler"]{Empty Handlers}
+@section[#:tag "model"]{Evaluation Model}
 
-So far, a branch that reaches @racket[(amb)] simply disappears.
-Sometimes it is useful to see where branches gave up: to count them, to
-report them, or to mark a pause.  For that, a search can be given an
-@deftech{empty handler}, a thunk passed as @racket[#:empty-handler] (see
-@racket[in-amb]).  When a branch reaches @racket[(amb)], the handler is
-called right there, and whatever it returns becomes one result of the
-search.  The branch then stops, just as it would on failure:
-@racket[(amb)] itself still does not return, so nothing after it in
-that branch runs.
-
-In the tree, an @racket[(amb)] node answered by the handler becomes a
-leaf, written here as @tt{(amb) ⇒ (handler) ⇒} and the handler's
-result.  With a handler that returns @racket['none]:
-
-@amb-examples[
-(stream->list (in-amb (amb (amb 1 2) (amb) (amb 'a 'b))
-                      #:empty-handler (λ () 'none)))
-]
-
-@verbatim|{
-(amb (amb 1 2) (amb) (amb 'a 'b))
-├── (amb 1 2)
-│   ├── 1
-│   └── 2
-├── (amb) ⇒ (handler) ⇒ 'none
-└── (amb 'a 'b)
-    ├── 'a
-    └── 'b
-}|
-
-Because the branch stops at @racket[(amb)], the handler's result takes
-the place of everything that branch would have computed.  Below, the
-branch with @racket[x] = 1 produces @racket['none] instead of a list:
-
-@amb-examples[
-(stream->list
- (in-amb (let* ([x (amb 1 2)]
-                [y (if (= x 1) (amb) (amb 'a 'b))])
-           (list x y))
-         #:empty-handler (λ () 'none)))
-]
-
-@verbatim|{
-(amb 1 2)
-├── (amb) ⇒ (handler) ⇒ 'none
-└── (amb 'a 'b)
-    ├── '(2 a)
-    └── '(2 b)
-}|
-
-Two practical points follow.
+A @deftech{search} runs a computation, and reports a sequence of
+@deftech{events}: an @deftech{answer} (the values that the computation
+returned), a @deftech{pause}, or the end.  The computation takes part
+in the search through three @deftech{effects}:
 
 @itemlist[
-  @item{@emph{Choose a mark that cannot be mistaken for an answer.}
-        The results do not say where each one came from, so if the
-        handler returns a value that the computation could also
-        produce, the two cannot be told apart.  A value of its own,
-        such as an instance of a private structure type, is safest.}
-  @item{@emph{Use @racket[(amb-fail)] for a failure that must stay a
-        failure.}  The handler answers @racket[(amb)] but never
-        @racket[(amb-fail)]; without a handler, the two are the same.
-        For the same reason, @racket[(amb e (amb))] has the same
-        results as @racket[e] only without a handler: with one, it has
-        one more.}
-  ]
+@item{@bold{failure} (@racket[amb-fail], @racket[(amb)]): the
+      computation ends here, with no answer;}
+@item{a @bold{pause} (@racket[amb-pause]): the search reports a pause,
+      and the computation goes on when the search is asked for its
+      next event;}
+@item{a @bold{choice} (@racket[amb], @racket[for/amb],
+      @racket[sequence->amb], @racket[make-amb]): the rest of the
+      computation runs once for each @deftech{alternative}, and the
+      events of these runs are merged into one sequence.}
+]
 
-@margin-note{Here @emph{a} is the type of the computation's results;
-@emph{1} is a type with exactly one element (the @emph{terminal
-object} of category theory), such as @racket[(Values)], whose only
-element is @racket[(values)]; @emph{0} is a type with no elements (the
-@emph{initial object}), that is, @racket[Nothing]; and @emph{b + a} is
-a disjoint union, whose elements come from @emph{b} or from @emph{a},
-tagged with their side.}
-In terms of types, a handler that always returns the same mark has the
-type @emph{1}, so the results of the search form a @tech/refer{stream}
-of @emph{1 + a}: each is an answer, or the mark of a branch that ended
-at @racket[(amb)].  A handler that returns @racket[(values)] also has
-the type @emph{1}, and contributes a result of zero values.  The
-default handler @racket[amb-fail] never returns, so its result type is
-@emph{0}; since @emph{0 + a} has just the elements of @emph{a}, the
-results are a @tech/refer{stream} of @emph{a}, as without a handler.
-The first practical point above is that the consumer sees the values
-but not the tags of the sum.
+How the events of the alternatives are merged is the search strategy,
+and it belongs to the choice: a choice merges its alternatives with
+the @tech{merger} that is current where the choice is made.  The
+default merger, @racket[amb-append], reports all the events of the
+first alternative, then all those of the second, and so on: this is
+depth-first search, or chronological backtracking.  Other mergers pass
+the turn on to the next alternative at a pause
+(@racket[amb-interleave]), at every event (@racket[amb-alternate]), or
+let all the alternatives run up to their next pause before they report
+one (@racket[amb-level]).
+
+@amb-examples[
+(define (count-from n)
+  (amb n (begin (amb-pause) (count-from (add1 n)))))
+(for/list ([x (in-amb (list (amb 'a 'b) (count-from 0)))]
+           [_ 6])
+  x)
+(parameterize ([current-amb-merger amb-interleave])
+  (for/list ([x (in-amb (list (amb 'a 'b) (count-from 0)))]
+             [_ 6])
+    x))
+]
+
+Nothing runs before it is asked for.  An alternative is not evaluated
+before it is chosen; an alternative that a merger has not turned to
+has not started; and after an event, a search does nothing until it is
+asked for the next one.
+
+@subsection[#:tag "protocol"]{The Generator Protocol}
+
+A search is represented by a @deftech{generator}: a procedure of no
+arguments that returns two values, a @deftech{result} and the
+generator of what comes after it.
+
+@racketgrammar*[
+#:literals (list? exact-positive-integer?)
+[generator (-> (values result generator))]
+[result list? #f exact-positive-integer?]]
+
+@itemlist[
+@item{A @bold{list} is an answer: the values of one element.  The empty
+      list is an answer of no values, not the end.}
+@item{@racket[#f] is the end.  The generator that is returned with it
+      must not be called.}
+@item{A positive integer @racket[_n] is @racket[_n] pauses.  It means
+      exactly the same as a pause, followed by a generator that
+      returns @racket[(- _n 1)] pauses: how pauses are written in
+      batches is not information, and no code may depend on it.}
+]
+
+@racket[0] is not a result.  A generator that returns anything else is
+in error, and whoever reads the result raises
+@racket[exn:fail:contract].
+
+A list or @racket[#f] is what @racket[sequence-generate*] returns, so
+@racket[(λ () (sequence-generate* _seq))] is a generator, one without
+pauses.
+
+A generator is @bold{single-pass}: it, and each generator that it
+returns, is called at most once.  Calling one twice would run again a
+part of the computation that has already run.
+
+Generators appear in three places of the interface: @racket[make-amb]
+takes the generator that supplies the alternatives of a choice;
+@racket[amb-generate*] returns the generator of a search; and a
+@tech{merger} makes one generator of two.  Programs that only use
+@racket[amb], @racket[for/amb] and @racket[in-amb] never see one.
 
 
-@section{Ambiguous Operator}
+@section{Choices}
 
 @defform[(amb expr ...)]{
-John McCarthy's ambiguous operator.  It creates an @tech{amb-tree} to
-nondeterministically choose among the given @racket[expr]s.
+John McCarthy's ambiguous operator: a choice among the @racket[expr]s.
+Its value is the value of one of them, and the rest of the computation
+runs once for each.  No @racket[expr] is evaluated before it is
+chosen.
 
-Each @racket[expr] is implicitly wrapped in a @racket[thunk] and
-collected into a mutable @tech/refer{vector}.
-
-When called with no arguments, @racket[(amb)] is a choice among no
-@tech{alternatives}: the computation ends there.  What it ends with is
-decided by the innermost search.  By default it ends with nothing, so
-@racket[(amb)] signals failure, causing the search to backtrack; this
-is commonly used as a pruning mechanism to discard branches that do
-not satisfy a constraint.  A search started with a handler
-(@racket[#:empty-handler] for @racket[in-amb] and @racket[in-amb/do]) instead
-calls the handler at the point of @racket[(amb)] and produces its
-results as one leaf.
+Each @racket[expr] is wrapped in a @racket[thunk], and the thunks are
+collected into a mutable @tech/refer{vector}, on which
+@racket[current-amb-shuffler] is called once.
 
 @amb-examples[
 (stream->list (in-amb (amb 1 2 3)))
+]
+
+@racket[(amb)] is the choice among no alternatives: it fails.  This is
+commonly used to discard the computations that do not satisfy a
+constraint.  It is the same as @racket[(amb-fail)], except that the
+shuffler is called on the empty vector.
+
+@amb-examples[
 (stream->list (in-amb (amb)))
-(stream->list (in-amb (amb) #:empty-handler (λ () 'none)))
-]
-
-A dead-end @racket[(amb)] nested among @tech{alternatives} prunes only
-that branch—the others proceed normally:
-
-@amb-examples[
 (stream->list (in-amb (amb 1 2 (amb) 3 4)))
-]
-
-A productive nested @racket[amb] creates a child @tech{amb-tree}.
-When the inner tree is exhausted, the search backtracks and continues
-with the next sibling in the parent:
-
-@amb-examples[
 (stream->list (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c))))
 ]
 
@@ -361,29 +164,27 @@ with the next sibling in the parent:
 ]
 }
 
-@defproc[(amb-fail) none/c]{
-Signals failure unconditionally: the branch is a @emph{dead end} even
-in a search that has a handler for @racket[(amb)].  Without a handler,
-@racket[(amb-fail)] and @racket[(amb)] behave the same.
-
-@amb-examples[
-(stream->list (in-amb (amb 1 (amb) (amb-fail) 2) #:empty-handler (λ () 'none)))
-]
-}
-
-
 @deftogether[(@defform*[((for/amb maybe-length (for-clause ...) break-clause ... body ...+)
                          (for/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))]
               @defform*[((for*/amb maybe-length (for-clause ...) break-clause ... body ...+)
                          (for*/amb type-ann-maybe maybe-length (for-clause ...) type-ann-maybe expr ...+))])]{
-Variants of @racket[for] that treat each iteration of the loop
-@racket[body] as an @tech{alternative}.
+Variants of @racket[for] in which each iteration of the loop
+@racket[body] is an @tech{alternative}.  The @racket[body] runs where
+the choice was made, as part of the search: a choice in it is a choice
+of the same search.
+
+@amb-examples[
+(for/list ([x (in-amb (for/amb ([x '(1 2)]) (amb x (- x))))]) x)
+]
 
 If the optional @racket[#:length] clause is specified, the syntax
-resembles @racket[for/vector] and @racket[for*/vector].  Each loop
-@racket[body] is implicitly wrapped in a @racket[thunk] and collected
-into a mutable @tech/refer{vector}, mirroring how @racket[amb] itself
-works.
+resembles @racket[for/vector] and @racket[for*/vector]: the clauses
+are run to their end where the choice is made, each loop @racket[body]
+is wrapped in a @racket[thunk], and at most @racket[_length] of them
+are collected into a mutable @tech/refer{vector}, on which
+@racket[current-amb-shuffler] is called once.  The slots that no
+iteration fills are not alternatives; with @racket[#:fill], they are,
+each with the value of the fill expression.
 
 @amb-examples[
 (for/list ([(a b) (in-amb (for/amb #:length 4 #:fill (values 0 'w)
@@ -396,47 +197,28 @@ works.
   (cons a b))
 ]
 
-If the optional @racket[#:length] clause is omitted, the number of
-iterations is unknown, so each loop @racket[body] is deferred to a
-@racket[thunk] and produced one at a time by driving the @racket[for]
-loop as a coroutine: a captured continuation resumes the loop to yield
-the next @tech{alternative} on demand.  Because the @racket[body] is
-evaluated lazily, this works with @tech/refer{sequences} of any size,
-including infinite ones.
-
-A @racket[for/amb] that provides no @tech{alternative} at all is
-@racket[(amb)]: without @racket[#:length], a loop with no iterations;
-with @racket[#:length], a length of 0, or no iterations and no
-@racket[#:fill].  Slots filled by default are not alternatives, but
-with @racket[#:fill] every slot is one.  The clauses are evaluated
-once either way.
-
-@amb-examples[
-(stream->list (in-amb (for/amb ([i '()]) i) #:empty-handler (λ () 'none)))
-(stream->list (in-amb (for/amb #:length 2 ([i '()]) i) #:empty-handler (λ () 'none)))
-(stream->list (in-amb (for/amb #:length 2 #:fill 0 ([i '()]) i) #:empty-handler (λ () 'none)))
-]
+If the optional @racket[#:length] clause is omitted, the iterations go
+on as the search does: the clauses advance when the merger of the
+choice turns to the next alternative.  This works with
+@tech/refer{sequences} of any size, including infinite ones.  The
+shuffler is not called.
 
 @amb-examples[
 (for/list ([x (in-amb (for/amb ([i (in-naturals)]) i))] [_ 5]) x)
 (for/list ([x (in-amb (for/amb ([c "hello"]) c))]) x)
-(for/list ([x (in-amb (for/amb ([x '(1 2)]) (amb x (- x))))]) x)
 ]
+
+A @racket[for/amb] with no iterations fails, like @racket[(amb)].
+
+The @racket[for-clause]s and @racket[break-clause]s are not part of
+the search: see @secref["supply"].
 }
 
-
-@defproc[(make-amb [more? (-> boolean?)] [get (-> any)]) any]{
-The foundational primitive for building ambiguous operators.
-It captures the current continuation as an @tech{amb-tree}, then on
-each resumption calls @racket[more?] to check for remaining
-@tech{alternatives} and @racket[get] to produce the next
-@racket[values].  When @racket[(more?)] returns @racket[#f],
-@racket[make-amb] signals a dead end; if it does so before any
-@tech{alternative} has been produced, @racket[make-amb] is
-@racket[(amb)].
+@defproc[(sequence->amb [seq sequence?]) any]{
+An element of @racket[seq]: a choice among all of them, which are
+generated as the search goes on.  The sequence may be infinite.
 
 @amb-examples[
-(define sequence->amb (compose make-amb sequence-generate))
 (define (roll-doubles)
   (define a (sequence->amb (in-range 1 7)))
   (define b (sequence->amb (in-range 1 7)))
@@ -446,207 +228,525 @@ each resumption calls @racket[more?] to check for remaining
 ]
 }
 
-
-@section{Stream Constructor}
-
-@defform[(in-amb expr maybe-empty)
-         #:grammar ([maybe-empty (code:line)
-                                 (code:line #:empty-handler handler-expr)])
-         #:contracts ([handler-expr (-> any)])]{
-Constructs a lazy @tech/refer{stream} of @tech{amb-tree} leaves from
-the ambiguous expression @racket[expr].  All @racket[amb] operations
-within @racket[expr] are delimited by a @tech/refer{prompt} installed
-by @racket[in-amb].
-
-The form @racket[(in-amb expr)] expands to
-@racket[(in-amb* (λ () expr))], and
-@racket[(in-amb expr #:empty-handler handler-expr)] to
-@racket[(in-amb* (λ () expr) handler-expr)].
-
-The @tech{empty handler} answers @racket[(amb)].  When the computation
-reaches @racket[(amb)], the handler is called there, in the dynamic
-context of @racket[(amb)], and the values it returns are produced as
-one leaf; the rest of that branch is abandoned, as with failure.  The
-default handler is @racket[amb-fail], which makes @racket[(amb)] a
-failure.  The handler may also call @racket[amb-fail] itself, make
-choices of its own, or raise an exception; if it reaches @racket[(amb)]
-of the same search, @racket[exn:fail:contract] is raised.  It should return as many
-values as @racket[expr] does: Typed Racket checks this, and otherwise
-the mismatch is reported only where the leaf is received.
-
-Since the search is lazy, the dynamic context of @racket[(amb)] is the
-one in which the search is resumed, that is, the consumer's, as for any
-other code in @racket[expr]:
+@defproc[(amb-fail) none/c]{
+Failure: the computation ends here, with no answer.
 
 @amb-examples[
-(define p (make-parameter 'first))
-(define-values (more? get)
-  (sequence-generate
-   (in-amb/do (begin (when (amb #t #f) (amb)) (when (amb #t #f) (amb)) 'x)
-              #:empty-handler p)))
-(list (get) (parameterize ([p 'second]) (get)) (get))
-]
-
-@amb-examples[
-(stream->list (in-amb (let ([x (amb 1 2 3)]) (if (even? x) (amb) x))
-                      #:empty-handler (λ () 'even)))
-]
-
-The handler belongs to the search that was given it, not to the
-dynamic extent of @racket[in-amb]: a search started inside the
-computation, without a handler of its own, still fails at its own
-@racket[(amb)].  Together with a choice point, a handler makes a
-@emph{pause} observable: @racket[(when (amb #t #f) (amb))] produces the
-handler's leaf and then continues the computation after it.
-
-@amb-examples[
-(define (pause) (when (amb #t #f) (amb)))
-(stream->list (in-amb (begin (pause) 'done) #:empty-handler (λ () 'paused)))
-(stream->list (in-amb (begin (pause) 'done)))
-]
-
-@amb-examples[
-(stream->list (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8)))
-]
-
-@racket[in-amb] acts as a one-step lookahead @tech/refer{stream}
-constructor.  To determine whether the @tech/refer{stream} is
-non-empty, it eagerly evaluates the next leaf.
-
-@amb-examples[
-(for/list ([i (in-amb (begin0 (amb 1 (amb 2 3) 4) (displayln 'hi)))]
-           [_ 2])
-  i)
-(for/list ([_ 2]
-           [i (in-amb (begin0 (amb 1 (amb 2 3) 4) (displayln 'hi)))])
-  i)
+(stream->list (in-amb (amb 1 (amb-fail) 2)))
 ]
 }
 
+@defproc[(amb-pause) void?]{
+A pause: the search reports a pause, and the computation goes on from
+here when the search is asked for its next event.
 
-@defproc[(in-amb* [thk (-> any)] [handler (-> any) amb-fail]) stream?]{
-The procedural backend of @racket[in-amb]; @racket[handler] answers
-@racket[(amb)], as with @racket[#:empty-handler].
+A pause is where a @tech{merger} may pass the turn on to another
+alternative.  With the default merger, @racket[amb-append], a pause
+changes nothing but the events that an observer with a handler sees.
+See @secref["fairness"].
 
 @amb-examples[
-(define (choices)
-  (define x (amb 1 2 3))
-  (define y (amb 'a 'b))
-  (list x y))
-(stream->list (in-amb* choices))
+(stream->list (in-amb (begin (amb-pause) 'x)))
+(stream->list (in-amb (begin (amb-pause) 'x) #:on-pause (λ () 'pause)))
 ]
 }
 
-@defform[(in-amb/do expr maybe-empty)
-         #:grammar ([maybe-empty (code:line)
-                                 (code:line #:empty-handler handler-expr)])
-         #:contracts ([handler-expr (-> any)])]{
-Similar to @racket[in-amb], but returns a generic @tech/refer{sequence}
-rather than specifically a lazy @tech/refer{stream}.  The sequence is
-single-pass: results are not retained, so iterating it consumes them,
-and once every result has been consumed the sequence is empty.  This
-makes it cheaper than @racket[in-amb] when the results are needed only
-once.
-}
+@defproc[(make-amb [next (-> any)]) any]{
+The primitive that the other choices are made of: a choice among the
+alternatives that the @tech{generator} @racket[next] supplies.  Each
+answer of @racket[next] is the values of one alternative, which
+@racket[make-amb] returns to its continuation.  The pauses of
+@racket[next] are pauses of the choice, where they are.
 
-@defproc[(in-amb*/do [thk (-> any)] [handler (-> any) amb-fail]) sequence?]{
-The procedural backend of @racket[in-amb/do].
-}
+@racket[(sequence->amb _seq)] is
+@racket[(make-amb (λ () (sequence-generate* _seq)))].
 
+The alternatives @racket[_a], @racket[_b] are merged from the right,
+by the merger @racket[_μ] that is current when the choice is made, and
+the last one is merged with the end of the supply:
 
-@section{Parameters}
+@racketblock[
+(_μ _K_a (_μ _K_b _end))
+]
 
-The behavior of the @racket[amb] search engine is governed by two
-orthogonal @tech/refer{parameters}: @racket[current-amb-depth-first?]
-controls traversal order and @racket[current-amb-fair?] controls
-fairness.  Together, they make the @tech{amb-frontier} pluggable in
-ways impossible to achieve with the implicit stack alone.
-
-As described in @secref["Evaluation_Model"], the search driver
-maintains an @tech{amb-frontier}.  Each step pops an @tech{amb-tree}
-from the front and runs it.  The result determines what happens next:
-
-@itemlist[
-  @item{@emph{Dead end}: the tree is exhausted and is discarded
-        (not returned to the @tech{amb-frontier}).
-        The search continues.}
-  @item{@emph{Nothing}: the tree produced nothing on this resumption.
-        The parent tree is put back for its remaining
-        @tech{alternatives}.
-        @racket[current-amb-fair?] controls whether the parent
-        tree goes to the front or the back.
-        The search continues.}
-  @item{@emph{Leaf}: a result is produced, by the computation or by
-        the @tech{empty handler} at @racket[(amb)].
-        The parent tree is put back (as in the nothing case).
-        The search suspends.}
-  @item{@emph{Branch}: a new @tech{amb-tree} was created.
-        The parent tree is put back (as in the nothing case), and the
-        new child tree is also inserted.
-        @racket[current-amb-depth-first?] controls whether the child
-        tree goes to the front or the back.
-        The search continues.}
-  ]
-
-Both @tech/refer{parameters} are captured per-tree at the point where
-@racket[amb] or @racket[for/amb] is evaluated.  This means different
-parts of a computation can use different strategies via
-@racket[parameterize].  As a result, different subtrees may coexist in
-the same search with different traversal strategies.
-
-
-@defparam[current-amb-depth-first? depth-first? boolean?]{
-Controls where a newly created child tree is inserted in the
-@tech{amb-frontier}.
-
-When @racket[#t] (the default), child trees are pushed to the front of
-the @tech{amb-frontier}, yielding depth-first search (DFS).
-When @racket[#f], child trees are pushed to the back, yielding
-breadth-first search (BFS).
+where @racket[_K_a] is the generator of the rest of the computation
+with the alternative @racket[_a].  The inner merge is not made before
+the outer one turns to it, so @racket[next] is not asked for an
+alternative before its turn.  @racket[make-amb] does not leave out the
+merge with the end, whatever the merger is; for a merger that has the
+end as a right unit (all those of @racketmodname[amb/merge]), it makes
+no difference.
 
 @amb-examples[
-(stream->list (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8)))
-(parameterize ([current-amb-depth-first? #f])
-  (stream->list (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))))
+(define (countdown n)
+  (λ ()
+    (if (zero? n)
+        (values #f void)
+        (values (list n) (countdown (sub1 n))))))
+(stream->list (in-amb (make-amb (countdown 3))))
+]
+
+@racket[next] is code that supplies alternatives: it must not choose,
+fail or pause in the search that it supplies (@secref["supply"]).  It
+pauses by returning a number.
+}
+
+@defparam[current-amb-merger merge (-> (-> any) (-> any) (-> any))]{
+A @tech/refer{parameter} that holds the @tech{merger} of the choices
+that are made while it is the current one.  The default is
+@racket[amb-append].
+
+The merger is read where a choice is made, so different choices of one
+search can have different mergers.
+
+@amb-examples[
+(for/list ([x (in-amb (list (parameterize ([current-amb-merger amb-alternate])
+                              (amb 1 2))
+                            (amb 'a 'b)))])
+  x)
 ]
 }
 
-
-@defparam[current-amb-fair? fair? boolean?]{
-Controls where the parent tree is placed back in the @tech{amb-frontier}
-after being popped and producing a result.
-
-When @racket[#f] (the default), the parent tree is placed back at the
-front.  When @racket[#t], the parent tree is placed at the back,
-giving other pending trees a chance to run first.  This prevents any
-single branch from starving its siblings.
-
-@amb-examples[
-(stream->list
- (in-amb
-  (let* ([a (amb 1 2 3)]
-         [b (amb 4 5 6)])
-    (list a b))))
-(stream->list
- (in-amb
-  (let ([a (amb 1 2 3)])
-    (parameterize ([current-amb-fair? #t])
-      (define b (amb 4 5 6))
-      (list a b)))))
-]
-}
-
+See @secref["mergers"] for the mergers of @racketmodname[amb/merge], and
+for what a merger of one's own must do.
 
 @defparam[current-amb-shuffler shuffle! (-> mutable-vector? void?)]{
-Controls how to shuffle @racket[thunk]s before creating an
-@tech{amb-tree} via @racket[amb].  The procedure receives the mutable
-@tech/refer{vector} of @racket[thunk]s and may reorder them in place.
-
-The default value is @racket[void] (no shuffling).
+A @tech/refer{parameter} that holds a procedure to put the
+@tech{alternatives} of a choice in another order.  It is called once,
+where the choice is made, on the vector of the alternatives of every
+@racket[amb] and of every @racket[for/amb] with @racket[#:length]; the
+vector may be empty.  It is not called for the alternatives of a
+sequence.  The default is @racket[void].
 
 @amb-examples[
-(require srfi/43)
-(parameterize ([current-amb-shuffler vector-reverse!])
-  (stream->list (in-amb (amb 1 2 3 4 5))))
+(eval:alts (require (only-in srfi/43 vector-reverse!)) (void))
+(eval:alts
+ (parameterize ([current-amb-shuffler vector-reverse!])
+   (stream->list (in-amb (amb 1 2 3 4))))
+ (parameterize ([current-amb-shuffler
+                 (λ (v)
+                   (define n (vector-length v))
+                   (for ([i (quotient n 2)])
+                     (define x (vector-ref v i))
+                     (vector-set! v i (vector-ref v (- n i 1)))
+                     (vector-set! v (- n i 1) x)))])
+   (stream->list (in-amb (amb 1 2 3 4)))))
+]
+
+The permutation is of all the alternatives of one choice.
+@racket[(amb _a _b _c)] with a uniform shuffler is a uniform choice of
+the first alternative; the nested @racket[(amb (amb _a _b) _c)] is
+not.  The shuffler is code that supplies alternatives
+(@secref["supply"]).
+}
+
+
+@section{Observing a Search}
+
+@defform[(in-amb expr maybe-handler)
+         #:grammar ([maybe-handler (code:line)
+                                   (code:line #:on-pause handler-expr)])]{
+Starts a @tech{search} of @racket[expr], and returns its
+@tech{answers} as a lazy @tech/refer{stream}.  Nothing of the search
+runs before the first element is asked for, and the stream remembers
+its elements: reading them again does not run the search again.
+
+When used in a @racket[for] clause, @racket[in-amb] is the single-pass
+sequence of @racket[in-amb/do] directly, without the stream.
+
+The @tech{pauses} of the search are skipped, unless
+@racket[handler-expr] is given.  It must produce a procedure of no
+arguments, which is called once for each pause (@racket[_n] times for
+a batch of @racket[_n]); the values that it returns are an element of
+the stream, in the place of the pause.  They do not go back into the
+search.  The handler is called by whoever reads the stream, outside
+the search.
+
+@amb-examples[
+(define s (in-amb (begin (amb-pause) (amb 1 2)) #:on-pause (λ () 'pause)))
+(stream->list s)
+(for/list ([x (in-amb (amb 1 (begin (amb-pause) 2) 3))]) x)
 ]
 }
+
+@defproc[(in-amb* [thk (-> any)] [handler (or/c #f (-> any)) #f]) stream?]{
+The function form of @racket[in-amb]: the search of @racket[(thk)].
+The pause handler is an optional argument.
+}
+
+@defform[(in-amb/do expr maybe-handler)]{
+Like @racket[in-amb], but returns a single-pass
+@tech/refer{sequence} instead of a stream: the answers are not
+remembered.  Nothing of the search runs when the sequence is created;
+iterating over it again goes on where the last iteration stopped, and
+after its end it stays empty.
+}
+
+@defproc[(in-amb*/do [thk (-> any)] [handler (or/c #f (-> any)) #f]) sequence?]{
+The function form of @racket[in-amb/do].
+}
+
+@subsection[#:tag "exceptions"]{After an Exception}
+
+There are two cases, and they are different.
+
+@itemlist[
+@item{@bold{The pause handler raises.}  The pause is over.  The next
+      read goes on with the search after that pause.}
+@item{@bold{The computation of the search raises}, or control leaves
+      it through a continuation jump.  The search cannot go on: what
+      it had run cannot be run again.  The next read of the sequence
+      raises @racket[exn:fail:contract] with the message
+      @litchar{in-amb: the search cannot go on}; a stream reports that
+      its delay is broken.}
+]
+
+@amb-examples[
+(define-values (more? get)
+  (sequence-generate (in-amb/do (amb 1 (error "boom") 3))))
+(get)
+(eval:error (get))
+(eval:error (get))
+]
+
+
+@section[#:tag "local"]{A Search of One's Own}
+
+@defproc[(amb-generate* [thk (-> any)]) (values (or/c list? #f exact-positive-integer?) (-> any))]{
+Runs @racket[(thk)] as a @tech{search} of its own, up to its first
+@tech{event}, and returns that event as a @tech{result}, with the
+@tech{generator} of the rest: the shape of
+@racket[sequence-generate*].  No effect of @racket[(thk)] reaches a
+search around it, and nothing more of the search runs before the
+generator is called.
+
+@racket[amb-generate*] is eager: it runs the search up to its first
+event when it is called.  @racket[(λ () (amb-generate* thk))] is the
+generator of the whole search, and it is what @racket[in-amb*/do]
+reads.
+
+@amb-examples[
+(define-values (v next) (amb-generate* (λ () (amb 1 (begin (amb-pause) 2)))))
+v
+(define-values (v2 next2) (next))
+v2
+(define-values (v3 next3) (next2))
+v3
+]
+
+With @racket[make-amb], it gives the searches inside a search that the
+library does not provide as such.  A @deftech{local search} of an
+expression finds its answers on their own: the choices of the
+expression are merged with each other before the rest of the
+computation sees any answer.
+
+@racketblock[
+(define-syntax-rule (amb-local expr)
+  (make-amb (λ () (amb-generate* (λ () expr)))))
+]
+
+The first answer of a search, passing its pauses on to the search
+around it:
+
+@racketblock[
+(define (amb-once thk)
+  (let loop ([gen (λ () (amb-generate* thk))])
+    (define-values (v next) (gen))
+    (cond
+      [(list? v) (apply values v)]
+      [(not v) (amb-fail)]
+      [else (for ([_ v]) (amb-pause)) (loop next)])))
+]
+
+With nothing after it, a local search has the events of the expression
+itself under the mergers of @racketmodname[amb/merge].  With a
+continuation, it need not: the answers are found before the
+continuation runs, and the order of the events can differ.
+}
+
+
+@section[#:tag "mergers"]{Mergers}
+
+@defmodule[amb/merge #:packages ("amb")]
+
+A @deftech{merger} is a procedure that makes one @tech{generator} of
+two.  It is the strategy of a choice.  The four mergers of this module
+agree on answers and on the end of the first generator,
+
+@verbatim[#:indent 2]{
+(a : s) ∨ t  =  a : (s ∨ t)        (amb-alternate: a : (t ∨ s))
+end     ∨ t  =  t
+}
+
+and differ in what a pause of the first generator means.
+
+@defproc[(amb-append [s (-> any)] [t (-> any)]) (-> any)]{
+All the events of @racket[s], then those of @racket[t]: depth-first
+search.  A pause of @racket[s] is a pause of the merged generator, and
+@racket[s] keeps the turn.  When @racket[s] has no end, @racket[t]
+never runs.
+}
+
+@defproc[(amb-interleave [s (-> any)] [t (-> any)]) (-> any)]{
+The turn passes on at each pause: when @racket[s] pauses, the merged
+generator pauses, and goes on with @racket[t].  This is the
+interleaving of miniKanren.
+}
+
+@defproc[(amb-alternate [s (-> any)] [t (-> any)]) (-> any)]{
+The turn passes on at each event, an answer too.
+}
+
+@defproc[(amb-level [s (-> any)] [t (-> any)]) (-> any)]{
+Breadth-first search by pauses.  When @racket[s] pauses, @racket[t]
+runs up to its own pause, and then the merged generator pauses once:
+both wait together.  Among several alternatives this gives rounds: in
+a round, every alternative runs up to its next pause.
+}
+
+The merger of a choice is the value of @racket[current-amb-merger]
+where the choice is made.
+
+@subsection{What a Merger Must Do}
+
+Any procedure of two generators that returns a generator can be the
+value of @racket[current-amb-merger].  The library asks three things
+of it.
+
+@itemlist[
+@item{It follows the @seclink["protocol"]{generator protocol}: its
+      results are lists, @racket[#f] or positive integers; it calls
+      each generator at most once; it does not call a generator after
+      its end.}
+@item{@bold{It does not depend on how pauses are written.}  Two
+      generators with the same events, of which one returns
+      @racket[3] where the other returns @racket[1] three times, must
+      give merged generators with the same events.  The library itself
+      rewrites batches of pauses, so a merger that looks at the size
+      of a batch gives results that change from one version to the
+      next.}
+@item{@bold{It has no effects of a search.}  A merger must not call
+      @racket[amb], @racket[amb-pause], @racket[amb-fail] or any other
+      choice.  A merger is called by whoever asks the merged generator
+      for an event, not by the search that it merges in; which search
+      such an effect would belong to, if any, depends on when the
+      merger happens to be called, and is not defined.  A merger
+      pauses by returning a number.}
+]
+
+Here is @racket[amb-interleave], written out; it is the pattern of a
+merger that handles a batch of @racket[_n] pauses.  It takes one pause
+of the batch, passes the turn on, and leaves the other
+@racket[(- _n 1)] in front of @racket[_s]:
+
+@racketblock[
+(define ((my-interleave s t))
+  (let-values ([(v s) (s)])
+    (cond
+      [(list? v) (values v (my-interleave s t))]
+      [(not v) (t)]
+      [else (values 1 (my-interleave t (pauses (sub1 v) s)))])))
+
+(code:comment "n pauses, then g")
+(define (pauses n g)
+  (if (zero? n)
+      g
+      (λ () (values 1 (pauses (sub1 n) g)))))
+]
+
+The version that returns @racket[(values v (my-interleave t s))] for a
+pause, passing the turn on once for a whole batch, is wrong: it gives
+different answers for @racket[3] and for @racket[1], @racket[1],
+@racket[1].
+
+@subsection{Laws That a Merger May Have}
+
+These are not required.  The mergers of this module have the first;
+@racket[amb-append] and @racket[amb-level] have the second.  Events
+are compared after every batch of pauses is written as single pauses.
+
+@itemlist[
+@item{@bold{The end is a unit.}  Merging with a generator that ends at
+      once changes no event.  @racket[make-amb] merges the last
+      alternative with the end of the supply; with this law that merge
+      is invisible, so @racket[(amb _e)] has the events of
+      @racket[_e], and a failing alternative can be added or removed.}
+@item{@bold{Associativity.}  Nested choices have the events of one
+      flat choice: @racket[(amb (amb _a _b) _c)] and
+      @racket[(amb _a (amb _b _c))] are the same.  It does not hold
+      for @racket[amb-interleave] and @racket[amb-alternate]: there,
+      nesting decides how often each alternative gets the turn.}
+]
+
+Whatever the merger is, the rest of the computation is distributed
+over the alternatives of a choice: @racket[(f (amb _a _b))] has the
+events of @racket[(amb (f _a) (f _b))].  This needs no law.
+
+A merger that gives every alternative the turn again and again is
+@emph{fair}; fairness is a property of whole runs, not an equation.
+@racket[amb-append] is not fair.
+
+@subsection[#:tag "fairness"]{Fairness Needs Pauses}
+
+A merger can pass the turn on only at an event.  A computation that
+runs for ever without an answer and without a pause keeps the turn,
+whatever the merger.  So a search with @racket[amb-interleave],
+@racket[amb-alternate] or @racket[amb-level] finds every answer that
+is at a finite depth, provided that
+
+@itemlist[
+@item{every choice has finitely many alternatives (but see below);}
+@item{every step of the computation, and of the supply of
+      alternatives, terminates; and}
+@item{every infinite path of the computation has infinitely many
+      pauses.}
+]
+
+The usual way to meet the last condition is to pause at the entry of
+every recursive procedure, as miniKanren does at every relation.
+
+A choice among infinitely many alternatives is outside these
+conditions.  With @racket[amb-interleave] and @racket[amb-alternate]
+it can still be searched when every alternative pauses before anything
+else, as here; with @racket[amb-level] it cannot, because a round has
+to start every alternative.
+
+@amb-examples[
+(define (pythagorean)
+  (define a (for/amb ([n (in-naturals 1)]) (amb-pause) n))
+  (define b (for/amb ([n (in-naturals 1)]) (amb-pause) n))
+  (define c (for/amb ([n (in-naturals 1)]) (amb-pause) n))
+  (unless (= (+ (* a a) (* b b)) (* c c)) (amb))
+  (list a b c))
+(parameterize ([current-amb-merger amb-interleave])
+  (stream-first (in-amb (pythagorean))))
+]
+
+Without the pauses, or with @racket[amb-append], this search does not
+terminate.
+
+
+@section[#:tag "supply"]{The Code That Supplies Alternatives}
+
+Some code runs for a choice without being part of the search: the
+@tech{generator} of @racket[make-amb]; the sequence of
+@racket[sequence->amb]; the @racket[_for-clause]s and
+@racket[_break-clause]s of @racket[for/amb] and @racket[for*/amb]; the
+procedure of @racket[current-amb-shuffler].  This code runs when the
+merger of the choice turns to the next alternative, which may be long
+after the choice was made, and in another dynamic context.  An effect
+there has no meaning for the search, and is an error:
+
+@amb-examples[
+(eval:error
+ (stream->list (in-amb (for/amb ([x '(1 2 3)] #:when (amb #t #f)) x))))
+]
+
+The @racket[_body] of @racket[for/amb], and the expressions of
+@racket[amb], are part of the search:
+
+@amb-examples[
+(stream->list (in-amb (for/amb ([x '(1 2 3)]) (if (amb #t #f) x (- x)))))
+]
+
+A search of its own is not concerned, wherever it runs:
+
+@amb-examples[
+(stream->list
+ (in-amb (for/amb ([x (in-amb (amb 1 2))]) (* 10 x))))
+]
+
+With @racket[#:length], the clauses are run to their end where the
+choice is made, so the error is raised there, even if only the first
+answer is asked for.  Without it, the error is raised when the search
+gets to the iteration that has the effect.
+
+What is protected is the body of a search and the continuations that
+it captures.  Other code that runs when a generator is called, a
+merger in particular, runs in the dynamic context of whoever calls the
+generator; see @secref["mergers"].
+
+The handler of @racket[#:on-pause] runs outside the search that it
+observes.  An effect in it is an effect of the search around the
+observer, if there is one.
+
+Outside any search, an effect raises @racket[exn:fail:contract] with a
+message that ends in @litchar{not in a search}.
+
+
+@section[#:tag "base"]{The Core}
+
+@defmodule[amb/base #:packages ("amb") #:no-declare]
+
+@racketmodname[amb/base] exports the five bindings that the rest is
+made of, and nothing else: @racket[make-amb], @racket[amb-generate*],
+@racket[amb-fail], @racket[amb-pause] and @racket[current-amb-merger].
+@racketmodname[amb] exports them too.  A library that builds its own
+language on searches, such as a miniKanren, needs no more: a
+disjunction is @racket[make-amb], a relation pauses with
+@racket[amb-pause], and running a goal is @racket[amb-generate*].
+
+
+@section[#:tag "v2"]{Changes from Version 2}
+
+Version 3 is another design: a search is no longer a tree with a
+frontier that a driver schedules, but a merge of generators, and the
+strategy is a value that belongs to each choice.  Programs that only
+use @racket[amb], @racket[for/amb], @racket[amb-fail] and
+@racket[in-amb] with the default strategy behave as before.
+
+@bold{The most visible change.}  In version 2,
+@racket[current-amb-fair?] made a search complete over infinitely many
+alternatives without any change to the program.  In version 3,
+fairness comes from the pauses of the program
+(@secref["fairness"]): such a program, moved to version 3 unchanged,
+does not terminate.  To port it, choose @racket[amb-interleave] and
+put an @racket[(amb-pause)] in every alternative of an infinite
+choice, and at the entry of every recursive procedure that can recur
+for ever without an answer.
+
+The differences, one by one:
+
+@itemlist[
+@item{@bold{Version 2:} @racket[current-amb-depth-first?] set to @racket[#f] was breadth-first search by choices.  @bold{Version 3:} The parameter is removed.  @racket[amb-level] is breadth-first by pauses; in a program without pauses it is depth-first.}
+@item{@bold{Version 2:} @racket[current-amb-fair?], set inside a computation, decided where the tree went back in the frontier of the whole search.  @bold{Version 3:} The parameter is removed.  @racket[current-amb-merger] belongs to the choice that is made under it, and merges the alternatives of that choice only.}
+@item{@bold{Version 2:} The two parameters gave four strategies.  @bold{Version 3:} There are four mergers, which are other strategies.  On programs without pauses, depth-first is @racket[amb-append] and depth-first with fairness is @racket[amb-alternate]; the two breadth-first strategies have no counterpart.}
+@item{@bold{Version 2:} @racket[(amb)] was answered by the handler of @racketidfont{#:empty-handler}, and abandoned the rest of the computation.  A pause was written @racket[(when (amb #t #f) (amb))].  @bold{Version 3:} @racket[(amb)] fails.  A pause is @racket[(amb-pause)], the computation goes on after it, and the handler is that of @racket[#:on-pause].}
+@item{@bold{Version 2:} A choice with no alternatives, such as an empty @racket[for/amb], was answered by the handler too.  @bold{Version 3:} It fails.}
+@item{@bold{Version 2:} The handler ran inside the search, where @racket[(amb)] was called.  @bold{Version 3:} The handler of @racket[#:on-pause] is called by the observer, outside the search.}
+@item{@bold{Version 2:} Reaching @racket[(amb)] of the same search from its handler was a reentry error.  @bold{Version 3:} There is no such handler.  An effect in the handler of @racket[#:on-pause] belongs to the search around the observer.}
+@item{@bold{Version 2:} The shuffler was not called for a choice with no alternatives.  @bold{Version 3:} It is called once for every vector of alternatives, the empty one too.}
+@item{@bold{Version 2:} A fair search needed no pauses.  @bold{Version 3:} It needs them; see above.}
+@item{@bold{Version 2:} @racket[make-amb] took two procedures, @racket[_more?] and @racket[_get].  @bold{Version 3:} It takes one @tech{generator}.  @racket[sequence->amb] is exported.}
+@item{@bold{Version 2:} @racketidfont{amb/private/amb} exported @racketidfont{unsafe-amb*}.  @bold{Version 3:} The module is removed.}
+@item{@bold{Version 2:} A choice or a failure in a clause of @racket[for/amb] did something that depended on the implementation.  @bold{Version 3:} It is an error (@secref["supply"]).}
+@item{@bold{Version 2:} After an exception in the search, reading on ran the same part of the search again.  @bold{Version 3:} Reading on is an error (@secref["exceptions"]).}
+]
+
+
+@section{Typed Interface}
+
+@racketmodname[typed/amb], in the package @tt{typed-amb}, gives types
+to the bindings of @racketmodname[amb], and
+@racketidfont{typed/amb/base} and @racketidfont{typed/amb/merge} to
+those of @racketmodname[amb/base] and @racketmodname[amb/merge].
+
+@itemlist[
+@item{@racket[(Generatorof _a)] is the type of a @tech{generator}
+      whose answers have the type @racket[_a], a type of lists:
+      @racket[(→ (Values (∪ _a #f Positive-Integer) (Generatorof _a)))].
+      @racketidfont{Generator} is @racket[(Generatorof (Listof Any))].}
+@item{@racketidfont{Merger} is
+      @racket[(→ Generator Generator Generator)], and
+      @racket[current-amb-merger] is a @racket[(Parameter Merger)]: a
+      merger is called before the search has answers of a known type.
+      The four standard mergers are polymorphic in the answers, so
+      they are @racketidfont{Merger}s, and keep the type of the
+      generators that typed code applies them to.}
+@item{@racket[for/amb] and @racket[for*/amb] take the type
+      annotations of the second forms of their grammar above.}
+@item{In the typed @racket[for/amb] with @racket[#:length], the
+      clauses and the shuffler are not checked as code that supplies
+      alternatives (@secref["supply"]): an effect in them is not
+      reported.}
+]

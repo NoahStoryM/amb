@@ -22,9 +22,13 @@ overhead at the typed-untyped boundary.
 (require typed/amb)
 #+end_src
 
+=typed/amb/base= and =typed/amb/merge= are the typed =amb/base= and
+=amb/merge=.
+
 All forms (=amb=, =for/amb=, =in-amb=, etc.) work the same as in the
-untyped version.  =for/amb= additionally accepts optional type
-annotations:
+untyped version, with one exception: in =for/amb= with =#:length=, an
+effect in a clause is not reported as an error.  =for/amb=
+additionally accepts optional type annotations:
 
 #+begin_src racket
 (for/list ([x (in-amb (amb 1 2 3))])
@@ -34,6 +38,17 @@ annotations:
 (for/list ([x (in-amb (for/amb : Integer ([i (in-range 1 6)]) i))])
   x)
 ;; => '(1 2 3 4 5)
+#+end_src
+
+The types of the generator protocol:
+
+#+begin_src racket
+(define-type (Generatorof a)                 ; a: the type of an answer, a list
+  (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
+(define-type Generator (Generatorof (Listof Any)))
+(define-type Merger (→ Generator Generator Generator))
+
+(: current-amb-merger (Parameter Merger))
 #+end_src
 
 * Dependencies
