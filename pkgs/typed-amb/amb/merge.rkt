@@ -4,5 +4,5 @@
 
 (require "private/amb.rkt")
 
-(provide Generatorof Generator Merger
+(provide Generatorof Merger
          amb-append amb-interleave amb-alternate amb-level)

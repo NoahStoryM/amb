@@ -45,9 +45,12 @@
   (with-amb-mark ((current-amb-shuffler) thk*))
   (sequence->amb thk*))
 
-;; The typed syntax handles the empty choice separately from `thunks`.
+;; There is no slot a shuffler can mutate in this shared vector.
+(define mutable-empty-vector (vector))
+
+;; Empty choices still call the shuffler exactly once.
 (define (choose-none)
-  (with-amb-mark ((current-amb-shuffler) (vector)))
+  (with-amb-mark ((current-amb-shuffler) mutable-empty-vector))
   (amb-fail))
 
 ;; Turn a producer into a single-pass generator.  The producer calls

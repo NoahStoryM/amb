@@ -11,59 +11,42 @@
 ;; are imported from amb/private/choice; their implementations stay in
 ;; the untyped package.
 ;;
-;; Uses `typed/racket/base/shallow` for lower contract overhead at the
-;; typed-untyped boundary.
+;; The untyped implementation is a trusted boundary: its own checks
+;; enforce the generator protocol, and these declarations supply static
+;; types without installing another layer of run-time contracts.
 
-(require (for-syntax racket/base syntax/parse)
+(require typed/racket/unsafe
+         (for-syntax racket/base syntax/parse)
          racket/vector)
 
-(provide Generatorof Generator Merger
+(provide Generatorof Merger
          amb amb-local
          for/amb for*/amb)
 
 
 ;; ---- The generator protocol ----
 ;;
-;;   Generator = () -> (values Result Generator)
-;;   Result    = list? | #f | exact-positive-integer?
+;; A merger preserves the complete list of an element's return values.
+;; The dotted variables fix that list's arity at each instantiation;
+;; `list?` therefore distinguishes an answer in typed implementations.
 ;;
-;; (Generatorof a) is a generator whose answers have the type a.  The
-;; type a must be a type of lists: an answer is the list of the values
-;; of one element.  Nothing checks this, and a (Generatorof Integer)
-;; is not a generator.
-;;
-;; A merger does not know the answers of the search that it merges in:
-;; the choice that calls it is made before the search has any.  So a
-;; merger is polymorphic in the answers, and `Merger` is a rank-2 type:
-;; a merger gets generators of answers of some type a that it cannot
-;; look into, and returns a generator of answers of the same type.  It
-;; can drop answers, repeat them and put them in any order, and add
-;; pauses; it cannot make an answer.  That is what lets an observer
-;; give the elements of a search the type of its computation, whatever
-;; the mergers of its choices are.
-;;
-;; Since a is not known to be a type of lists, `list?` does not tell an
-;; answer from the other results in typed code.  A typed merger tests
-;; for #f and for a number first; what is left is an answer:
-;;
-;;   (cond [(not v) ...]                       ; the end
-;;         [(exact-positive-integer? v) ...]   ; v pauses
-;;         [else ...])                         ; an answer
-;;
-;; The guarantee is static, and about typed mergers.  See "The typed
-;; interface" in the documentation of amb for mergers from untyped code.
+;; Unsafe imports below trust our untyped implementation to preserve
+;; these types. Protocol checks alone do not establish parametricity
+;; for arbitrary untyped mergers supplied by clients.
 (define-type (Generatorof a)
   (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
-(define-type Generator (Generatorof (Listof Any)))
 (define-type Merger
-  (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a))))
+  (∀ (a ...)
+     (→ (Generatorof (List a ... a))
+        (Generatorof (List a ... a))
+        (Generatorof (List a ... a)))))
 
 (define-type ⊥ Nothing)
 
 
 ;; ---- Typed Re-Exports ----
 
-(require/typed/provide amb/merge
+(unsafe-require/typed/provide amb/merge
   [amb-append     Merger]
   [amb-interleave Merger]
   [amb-alternate  Merger]
@@ -71,7 +54,7 @@
 
 ;; `in-amb*` and `in-amb*/do` take an optional pause handler; the
 ;; sequence type is the union of the body's type and the handler's.
-(require/typed/provide amb
+(unsafe-require/typed/provide amb
   [make-amb
    (∀ (a ...)
       (→ (Generatorof (List a ... a))
@@ -121,7 +104,7 @@
 
 ;; ---- Shared runtime support for the syntax ----
 
-(require/typed/provide amb/private/choice
+(unsafe-require/typed/provide amb/private/choice
   [thunks
    (∀ (a ...)
       (→ (→ (Values a ... a))
@@ -193,83 +176,64 @@
 ;;    thunk.  The next call of the generator re-enters the loop through
 ;;    `retry`.
 
-(define-for-syntax (append* v**) (apply append v**))
-
 (define-syntaxes (for/amb for*/amb)
   (let ()
     (define-splicing-syntax-class length-clause
       [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define (make-for/amb for/vector for)
-      (define (parser stx)
-        (syntax-parse stx
-          #:datum-literals (:)
-          [(name
-            : t1:expr
-            #:length n (~optional (~seq #:fill fill-expr))
-            (clauses ...)
-            : t2:expr
-            break-expr:break-clause ...
-            body ...+)
-           #:with fill
-           (if (attribute fill-expr)
-               #'(ann (λ () : t2 fill-expr) (→ t1)) ; ensure `t2 <: t1`
-               #'amb-fail)
-           #:with keep-all? (if (attribute fill-expr) #'#t #'#f)
-           #:do
-           [(define break
-              (if (attribute break-expr)
-                  (append* (map syntax->list
-                                (syntax->list #'(break-expr ...))))
-                  '()))]
-           (quasisyntax/loc stx
-             (let ([m (with-amb-mark n)])
-               (if (zero? m)
-                   (choose-none)
-                   ((choose
-                     (with-amb-mark
-                      (let* ([count : Integer 0]
-                            [thk* (#,for/vector
-                                   : (Mutable-Vectorof (→ t1))
-                                   #:length m #:fill fill
-                                   (clauses ...)
-                                   : (→ t2)
-                                   #,@break
-                                   (set! count (add1 count))
-                                   (define (alt) : t2 body ...)
-                                   (ann alt (→ t1)))])
-                       (if (or keep-all? (= count (vector-length thk*)))
-                           thk*
-                           (vector-copy thk* 0 count)))))))))]
-          [(_ : t1:expr (clauses ...) : t2:expr break-expr:break-clause ... body ...+)
-           #:do
-           [(define break
-              (if (attribute break-expr)
-                  (append* (map syntax->list
-                                (syntax->list #'(break-expr ...))))
-                  '()))]
-           (quasisyntax/loc stx
-             (((inst make-amb (→ t1))
-               ((inst make-choice-generator (→ t1))
-                (λ (yield)
-                  (#,for (clauses ...) #,@break
-                   (define (alt) : t2 body ...)
-                   (yield (ann alt (→ t1)))))))))]
-          [(~or* (name : t0:expr (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+)
-                 (name (~optional length:length-clause) (clauses ...) : t0:expr break-expr:break-clause ... body ...+)
-                 (name (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+))
-           #:with t (if (attribute t0) #'t0 #'AnyValues)
-           #:with (maybe-length ...) (if (attribute length) #'length #'())
-           #:do
-           [(define break
-              (if (attribute break-expr)
-                  (append* (map syntax->list
-                                (syntax->list #'(break-expr ...))))
-                  '()))]
-           (parser
-            (quasisyntax/loc stx
-              (name : t maybe-length ... (clauses ...) : t #,@break body ...)))]))
-      parser)
+    (define ((make-for/amb for/vector for) stx)
+      (syntax-parse stx
+        #:datum-literals (:)
+        [(_ : t1:expr (clause ...) : t2:expr break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (((inst make-amb (→ t1))
+             ((inst make-choice-generator (→ t1))
+              (λ (yield)
+                (#,for (clause ... break* ...)
+                  (yield (ann (λ () : t2 body ...) (→ t1)))))))))]
+        [(_ : t1:expr #:length n (clause ...) : t2:expr
+            break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
+                    (let* ([count : Integer 0]
+                           [thk* (#,for/vector
+                                  : (Mutable-Vectorof (→ t1))
+                                  #:length m #:fill amb-fail
+                                  (clause ... break* ...)
+                                  (set! count (add1 count))
+                                  (ann (λ () : t2 body ...) (→ t1)))])
+                      (if (= count (vector-length thk*))
+                          thk*
+                          (vector-copy thk* 0 count)))))))))]
+        [(_ : t1:expr #:length n #:fill fill-expr
+            (clause ...) : t2:expr break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
+                    (#,for/vector
+                     : (Mutable-Vectorof (→ t1))
+                     #:length m #:fill (ann (λ () : t2 fill-expr) (→ t1))
+                     (clause ... break* ...)
+                     (ann (λ () : t2 body ...) (→ t1)))))))))]
+        [(~or* (name : t0:expr (~optional length:length-clause) (clause ...) break:break-clause ... body ...+)
+               (name (~optional length:length-clause) (clause ...) : t0:expr break:break-clause ... body ...+)
+               (name (~optional length:length-clause) (clause ...) break:break-clause ... body ...+))
+         #:with t (if (attribute t0) #'t0 #'AnyValues)
+         #:with (maybe-length ...) (if (attribute length) #'length #'())
+         #:with (break* ...) #'((~@ . break) ...)
+         ((make-for/amb for/vector for)
+          (quasisyntax/loc stx
+            (name : t maybe-length ... (clause ...) : t break* ... body ...)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))

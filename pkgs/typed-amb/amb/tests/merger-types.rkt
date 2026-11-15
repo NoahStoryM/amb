@@ -2,7 +2,7 @@
 
 ;; The type of a merger keeps the type of the answers.
 ;;
-;; `Merger` is (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a))).
+;; `Merger` quantifies over the list of return values with dotted variables.
 ;; The first part checks, by expanding typed modules, what the type
 ;; checker accepts and rejects.  The second part records what happens
 ;; at run time when the merger comes from untyped code: the guarantee
@@ -56,6 +56,7 @@
    (λ ()
      (declare! 'forge 'typed/racket/base
                '(require typed/amb)
+               '(define-type Generator (Generatorof (Listof Any)))
                '(: end Generator)
                '(define (end) (values #f end))
                '(: forge Merger)
@@ -69,6 +70,7 @@
    (λ ()
      (declare! 'forge2 'typed/racket/base
                '(require typed/amb)
+               '(define-type Generator (Generatorof (Listof Any)))
                '(: end Generator)
                '(define (end) (values #f end))
                '(: forge (→ Generator Generator Generator))
@@ -100,10 +102,9 @@
          '(define ((my-interleave s t))
             (let-values ([(v s) (s)])
               (cond
+                [(list? v) (values v (my-interleave s t))]
                 [(not v) (t)]
-                [(exact-positive-integer? v)
-                 (values 1 (my-interleave t (pauses (sub1 v) s)))]
-                [else (values v (my-interleave s t))])))
+                [else (values 1 (my-interleave t (pauses (sub1 v) s)))])))
          '(: tick-append Merger)
          '(define ((tick-append s t)) (values 1 (amb-append s t)))
          '(: second-only Merger)
@@ -148,40 +149,36 @@
                  [call-with-forge (→ (→ Void) Void)])
              `(call-with-forge (λ () ,observe-integers)))))))
 
-(test-case "an untyped merger imported at the type Merger"
-  ;; into a shallow module: only that it is a procedure is checked
+(test-case "dotted contracts and the trusted import boundary"
+  ;; Deep require/typed cannot build a contract for dotted polymorphism.
+  (check-exn
+   #rx"cannot generate contract for variable arity polymorphic type"
+   (λ ()
+     (declare! 'client 'typed/racket/base
+               '(require typed/amb)
+               '(require/typed "untyped-mergers.rkt" [first-wins Merger]))))
+  ;; A client may explicitly trust its untyped implementation, as the
+  ;; library does for the implementations it maintains.
+  (check-equal?
+   (run! 'client 'typed/racket/base
+         '(require typed/amb typed/racket/unsafe)
+         '(unsafe-require/typed "untyped-mergers.rkt" [first-wins Merger])
+         `(parameterize ([current-amb-merger first-wins]) ,observe-integers))
+   "23")
+  ;; Protocol checks do not prove that an arbitrary untyped merger
+  ;; preserves the types of answers.
   (check-exn
    #rx"add1: contract violation.*given: \"wrong\""
    (λ ()
-     (run! 'client 'typed/racket/base/shallow
-           '(require typed/amb)
-           '(require/typed "untyped-mergers.rkt" [forge Merger])
-           `(parameterize ([current-amb-merger forge]) ,observe-integers))))
-  ;; into a deep module: the contract of the type seals the answers, so
-  ;; the merger is stopped when it makes one
-  (check-exn
-   #rx"forge: broke its own contract.*promised: a"
-   (λ ()
      (run! 'client 'typed/racket/base
-           '(require typed/amb)
-           '(require/typed "untyped-mergers.rkt" [forge Merger])
-           `(parameterize ([current-amb-merger forge]) ,observe-integers))))
-  ;; a merger that does not look into the answers is fine
-  (check-equal?
-   (run! 'client 'typed/racket/base
-         '(require typed/amb)
-         '(require/typed "untyped-mergers.rkt" [first-wins Merger])
-         `(parameterize ([current-amb-merger first-wins]) ,observe-integers))
-   "23")
-  ;; but one that tells answers by `list?` does not know a sealed
-  ;; answer: the standard mergers are such, when they are imported
-  ;; from untyped code into a deep module, directly or inside another
-  ;; merger.  (typed/amb/merge is a shallow module: its mergers are not
-  ;; sealed.)
-  (check-exn
-   #rx"amb-append: contract violation.*expected: \\(or/c list\\? exact-positive-integer\\? #f\\)"
-   (λ ()
-     (run! 'client 'typed/racket/base
-           '(require typed/amb)
-           '(require/typed "untyped-mergers.rkt" [tick-append Merger])
-           `(parameterize ([current-amb-merger tick-append]) ,observe-integers)))))
+           '(require typed/amb typed/racket/unsafe)
+           '(unsafe-require/typed "untyped-mergers.rkt" [forge Merger])
+           `(parameterize ([current-amb-merger forge]) ,observe-integers)))))
+
+(test-case "clients in all three modes use the standard mergers"
+  (for ([lang '(typed/racket/base typed/racket/base/shallow typed/racket/base/optional)])
+    (check-equal?
+     (run! 'client lang
+           '(require typed/amb typed/amb/merge)
+           `(parameterize ([current-amb-merger amb-interleave]) ,observe-integers))
+     "23")))

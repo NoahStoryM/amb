@@ -138,3 +138,26 @@
   (check-equal? (events (for/amb : Integer #:length (length (events (amb 1 2)))
                           ([x '(10 20)]) (amb x (- x))))
                 '(10 -10 20 -20)))
+
+(test-case "for/amb annotations and trailing loop guards"
+  (check-equal?
+   (events (for/amb : Integer #:length 2 #:fill 9
+                    ([x : Integer '(1)]) : Byte 7))
+   '(7 9))
+  (check-equal?
+   (events (for/amb : Integer ([x : Integer '(1 2 3)]) : Integer
+             #:break (> x 2) x))
+   '(1 2))
+  (check-equal?
+   (events (for*/amb : Integer #:length 6
+                    ([x : Integer '(1 2)] [y : Integer '(10 20)]) : Integer
+             #:break (and (= x 2) (= y 20)) (+ x y)))
+   '(11 21 12))
+  (check-equal?
+   (for/list : (Listof (List Integer Symbol))
+     ([(a b) (in-amb/do
+               (for/amb : (Values Integer Symbol) #:length 3 #:fill (values 9 'fill)
+                        ([x : Integer '(1 2)]) : (Values Integer Symbol)
+                 (values x 'body)))])
+     (list a b))
+   '((1 body) (2 body) (9 fill))))

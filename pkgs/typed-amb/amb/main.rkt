@@ -24,7 +24,7 @@
 (require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
-(provide Generatorof Generator Merger
+(provide Generatorof Merger
          make-amb amb-generate* amb-fail amb-pause
          current-amb-merger
          with-amb-mark call-with-amb-mark

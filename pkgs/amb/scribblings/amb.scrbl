@@ -854,35 +854,31 @@ those of @racketmodname[amb/base] and @racketmodname[amb/merge].
       whose answers have the type @racket[_a]:
       @racket[(→ (Values (∪ _a #f Positive-Integer) (Generatorof _a)))].
       @racket[_a] must be a type of lists, since an answer is the list
-      of the values of one element; nothing checks this.
-      @racketidfont{Generator} is @racket[(Generatorof (Listof Any))].}
+      of the values of one element; nothing checks this type parameter.}
 @item{@racketidfont{Merger} is
-      @racket[(∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a)))],
+      @racket[(∀ (a ...)
+                 (→ (Generatorof (List a ... a))
+                    (Generatorof (List a ... a))
+                    (Generatorof (List a ... a))))],
       and @racket[current-amb-merger] is a @racket[(Parameter Merger)].
-      A merger is called before the search has answers of a known
-      type, so it is polymorphic in them: it can drop answers, repeat
-      them, put them in any order and add pauses, but it cannot make an
-      answer.  This is what lets @racket[in-amb] give its elements the
-      type of the computation, whatever the mergers of its choices
-      are.}
+      The dotted variables preserve the number and types of all return
+      values. A typed merger can drop answers, repeat them, reorder them
+      and add pauses; it cannot manufacture an answer of those unknown types.}
 @item{@racket[for/amb] and @racket[for*/amb] take the type
       annotations of the second forms of their grammar above.}
 ]
 
-Since the type of the answers is not known to be a type of lists,
-@racket[list?] does not tell an answer from the other results in typed
-code.  A typed merger tests for @racket[#f] and for a number first;
-what is left is an answer:
+Since an answer is known to be a list, a typed merger can distinguish it
+with @racket[list?]:
 
 @racketblock[
 (: my-interleave Merger)
 (define ((my-interleave s t))
   (let-values ([(v s) (s)])
     (cond
+      [(list? v) (values v (my-interleave s t))]
       [(not v) (t)]
-      [(exact-positive-integer? v)
-       (values 1 (my-interleave t (pauses (sub1 v) s)))]
-      [else (values v (my-interleave s t))])))
+      [else (values 1 (my-interleave t (pauses (sub1 v) s)))])))
 
 (: pauses (∀ (a) (→ Natural (Generatorof a) (Generatorof a))))
 (define (pauses n g)
@@ -891,31 +887,34 @@ what is left is an answer:
       (λ () (values 1 (pauses (sub1 n) g)))))
 ]
 
-The type is a guarantee about code that passes the type checker and
-has no unsafe or unchecked boundary in it: such code cannot make an
-answer.  A typed module can still declare an untyped function to be a
-@racketidfont{Merger}, and the parameter is shared with untyped code;
-there the guarantee ends:
+The typed front end uses @tt{typed/racket/base/shallow} and imports
+this library's untyped implementations through
+@racketidfont{unsafe-require/typed/provide}. It trusts those implementations
+to preserve the declared types, instead of adding run-time contracts to
+their own argument and generator-protocol checks. The Shallow language
+is retained for cross-mode macro expansion: Deep-defined macros are
+rejected in Shallow clients on Racket 9.3. Clients may use Deep,
+Shallow or Optional Typed Racket.
 
-@itemlist[
-@item{When untyped code sets @racket[current-amb-merger], the merger
-      is only checked to be a procedure of two arguments.  A merger that makes an answer of another type breaks
-      the type of the typed code that observes the search, and the
-      error, if there is one, is raised wherever the wrong value is
-      used.}
-@item{An untyped merger that a shallow module imports with
-      @racket[require/typed] at the type @racketidfont{Merger} gets
-      the shape check of a shallow import, that it is a procedure, and
-      no check of the type of its answers.}
-@item{An untyped merger that a deep module imports at the type
-      @racketidfont{Merger} gets the contract of the type, which seals
-      the answers.  A merger that makes an answer is stopped there.
-      But a sealed answer is not a list any more: a merger that tells
-      answers by @racket[list?] raises a range error.  The mergers of
-      @racketmodname[amb/merge] do, when they are imported from
-      untyped code into a deep module, directly or inside another
-      merger; those of @racketidfont{typed/amb/merge} are not sealed.}
-]
+This is a trusted boundary, not run-time protection from arbitrary
+untyped code. Protocol checks distinguish an answer list from a pause
+or the end; they do not establish the types of the list's elements.
+An untyped merger, including one installed through the shared
+@racket[current-amb-merger] parameter, must preserve the types of answers.
+If it instead manufactures an answer of another type, the types of a
+typed observer no longer hold.
+
+On Racket 9.3, Deep @racket[require/typed] cannot generate a contract for
+this variable-arity polymorphic @racketidfont{Merger}. A custom merger may
+be written in typed code, or imported through an explicitly trusted
+@racketidfont{unsafe-require/typed} boundary. The library's standard mergers
+use that trusted boundary and do not seal the answer lists.
+
+The dotted type describes a fixed list of return types at each
+instantiation. It does not accept a generator whose answers have an
+arbitrary, statically unknown length, such as
+@racket[(Generatorof (Listof Any))]. The front end does not expose a
+separate top generator type.
 
 On Racket 9.3, Typed Racket's @racket[for] type checker raises an
 internal error for a clause with no identifiers over a zero-valued
@@ -923,3 +922,11 @@ sequence, including @racket[(in-amb/do (values))].  Zero-valued
 computations themselves work: receive their values with
 @racket[define-values] inside the search and return an ordinary element
 for typed iteration.  This limitation does not affect untyped iteration.
+
+
+On Racket 9.3, the native typed @racket[for*] and @racket[for*/vector]
+may ignore @racket[#:final]; typed @racket[for*/amb] inherits this
+limitation, with or without @racket[#:length]. For example, a loop over
+@racket['(1 2)] and @racket['(10 20)] with @racket[#:final (= y 20)]
+can continue with the second outer iteration. The corresponding untyped
+loop stops after the first two elements.

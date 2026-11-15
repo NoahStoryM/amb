@@ -50,8 +50,10 @@
 
 ;; (amb e ...) is a choice among the expressions: none of them is
 ;; evaluated before it is chosen.  (amb) fails.
-(define-syntax-rule (amb expr ...)
-  ((choose (vector (λ () expr) ...))))
+(define-syntax amb
+  (syntax-rules ()
+    [(_) (choose-none)]
+    [(_ expr ...) ((choose (vector (λ () expr) ...)))]))
 
 ;; (for/amb (clause ...) body ...+) is a choice among the values of the
 ;; body, one alternative for each iteration; the body runs where the
@@ -80,7 +82,7 @@
            ((make-amb
              (make-choice-generator
               (λ (yield)
-                (#,for (clause ...) break* ...
+                (#,for (clause ... break* ...)
                   (yield (λ () body ...))))))))]
         ;; The slots that no iteration fills hold `amb-fail`, and are
         ;; cut off: the iterations are counted, so no value in the
@@ -88,24 +90,30 @@
         [(_ #:length n (clause ...) break:break-clause ... body ...+)
          #:with (break* ...) #'((~@ . break) ...)
          (quasisyntax/loc stx
-           ((choose
-             (with-amb-mark
-              (let* ([count 0]
-                     [thk* (#,for/vector #:length n #:fill amb-fail
-                            (clause ...) break* ...
-                            (set! count (add1 count))
-                            (λ () body ...))])
-                (if (= count (vector-length thk*))
-                    thk*
-                    (vector-copy thk* 0 count)))))))]
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
+                    (let* ([count 0]
+                           [thk* (#,for/vector #:length m #:fill amb-fail
+                                  (clause ... break* ...)
+                                  (set! count (add1 count))
+                                  (λ () body ...))])
+                      (if (= count (vector-length thk*))
+                          thk*
+                          (vector-copy thk* 0 count)))))))))]
         [(_ #:length n #:fill fill-expr
             (clause ...) break:break-clause ... body ...+)
          #:with (break* ...) #'((~@ . break) ...)
          (quasisyntax/loc stx
-           ((choose
-             (with-amb-mark
-              (#,for/vector #:length n #:fill (λ () fill-expr)
-               (clause ...) break* ... (λ () body ...))))))]))
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
+                    (#,for/vector #:length m #:fill (λ () fill-expr)
+                     (clause ... break* ...) (λ () body ...))))))))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
 
