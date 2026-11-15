@@ -7,7 +7,8 @@
          rackunit)
 
 
-(define sequence->amb (compose make-amb sequence-generate))
+;; CONFLICT with v2 (see v2-conflicts.rkt, "make-amb"): v2 defined
+;; (define sequence->amb (compose make-amb sequence-generate)) here.
 
 (define (pythagorean n)
   (for*/stream ([a (in-range 1 n)]

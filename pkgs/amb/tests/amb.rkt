@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require "../main.rkt"
+         "../merge.rkt"
          racket/contract/combinator
          racket/set
          racket/stream
@@ -34,41 +35,44 @@
     (check-equal?
      (for/list ([x (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))]) x)
      '(1 2 3 4 5 6 7 8)))
+  ;; CONFLICT with v2 (see v2-conflicts.rkt, "Test BFS"): there is no
+  ;; `current-amb-depth-first?`.  Breadth-first search is `amb-level`,
+  ;; and its levels are the pauses of the program, not its choices.
   (test-case "Test BFS"
+    (define (thk/pause)
+      (define res '())
+      (stream-empty?
+       (in-amb
+        (let ([x (begin (amb-pause) (amb 1 2))])
+          (set! res (cons (list x) res))
+          (let ([y (begin (amb-pause) (amb 3 4))])
+            (set! res (cons (list x y) res))
+            (let ([z (begin (amb-pause) (amb 5 6))])
+              (set! res (cons (list x y z) res))
+              (amb))))))
+      (reverse res))
     (check-equal?
-     (parameterize ([current-amb-depth-first? #f])
-       (thk))
+     (parameterize ([current-amb-merger amb-level])
+       (thk/pause))
      '((1) (2)
        (1 3) (1 4)
        (2 3) (2 4)
        (1 3 5) (1 3 6)
        (1 4 5) (1 4 6)
        (2 3 5) (2 3 6)
-       (2 4 5) (2 4 6)))
-    (check-equal?
-     (parameterize ([current-amb-depth-first? #f])
-       (for/list ([x (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))]) x))
-     '(1 7 8 2 3 4 5 6))))
+       (2 4 5) (2 4 6)))))
 
 (test-case "Test fair search"
   (check-equal?
    (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i)
    '(1 2 3 a b c))
+  ;; CONFLICT with v2 (see v2-conflicts.rkt, "Test fair search"): there
+  ;; is no `current-amb-fair?`.  The turn passes on at an answer with
+  ;; `amb-alternate`, and at a pause with `amb-interleave`.
   (check-equal?
-   (parameterize ([current-amb-fair? #t])
+   (parameterize ([current-amb-merger amb-alternate])
      (for/list ([i (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))]) i))
-   '(1 a 2 b 3 c))
-  (define (thk)
-    (define a '(0))
-    (define b (append a (list (amb 1 2 3))))
-    (parameterize ([current-amb-fair? #t])
-      (define c (append b (list (amb 4 5 6))))
-      c))
-  (check-equal?
-   (for/list ([i (in-amb* thk)]) i)
-   '((0 1 4) (0 2 4) (0 3 4)
-     (0 1 5) (0 2 5) (0 3 5)
-     (0 1 6) (0 2 6) (0 3 6))))
+   '(1 a 2 b 3 c)))
 
 (test-case "Test in-amb[*]"
   (define (thk)
@@ -126,7 +130,9 @@
   (check-eq? (stream-first (in-amb* thk)) -1))
 
 (test-case "Test sequence->amb"
-  (define sequence->amb (compose make-amb sequence-generate))
+  ;; CONFLICT with v2 (see v2-conflicts.rkt, "make-amb"): v2 defined
+  ;; (define sequence->amb (compose make-amb sequence-generate)) here;
+  ;; `make-amb` now takes one generator, and `sequence->amb` is exported.
   (test-case "Test sequence->amb with list input"
     ;; list path uses sequence-generate internally
     (check-equal?

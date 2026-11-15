@@ -5,7 +5,19 @@
 ;; Timing: warmup 1x → 3 rounds, repeat reps times per round, report median per iteration
 ;; ===================================================================
 
-(require racket/stream amb)
+;; Ported to v3.  CONFLICT with v2 (see v2-conflicts.rkt, "strategy
+;; parameters"): the four combinations of `current-amb-depth-first?` and
+;; `current-amb-fair?` are replaced by the four standard mergers, which
+;; are not the same strategies.  In particular none of them is fair
+;; without pauses in the program, so every search of section 5 (three
+;; nested choices among infinitely many, no pause) diverges.
+(require racket/stream amb amb/merge)
+
+(define (merger df? fair?)
+  (cond [(and df? (not fair?)) amb-append]
+        [(and df? fair?) amb-alternate]
+        [(and (not df?) (not fair?)) amb-level]
+        [else amb-interleave]))
 
 (define (median xs) (list-ref (sort xs <) (quotient (length xs) 2)))
 
@@ -34,8 +46,7 @@
 
 (define (bench/s! name df? fair? thk #:reps [reps 1])
   (bench! name #:reps reps
-          (λ () (parameterize ([current-amb-depth-first? df?]
-                               [current-amb-fair? fair?])
+          (λ () (parameterize ([current-amb-merger (merger df? fair?)])
                   (thk)))))
 
 (define (watchdog! name thk #:timeout [timeout-ms 3000])
@@ -161,10 +172,10 @@
 (bench! "hand-written · explicit stack DFS"   #:reps 3 (λ () (count-queens/stack nq)))
 (bench! "hand-written · explicit queue BFS" #:reps 3 (λ () (count-queens/queue nq)))
 (define t-amb10
-  (bench/s! "amb · DFS (default)" #t #f (λ () (count-queens/amb nq))))
-(bench/s! "amb · DFS+fair"     #t #t (λ () (count-queens/amb nq)))
-(bench/s! "amb · BFS"          #f #f (λ () (count-queens/amb nq)))
-(bench/s! "amb · BFS+fair"     #f #t (λ () (count-queens/amb nq)))
+  (bench/s! "amb · amb-append" #t #f (λ () (count-queens/amb nq))))
+(bench/s! "amb · amb-alternate"     #t #t (λ () (count-queens/amb nq)))
+(bench/s! "amb · amb-level"          #f #f (λ () (count-queens/amb nq)))
+(bench/s! "amb · amb-interleave"     #f #t (λ () (count-queens/amb nq)))
 (printf "→ amb-DFS / hand-written recursive ≈ ~a×\n"
         (/ (round (* 10 (/ t-amb10 (max t-man10 0.001)))) 10.0))
 
@@ -172,7 +183,7 @@
 (define t-man11
   (bench! "hand-written · recursive DFS"  (λ () (count-queens/rec 11))))
 (define t-amb11
-  (bench/s! "amb · DFS (default)" #t #f (λ () (count-queens/amb 11))))
+  (bench/s! "amb · amb-append" #t #f (λ () (count-queens/amb 11))))
 (printf "→ amb-DFS / hand-written recursive ≈ ~a×\n"
         (/ (round (* 10 (/ t-amb11 (max t-man11 0.001)))) 10.0))
 
@@ -192,13 +203,13 @@
     #f))
 
 (bench! "hand-written · recursive DFS first sol" #:reps 30 (λ () (first-queens/rec nq)))
-(bench/s! "amb · DFS first sol"      #t #f #:reps 10
+(bench/s! "amb · amb-append first sol"      #t #f #:reps 10
           (λ () (stream-first (in-amb (queens/amb nq)))))
-(bench/s! "amb · DFS+fair first sol" #t #t
+(bench/s! "amb · amb-alternate first sol" #t #t
           (λ () (stream-first (in-amb (queens/amb nq)))))
-(bench/s! "amb · BFS first sol"      #f #f
+(bench/s! "amb · amb-level first sol"      #f #f
           (λ () (stream-first (in-amb (queens/amb nq)))))
-(bench/s! "amb · BFS+fair first sol" #f #t
+(bench/s! "amb · amb-interleave first sol" #f #t
           (λ () (stream-first (in-amb (queens/amb nq)))))
 
 ;; ===================================================================
@@ -214,20 +225,18 @@
   (list a b c))
 
 (define (first-pyth df? fair?)
-  (parameterize ([current-amb-depth-first? df?]
-                 [current-amb-fair? fair?])
+  (parameterize ([current-amb-merger (merger df? fair?)])
     (stream-first (in-amb (pyth-triple)))))
 
-(watchdog! "amb · DFS"      (λ () (first-pyth #t #f)))
-(watchdog! "amb · DFS+fair" (λ () (first-pyth #t #t)))
-(watchdog! "amb · BFS"      (λ () (first-pyth #f #f)))
-(watchdog! "amb · BFS+fair" (λ () (first-pyth #f #t)))
+(watchdog! "amb · amb-append"      (λ () (first-pyth #t #f)))
+(watchdog! "amb · amb-alternate" (λ () (first-pyth #t #t)))
+(watchdog! "amb · amb-level"      (λ () (first-pyth #f #f)))
+(watchdog! "amb · amb-interleave" (λ () (first-pyth #f #t)))
 
 (printf "\n===== 5b. Infinite domain · first 8 triples (fair-search throughput) =====\n")
 
 (define (pyth-k k df? fair?)
-  (parameterize ([current-amb-depth-first? df?]
-                 [current-amb-fair? fair?])
+  (parameterize ([current-amb-merger (merger df? fair?)])
     (stream->list (stream-take (in-amb (pyth-triple)) k))))
 
 (define (pyth-k/manual k)
@@ -247,15 +256,14 @@
               [else (take (cdr fs) (cons (car fs) acc) (add1 n))]))))))
 
 (bench! "hand-written · diagonal enumeration first 8" #:reps 10 (λ () (pyth-k/manual 8)))
-(watchdog! "amb · DFS+fair first 8" (λ () (pyth-k 8 #t #t)) #:timeout 30000)
-(watchdog! "amb · BFS+fair first 8" (λ () (pyth-k 8 #f #t)) #:timeout 30000)
+(watchdog! "amb · amb-alternate first 8" (λ () (pyth-k 8 #t #t)))
+(watchdog! "amb · amb-interleave first 8" (λ () (pyth-k 8 #f #t)))
 
 ;; ===================================================================
 ;; 6. Uneven-depth tree: strategy leaf-order semantics demo
 ;; ===================================================================
 (printf "\n===== 6. Uneven-depth tree leaf order (amb (+ 10 (amb 1 2)) 100) =====\n")
 (for* ([df? '(#t #f)] [fair? '(#t #f)])
-  (printf "  depth-first?=~a fair?=~a → ~a\n" df? fair?
-          (parameterize ([current-amb-depth-first? df?]
-                         [current-amb-fair? fair?])
+  (printf "  ~a → ~a\n" (object-name (merger df? fair?))
+          (parameterize ([current-amb-merger (merger df? fair?)])
             (stream->list (in-amb (amb (+ 10 (amb 1 2)) 100))))))
