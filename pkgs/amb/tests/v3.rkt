@@ -523,3 +523,138 @@
                                                  (stream-first v))))))))
   (check-equal? (stream->list v) '((caught inner) 42))
   (check-equal? (list runs calls) '(1 1)))
+
+(test-case "a prompt between the handler and the read does not hide the handler"
+  ;; the examples of the third review of PR #24
+  (define runs 0)
+  (define calls 0)
+  (define-syntax-rule (search) (begin (amb-pause) (set! runs (add1 runs)) 42))
+  (define (reset!) (set! runs 0) (set! calls 0))
+  (define reentry #rx"in-amb: an element cannot be read by the handler of its own pause")
+  (define tag (make-continuation-prompt-tag 'other))
+  (define wraps
+    (list call-with-continuation-prompt
+          (λ (thk) (call-with-continuation-prompt thk tag))
+          (λ (thk) (call-with-continuation-prompt
+                    (λ () (call-with-continuation-prompt thk tag))))
+          ;; a search is a prompt, too
+          (λ (thk) (stream-first (in-amb* thk)))))
+
+  (for* ([wrap wraps]
+         [read (list stream-first stream-empty? stream-rest)])
+    ;; -- not caught: the pause has no element; read again
+    (reset!)
+    (define s
+      (in-amb (search)
+              #:on-pause (λ () (set! calls (add1 calls)) (wrap (λ () (read s))))))
+    (check-exn reentry (λ () (stream-first s)))
+    (check-equal? (stream->list s) '(42))
+    (check-equal? (stream->list s) '(42))
+    (check-equal? (list runs calls) '(1 1))
+    ;; -- caught, inside the prompt and outside of it
+    (for ([catch (list (λ (thk) (wrap (λ () (with-handlers ([exn:fail? (λ (e) 'caught)]) (thk)))))
+                       (λ (thk) (with-handlers ([exn:fail? (λ (e) 'caught)]) (wrap thk))))])
+      (reset!)
+      (define t
+        (in-amb (search)
+                #:on-pause (λ () (set! calls (add1 calls)) (catch (λ () (read t))))))
+      (check-equal? (stream->list t) '(caught 42))
+      (check-equal? (stream->list t) '(caught 42))
+      (check-equal? (list runs calls) '(1 1))))
+
+  (for* ([wrap wraps]
+         [use (list (λ (more? get) (get)) (λ (more? get) (more?)))])
+    (reset!)
+    (define-values (more? get)
+      (sequence-generate
+       (in-amb/do (search)
+                  #:on-pause (λ () (set! calls (add1 calls))
+                               (wrap (λ () (use more? get)))))))
+    (check-exn reentry get)
+    (check-equal? (get) 42)
+    (check-false (more?))
+    (check-equal? (list runs calls) '(1 1))
+    (reset!)
+    (define-values (more?* get*)
+      (sequence-generate
+       (in-amb/do (search)
+                  #:on-pause (λ () (set! calls (add1 calls))
+                               (with-handlers ([exn:fail? (λ (e) 'caught)])
+                                 (wrap (λ () (use more?* get*))))))))
+    (check-equal? (list (get*) (get*) (more?*)) '(caught 42 #f))
+    (check-equal? (list runs calls) '(1 1)))
+
+  ;; -- observers inside observers, with prompts between them: the
+  ;; innermost handler reads the element of each of the outer ones
+  (for ([wrap wraps])
+    (reset!)
+    (define inner-runs 0)
+    (define inner-calls 0)
+    (define seen '())
+    (define (try thk)
+      (with-handlers ([exn:fail? (λ (e) (regexp-match? reentry (exn-message e)))])
+        (wrap thk)))
+    (define outer
+      (in-amb (search)
+              #:on-pause
+              (λ ()
+                (set! calls (add1 calls))
+                (define middle
+                  (in-amb (begin (amb-pause) (set! inner-runs (add1 inner-runs)) 'middle)
+                          #:on-pause
+                          (λ ()
+                            (set! inner-calls (add1 inner-calls))
+                            (set! seen (list (try (λ () (stream-first outer)))
+                                             (try (λ () (stream-first middle)))))
+                            'paused)))
+                (wrap (λ () (stream->list middle))))))
+    (check-equal? (stream->list outer) '((paused middle) 42))
+    (check-equal? (stream->list outer) '((paused middle) 42))
+    (check-equal? seen '(#t #t))
+    (check-equal? (list runs calls inner-runs inner-calls) '(1 1 1 1))))
+
+(test-case "a handler that was left is not taken for one that is running"
+  ;; every way out of the handler: the pause is over, and the search
+  ;; goes on once
+  (define tag (make-continuation-prompt-tag 'other))
+  (for ([leave (list (λ () (error "boom"))
+                     (λ () (raise 'not-an-exn))
+                     (λ () (abort-current-continuation (default-continuation-prompt-tag)
+                                                       (λ () 'aborted)))
+                     (λ () (abort-current-continuation tag 'aborted))
+                     (λ () (call-with-continuation-prompt (λ () (error "boom")))))])
+    (define runs 0)
+    (define calls 0)
+    (define (read s)
+      (let/ec k
+        (call-with-continuation-prompt
+         (λ ()
+           (call-with-continuation-prompt
+            (λ () (with-handlers ([(λ (e) #t) (λ (e) (k 'left))])
+                    (stream-first s)))
+            (default-continuation-prompt-tag)
+            (λ (thk) (k 'left))))
+         tag
+         (λ (v) (k 'left)))))
+    (define s
+      (in-amb (begin (amb-pause) (amb-pause) (set! runs (add1 runs)) 42)
+              #:on-pause (λ () (set! calls (add1 calls)) (leave))))
+    ;; two pauses, both left; then the answer
+    (check-equal? (read s) 'left)
+    (check-equal? (read s) 'left)
+    (check-equal? (read s) 42)
+    (check-equal? (stream->list s) '(42))
+    (check-equal? (list runs calls) '(1 2)))
+
+  ;; a jump out through an escape continuation, with the sequence
+  (define runs 0)
+  (define calls 0)
+  (define out #f)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (begin (amb-pause) (set! runs (add1 runs)) 42)
+                #:on-pause (λ () (set! calls (add1 calls)) (out 'left)))))
+  (check-equal? (let/ec k (set! out k) (get)) 'left)
+  (check-equal? (get) 42)
+  (check-false (more?))
+  (check-equal? (list runs calls) '(1 1)))

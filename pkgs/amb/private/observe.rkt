@@ -42,24 +42,26 @@
 ;;
 ;; The state:
 ;;
-;;   gen      the generator to call; #f from the moment it is called
-;;   resume   #f; or, from the moment the handler of a pause is called
-;;            until it returns, the generator of what comes after the
-;;            pause
+;;   gen       the generator to call; #f from the moment it is called
+;;   resume    #f; or, from the moment the handler of a pause is called
+;;             until it returns, the generator of what comes after the
+;;             pause
+;;   running?  whether control is in the handler
 ;;
-;; The last two cases both have `resume`.  They are told apart by a
-;; continuation mark around the call of the handler, which is there
-;; exactly as long as the handler runs.  It is looked for only when
-;; `resume` is set, so a read that finds neither case pays nothing.
-(define handler-key (make-continuation-mark-key 'in-amb-handler))
-
+;; The last two cases both have `resume`, and `running?` tells them
+;; apart.  It is kept by a `dynamic-wind` around the call of the
+;; handler, so it follows control itself: it is cleared when an
+;; exception or a jump leaves the handler, whatever prompts are in
+;; between.  (A continuation mark would not do: a prompt between the
+;; handler and the read hides it, and "no mark" would be taken for
+;; "the handler was left".)  Only a pause that has a handler pays for
+;; it; a read that finds no `resume` tests one variable.
 (define (elements gen handler)
   (define resume #f)
+  (define running? #f)
   (define (next)
     (when resume
-      (when (memq next
-                  (continuation-mark-set->list (current-continuation-marks)
-                                               handler-key))
+      (when running?
         (raise
          (exn:fail:contract
           (string-append
@@ -85,8 +87,10 @@
            (if handler
                (let ([after (pauses (sub1 v) after)])
                  (set! resume after)
-                 (let ([vs (with-continuation-mark handler-key next
-                             (call-with-values handler list))])
+                 (let ([vs (dynamic-wind
+                            (λ () (set! running? #t))
+                            (λ () (call-with-values handler list))
+                            (λ () (set! running? #f)))])
                    (set! resume #f)
                    (values vs (elements after handler))))
                (loop after))]
