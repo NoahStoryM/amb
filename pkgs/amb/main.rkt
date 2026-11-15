@@ -84,19 +84,44 @@
 ;;                     `for/vector`: at most n of them.  With `#:fill`,
 ;;                     the slots that are left are alternatives too,
 ;;                     each with the value of the fill expression.
-;;   without           the iterations go on as the search does: the
-;;                     alternatives are the elements of a lazy stream.
+;;   without           the iterations go on as the search does.  The
+;;                     loop is a coroutine, which is the generator of
+;;                     `make-amb`: it runs under a prompt of its own;
+;;                     at each iteration it captures its continuation
+;;                     as `retry` and aborts to the prompt with the
+;;                     thunk of the body.  The next call of the
+;;                     generator goes back into the loop by `retry`.
 (define-syntaxes (for/amb for*/amb)
   (let ()
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define ((make-for/amb for/vector for/stream) stx)
+    (define ((make-for/amb for/vector for) stx)
       (syntax-parse stx
         [(_ (clause ...) break:break-clause ... body ...+)
          #:with (break* ...) #'((~@ . break) ...)
          (quasisyntax/loc stx
-           ((sequence->amb
-             (#,for/stream (clause ...) break* ... (λ () body ...)))))]
+           ((make-amb
+             (let ([tag (make-continuation-prompt-tag 'for/amb)]
+                   [retry #f])
+               (define (next)
+                 (define alt
+                   (call-with-continuation-prompt
+                    (λ ()
+                      (when retry (retry #f))
+                      (#,for (clause ...) break* ...
+                        (define choice (call/cc values tag))
+                        (when choice
+                          (set! retry choice)
+                          (abort-current-continuation
+                           tag
+                           (λ () body ...))))
+                      #f)
+                    tag
+                    values))
+                 (if alt
+                     (values (list alt) next)
+                     (values #f next)))
+               next))))]
         ;; The slots that no iteration fills hold `amb-fail`, and are
         ;; cut off: the iterations are counted, so no value in the
         ;; vector has to be told from an alternative.
@@ -121,8 +146,8 @@
              (with-amb-mark
               (#,for/vector #:length n #:fill (λ () fill-expr)
                (clause ...) break* ... (λ () body ...))))))]))
-    (values (make-for/amb #'for/vector  #'for/stream)
-            (make-for/amb #'for*/vector #'for*/stream))))
+    (values (make-for/amb #'for/vector  #'for)
+            (make-for/amb #'for*/vector #'for*))))
 
 ;; ---- in-amb* (function form) ----
 
