@@ -19,6 +19,7 @@
 ;; `amb-generate*` runs a computation as a search of its own.
 
 (require racket/control
+         "tag.rkt"
          "generator.rkt"
          (only-in "../merge.rkt" amb-append))
 
@@ -29,9 +30,6 @@
          current-amb-merger
          with-amb-mark
          call-with-amb-mark)
-
-;; Every effect is delimited by the nearest search.
-(define amb-prompt-tag (make-continuation-prompt-tag 'amb))
 
 ;; The merger of the choices that are made while it is the current one.
 (define current-amb-merger
@@ -69,15 +67,13 @@
 ;; amb/merge -- runs in the dynamic environment of whoever calls the
 ;; generator: an effect there is not an effect of the search that the
 ;; generator belongs to.
-(define supply-key (make-continuation-mark-key 'amb-supply))
-
 (define-syntax-rule (with-amb-mark e)
-  (with-continuation-mark supply-key #t e))
+  (with-continuation-mark amb-mark-key #t e))
 
 ;; The same, for where a macro of this module cannot be used (Typed
-;; Racket has no type for `supply-key`).
+;; Racket has no type for `amb-mark-key`).
 (define (call-with-amb-mark thk)
-  (with-continuation-mark supply-key #t (thk)))
+  (with-continuation-mark amb-mark-key #t (thk)))
 
 ;; Called by every effect before anything else.
 (define (check-effect who)
@@ -85,11 +81,11 @@
     [(not (continuation-prompt-available? amb-prompt-tag))
      (raise
       (exn:fail:contract
-       (if (continuation-mark-set-first #f supply-key #f)
+       (if (continuation-mark-set-first #f amb-mark-key #f)
            (supply-message who)
            (format "~a: not in a search" who))
        (current-continuation-marks)))]
-    [(continuation-mark-set-first #f supply-key #f amb-prompt-tag)
+    [(continuation-mark-set-first #f amb-mark-key #f amb-prompt-tag)
      (raise (exn:fail:contract (supply-message who) (current-continuation-marks)))]))
 
 (define (supply-message who)
