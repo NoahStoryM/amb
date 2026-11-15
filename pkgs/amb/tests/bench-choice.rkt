@@ -1,16 +1,18 @@
 #lang racket/base
 
-;; The supply of a vector choice, before and after its slots are
-;; cleared as they are taken.
+;; The supply of a vector choice, in three versions:
 ;;
-;;   before   the shuffler, then (sequence->amb thk*): the generators of
-;;            `sequence-generate*`, which keep the whole vector
-;;   after    `choose` of private/choice.rkt: the shuffler, then
-;;            `mutable-vector-generate*`
+;;   seq       the shuffler, then (sequence->amb thk*): the generators of
+;;             `sequence-generate*`, which keep the whole vector (c0c8fd9)
+;;   clear     the slots are cleared as they are taken, and the vector is
+;;             never copied (b5b05ff; a copy of it is below)
+;;   compact   `choose` of private/choice.rkt: the slots are cleared, and
+;;             a long vector is compacted once half of it is taken
 ;;
-;; Both run in the same process, in alternating rounds, so that the
-;; order does not favor either.  This only records times; the numbers
-;; vary from run to run by more than the difference that they show.
+;; All run in the same process, in rotating order, so that the order
+;; does not favor any of them.  This only records times; the numbers
+;; vary from run to run, and a difference smaller than that is not a
+;; result.
 ;;
 ;;   raco make pkgs/amb/tests/bench-choice.rkt
 ;;   racket pkgs/amb/tests/bench-choice.rkt [iterations] [rounds]
@@ -19,15 +21,35 @@
 ;; `raco test` runs it); the benchmark is its `main` submodule.
 
 (module+ main
-  (require racket/list
-           racket/vector
+  (require racket/vector
            amb
+           (only-in "../private/generator.rkt" end)
            (prefix-in choice: "../private/choice.rkt"))
 
-  (define (before thk*)
+  (define (seq thk*)
     (with-amb-mark ((current-amb-shuffler) thk*))
     (sequence->amb thk*))
-  (define after choice:choose)
+
+  ;; mutable-vector-generate* of b5b05ff, without compaction
+  (define (clear-generate* vec)
+    (define len (vector-length vec))
+    (define pos 0)
+    (define ((take i))
+      (unless (eq? i pos) (error 'clear-generate* "called again"))
+      (set! pos (add1 i))
+      (if (< i len)
+          (let ([v (vector-ref vec i)])
+            (vector-set! vec i #f)
+            (values (list v) (take (add1 i))))
+          (end)))
+    ((take 0)))
+  (define (clear thk*)
+    (with-amb-mark ((current-amb-shuffler) thk*))
+    (make-amb (λ () (clear-generate* thk*))))
+
+  (define compact choice:choose)
+
+  (define versions (list (cons "seq" seq) (cons "clear" clear) (cons "compact" compact)))
 
   (define-values (iterations rounds)
     (let ([args (current-command-line-arguments)])
@@ -48,11 +70,15 @@
     (define (four) ((choose (vector (λ () 0) (λ () 1) (λ () 2) (λ () 3)))))
     (λ () (count-answers (λ () (list (four) (four) (four))))))
 
+  ;; name, case, and the divisor of the iterations
   (define cases
-    (list (cons "2 alternatives" (flat 2))
-          (cons "8 alternatives" (flat 8))
-          (cons "32 alternatives" (flat 32))
-          (cons "nested 4×4×4, ÷10" (nested))))
+    (list (list "2 alternatives" (flat 2) 1)
+          (list "8 alternatives" (flat 8) 1)
+          (list "32 alternatives" (flat 32) 1)
+          (list "nested 4×4×4" (nested) 10)
+          (list "256 alternatives" (flat 256) 10)
+          (list "1024 alternatives" (flat 1024) 40)
+          (list "16384 alternatives" (flat 16384) 640)))
 
   (define (run-ms thk n)
     (collect-garbage)
@@ -60,22 +86,20 @@
     cpu)
 
   (define (median xs) (list-ref (sort xs <) (quotient (length xs) 2)))
+  (define (rotate xs r) (append (list-tail xs r) (for/list ([x xs] [_ r]) x)))
 
-  (printf "Racket ~a (~a), ~a iterations, ~a rounds; CPU ms: median [min, max]\n"
+  (printf "Racket ~a (~a), ~a iterations / divisor, ~a rounds; CPU ms: median [min, max]\n"
           (version) (system-type 'vm) iterations rounds)
   (for ([c (in-list cases)])
-    (define name (car c))
-    (define n (if (regexp-match? #rx"÷10" name) (quotient iterations 10) iterations))
-    (define b ((cdr c) before))
-    (define a ((cdr c) after))
-    (unless (= (b) (a)) (error 'bench-choice "different answers: ~a" name))
-    (b) (a)                                ; warm up
-    (define-values (bs as)
-      (for/fold ([bs '()] [as '()]) ([r (in-range rounds)])
-        (if (even? r)
-            (let* ([tb (run-ms b n)] [ta (run-ms a n)]) (values (cons tb bs) (cons ta as)))
-            (let* ([ta (run-ms a n)] [tb (run-ms b n)]) (values (cons tb bs) (cons ta as))))))
-    (define (show xs) (format "~a [~a, ~a]" (median xs) (apply min xs) (apply max xs)))
-    (printf "~a~a  before ~a   after ~a\n"
-            name (make-string (max 0 (- 20 (string-length name))) #\space)
-            (show bs) (show as))))
+    (define-values (name make n) (values (car c) (cadr c) (quotient iterations (caddr c))))
+    (define thks (for/list ([v (in-list versions)]) (make (cdr v))))
+    (define answers (for/list ([thk (in-list thks)]) (thk)))  ; warm up
+    (unless (apply = answers) (error 'bench-choice "different answers: ~a" name))
+    (define times (make-vector (length thks) '()))
+    (for ([r (in-range rounds)])
+      (for ([i (in-list (rotate (for/list ([i (length thks)]) i) (modulo r (length thks))))])
+        (vector-set! times i (cons (run-ms (list-ref thks i) n) (vector-ref times i)))))
+    (printf "~a (×~a)\n" name n)
+    (for ([v (in-list versions)] [xs (in-vector times)])
+      (printf "  ~a~a ~a [~a, ~a]\n" (car v) (make-string (- 8 (string-length (car v))) #\space)
+              (median xs) (apply min xs) (apply max xs)))))

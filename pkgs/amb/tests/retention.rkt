@@ -13,10 +13,11 @@
 ;; all, and the test would pass for the wrong reason.
 
 (require rackunit
+         racket/list
          racket/vector
          amb
          amb/merge
-         (only-in "../private/choice.rkt" mutable-vector-generate*))
+         (only-in "../private/choice.rkt" mutable-vector-generate* compact-length))
 
 (define mergers (list amb-append amb-interleave amb-alternate amb-level))
 
@@ -65,6 +66,15 @@
       (check-equal? (answers (λ () (for/amb #:length 5 ([b (in-list (list (big!) 'small))])
                                      (if (eq? b 'small) (probe) (use b)))))
                     '(freed))
+      ;; a long vector, compacted before its last alternative
+      (check-equal? (answers (λ () (for/amb #:length 600
+                                            ([b (in-list (append (list (big!))
+                                                                 (make-list 598 'small)
+                                                                 (list 'last)))])
+                                     (cond [(vector? b) (use b)]
+                                           [(eq? b 'last) (probe)]
+                                           [else (amb-fail)]))))
+                    '(freed))
       ;; without #:length, the coroutine keeps only the current iteration
       (check-equal? (answers (λ () (for/amb ([b (in-list (list (big!) 'small))])
                                      (if (eq? b 'small) (probe) (use b)))))
@@ -102,7 +112,13 @@
 (define called-again #rx"^amb: a generator of a choice was called again")
 
 (test-case "the results are those of sequence-generate*"
-  (for ([v (in-list (list (vector) (vector 1) (vector 1 2 3)))])
+  (for ([v (in-list (append (list (vector) (vector 1) (vector 1 2 3))
+                            (for/list ([n (in-list (list (sub1 compact-length) compact-length
+                                                         (add1 compact-length)
+                                                         (* 2 compact-length)
+                                                         (add1 (* 2 compact-length))
+                                                         1000 4097))])
+                              (build-vector n values))))])
     (check-equal? (raw-results (λ () (mutable-vector-generate* (vector-copy v))))
                   (raw-results (λ () (sequence-generate* v))))))
 
@@ -164,3 +180,49 @@
                (λ () (answers (λ () (amb 1 2 3)))))
     (check-exn (λ (e) (and (exn:fail:contract? e) (regexp-match? called-again (exn-message e))))
                (λ () (answers (λ () (for/amb #:length 3 ([i 3]) i)))))))
+
+;; a generator of `n` slots, after `k` of them are taken, and a weak box
+;; of the vector
+(define (taken n k)
+  (define v (build-vector n values))
+  (define wb (make-weak-box v))
+  (define-values (r next) (mutable-vector-generate* v))
+  (values (for/fold ([next next]) ([_ (in-range (sub1 k))])
+            (let-values ([(r next) (next)]) next))
+          wb))
+
+(define (kept? wb)
+  (collect-garbage)
+  (collect-garbage)
+  (and (weak-box-value wb) #t))
+
+(test-case "a long vector is compacted once half of it is taken"
+  (define n (* 4 compact-length))
+  (let-values ([(next wb) (taken n (sub1 (quotient n 2)))])
+    (check-true (kept? wb))
+    (let-values ([(r next) (next)])
+      (check-equal? r (list (sub1 (quotient n 2))))
+      ;; compacted: the original vector is not kept
+      (check-false (kept? wb))
+      (check-equal? (raw-results next)
+                    (for/list ([i (in-range (quotient n 2) n)]) (list i)))))
+  ;; a short vector is not
+  (let-values ([(next wb) (taken (sub1 compact-length) (- compact-length 2))])
+    (check-true (kept? wb))
+    (check-equal? (raw-results next) (list (list (- compact-length 2))))))
+
+(test-case "a generator called again across a compaction is an error"
+  (define n (* 2 compact-length))
+  (define-values (next wb) (taken n (sub1 compact-length)))
+  ;; this call takes slot n/2 - 1, and compacts
+  (define-values (r1 next1) (next))
+  (check-equal? r1 (list (sub1 compact-length)))
+  (check-exn (λ (e) (and (exn:fail:contract? e) (regexp-match? called-again (exn-message e))))
+             next)
+  (define-values (r2 next2) (next1))
+  (check-equal? r2 (list compact-length))
+  (check-exn (λ (e) (and (exn:fail:contract? e) (regexp-match? called-again (exn-message e))))
+             next1)
+  ;; compacted again at each half, down to below compact-length
+  (check-equal? (raw-results next2)
+                (for/list ([i (in-range (add1 compact-length) n)]) (list i))))

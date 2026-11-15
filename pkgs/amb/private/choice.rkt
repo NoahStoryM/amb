@@ -3,7 +3,8 @@
 ;; Runtime support for the choice syntax in amb/main and typed/amb.
 ;; Keep it here so the typed front end only needs to give it types.
 
-(require "core.rkt"
+(require (only-in racket/vector vector-copy)
+         "core.rkt"
          (only-in "generator.rkt" end))
 
 (provide sequence->amb
@@ -11,7 +12,8 @@
          current-amb-shuffler
          thunks choose choose-none
          make-choice-generator
-         mutable-vector-generate*)
+         mutable-vector-generate*
+         compact-length)
 
 ;; An element of the sequence: a choice among all of them.
 (define (sequence->amb seq)
@@ -63,18 +65,34 @@
 ;; an error, not a second supply of the same slots.  The generator that
 ;; is returned with #f is that of `sequence-generate*`: calling it is
 ;; the error "sequence has no more values".
+;;
+;; A long vector is also compacted: once at least half of the slots of
+;; a vector of `compact-length` slots or more have been taken, the rest
+;; is copied into a new vector, and the old one is dropped.  The copies
+;; are at most as long as the vector together, since each is at most
+;; half of the one before it.
 (define (mutable-vector-generate* vec)
   (define len (vector-length vec))
   (define pos 0)                        ; the slot of the live generator
+  (define off 0)                        ; the slot of the original at 0 of vec
   (define ((take i))
     (unless (eq? i pos) (raise-called-again-error))
     (set! pos (add1 i))
     (if (< i len)
-        (let ([v (vector-ref vec i)])
-          (vector-set! vec i #f)
+        (let* ([j (- i off)]
+               [v (vector-ref vec j)]
+               [n (vector-length vec)]
+               [taken (add1 j)])
+          (if (and (>= n compact-length) (>= (* 2 taken) n) (< taken n))
+              (begin (set! vec (vector-copy vec taken))
+                     (set! off (add1 i)))
+              (vector-set! vec j #f))
           (values (list v) (take (add1 i))))
         (end)))
   ((take 0)))
+
+;; The length from which a vector is compacted.
+(define compact-length 256)
 
 (define (raise-called-again-error)
   (raise (exn:fail:contract
