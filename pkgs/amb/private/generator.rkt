@@ -18,13 +18,9 @@
 ;; A generator is single-pass: it, and each generator it returns, is
 ;; called at most once.
 
-(provide end pauses pause-count? raise-result-error
-         raise-empty-sequence-error)
+(require (only-in "data/sequence.rkt" raise-empty-sequence-error))
 
-(define (raise-empty-sequence-error)
-  (raise (exn:fail:contract
-          "sequence has no more values"
-          (current-continuation-marks))))
+(provide end pauses pause-count? raise-result-error)
 
 ;; The generator of nothing.
 (define (end) (values #f raise-empty-sequence-error))

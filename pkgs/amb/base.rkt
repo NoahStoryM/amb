@@ -15,12 +15,15 @@
 ;;   make-amb     for the alternatives a, b that it is supplied with,
 ;;                  (merge (λ () (k a)) (λ () (merge (λ () (k b)) end)))
 ;;                where merge is the merger of the choice
+;;
+;; `amb-generate*` runs a computation as a search of its own.
 
 (require racket/control
          "private/generator.rkt"
          (only-in "merge.rkt" amb-append))
 
 (provide make-amb
+         amb-generate*
          amb-fail
          amb-pause
          current-amb-merger)
@@ -39,6 +42,18 @@
                              merge))
      merge)
    'current-amb-merger))
+
+;; (amb-generate* thk) -> (values Result Generator)
+;;
+;; Runs (thk) as a search of its own, up to its first event, as
+;; `sequence-generate*` does for a sequence.  No effect of (thk) reaches
+;; an enclosing search, and nothing more of the search runs until the
+;; generator is called.
+(define (amb-generate* thk)
+  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
+    (raise-argument-error 'amb-generate* "(-> any)" thk))
+  (reset-at amb-prompt-tag
+    (values (call-with-values thk list) end)))
 
 ;; A choice among the alternatives that the generator `next` supplies:
 ;; each answer of `next` is the values of one alternative, which
