@@ -144,10 +144,8 @@
     [(_ e) (in-amb*/do (λ () e))]
     [(_ e #:on-pause handler) (in-amb*/do (λ () e) handler)]))
 
-(define-syntax amb
-  (syntax-rules ()
-    [(_) (amb-fail)]
-    [(_ e ...) ((sequence->amb (vector (λ () e) ...)))]))
+(define-syntax-rule (amb e ...)
+  ((sequence->amb (vector (λ () e) ...))))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
