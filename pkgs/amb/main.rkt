@@ -67,7 +67,7 @@
 ;; A choice among the thunks of the mutable vector `thk*`; the chosen
 ;; thunk is returned, to be called where the choice was made.
 (define (choose thk*)
-  (supplying (begin0 ((current-amb-shuffler) thk*) (void)))
+  (supplying ((current-amb-shuffler) thk*))
   (sequence->amb thk*))
 
 ;; (amb e ...) is a choice among the expressions: none of them is
@@ -98,27 +98,32 @@
          (quasisyntax/loc stx
            ((sequence->amb
              (#,for/stream (clause ...) break* ... (λ () body ...)))))]
-        [(_ #:length n (~optional (~seq #:fill fill-expr))
-            (clause ...) break:break-clause ... body ...+)
-         #:with fill (if (attribute fill-expr) #'(λ () fill-expr) #'#f)
+        ;; The slots that no iteration fills hold `amb-fail`, and are
+        ;; cut off: the iterations are counted, so no value in the
+        ;; vector has to be told from an alternative.
+        [(_ #:length n (clause ...) break:break-clause ... body ...+)
          #:with (break* ...) #'((~@ . break) ...)
          (quasisyntax/loc stx
            ((choose
              (supplying
-              (trim (#,for/vector #:length n #:fill fill
-                     (clause ...) break* ... (λ () body ...)))))))]))
+              (let* ([count 0]
+                     [thk* (#,for/vector #:length n #:fill amb-fail
+                            (clause ...) break* ...
+                            (set! count (add1 count))
+                            (λ () body ...))])
+                (if (= count (vector-length thk*))
+                    thk*
+                    (vector-copy thk* 0 count)))))))]
+        [(_ #:length n #:fill fill-expr
+            (clause ...) break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           ((choose
+             (supplying
+              (#,for/vector #:length n #:fill (λ () fill-expr)
+               (clause ...) break* ... (λ () body ...))))))]))
     (values (make-for/amb #'for/vector  #'for/stream)
             (make-for/amb #'for*/vector #'for*/stream))))
-
-;; The vector without the slots at its end that were not filled.
-(define (trim thk*)
-  (define len (vector-length thk*))
-  (let loop ([n len])
-    (cond
-      [(and (positive? n) (not (vector-ref thk* (sub1 n)))) (loop (sub1 n))]
-      [(= n len) thk*]
-      [else (vector-copy thk* 0 n)])))
-
 
 ;; ---- in-amb* (function form) ----
 
