@@ -57,21 +57,33 @@
 - 单遍所有权：每个生成器及其残余最多被消费一次。融合版展开一条记录，也算一次消费。
 - 自然数以外的扩展只有正整数暂停；`#f` 和列表与 `sequence-generate*` 一致，所以 `(λ () (sequence-generate* seq))` 可以直接当作供应者。
 
-**typed 的类型。** `Merger` 对整个答案类型多态（rank-2）：
+**typed 的类型。** `Merger` 对答案的各个值的类型多态（dotted，rank-2）：
 
 ```racket
 (define-type Merger
-  (∀ (a) (→ (Generatorof a) (Generatorof a) (Generatorof a))))
+  (∀ (a ...)
+    (→ (Generatorof (List a ... a))
+       (Generatorof (List a ... a))
+       (Generatorof (List a ... a)))))
 current-amb-merger : (Parameter Merger)
 ```
 
-- 这样，通过类型检查、且不经过 unsafe 或未验证边界的实现，写不出伪造答案的 merger（Astra 的 `forge` 是类型错误）。代码写在 typed 文件里，不等于函数满足参数性：shallow 模块也能给无类型函数声明 `Merger` 类型。
+这一版（`c0c8fd9`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6897474521)）取代了 Astra 复核过的 `(∀ (a) …)` 版本，**尚待 Astra 复核**。
+
+- typed 代码通过类型检查写不出伪造答案的 merger（Astra 的 `forge` 仍是类型错误）。这个保证不覆盖 unsafe 导入或未验证的边界；代码写在 typed 文件里，也不等于函数满足参数性。
+- 因为答案已知是列表，typed 的 merger 可以用 `list?` 区分答案；零值和多值答案的静态类型得以保留。
+- **比协议更窄**：§2 的协议允许 merger 改动答案，例如交出 `'()`、截短或颠倒答案列表；dotted 类型下，typed merger 只能原样传递答案。改动答案的 merger 只能是无类型的，并且对 typed 观察者不安全。之前写的"类型变量必须是整个答案"的理由，在这个取舍下不再适用。
+- dotted `Merger` 不能直接用于答案为任意长度 `(Listof Any)` 的生成器，手册已写明。
 - 这个类型不保证单遍消费、合同性、公平性或不抛异常，这些仍由 §4 的协议约束。
-- 类型变量必须是整个答案，不能是"答案列表的元素"：merger 可以合法地交出 `'()`、截短或颠倒答案列表，对元素多态的类型不可靠。
-- 因为 `a` 不被知道是列表，typed 的 merger 按 `#f`、正整数、其余（答案）的次序判别结果，不能用 `list?`。
-- 边界保证：rank-2 类型是静态保证，不保证共享参数里的值都经过了运行时验证。无类型代码自己设置参数时，没有任何检查；shallow 模块以 `Merger` 类型导入无类型 merger 时，只有形状检查，没有深层的答案类型保持检查；deep 模块导入时，TR 生成参数性合约，把答案封装起来。
-- **已知限制**：deep 模块以 `Merger` 类型导入一个用 `list?` 识别答案的无类型 merger，会因答案被封装而报值域错误。`amb/merge` 的四个标准 merger 正是这样识别答案的，所以从 deep 模块直接或间接导入它们会失败；`typed/amb/merge` 导出的不受影响。标准 merger 不为此改变识别方式（那样它们就不再自己报非法结果），只在文档中写明。
-- 以上关于 rank-2 和参数性合约的结论，只在 Typed Racket 9.3 上验证过。
+
+**导入边界**（Noah 的决定）：
+
+- 本库维护的无类型运算符，已经自己检查协议和参数，通过 `unsafe-require/typed/provide` 集中导入，不再叠加运行期合约。
+- 运行期的协议检查（如 `list?`）不能证明列表元素符合某个 TR 类型。无类型的自定义 merger 是否保持答案类型，属于使用者的约定，不守约就可能破坏 typed 观察者的答案类型，手册已写明。
+- 普通的 deep `require/typed` 无法为 dotted 多态生成合约。用户若确信某个无类型 merger 可信，可以自行用 `unsafe-require/typed` 导入。
+- 之前"deep 模块导入标准 merger 会因答案被封装而失败"的已知限制，在这个方案下不再成立。
+- 定义宏的前端保持 shallow：前端若改成 deep，shallow 客户端会报 `Macro … from typed module used in shallow-typed code`。deep、shallow、optional 三种客户端都有回归测试。
+- 以上结论只在 Typed Racket 9.3 上验证过。
 
 ## 3. 两种相等
 
@@ -169,7 +181,7 @@ current-amb-merger : (Parameter Merger)
   - 长度表达式在供应 mark 下求值一次；选中的主体 thunk 在 mark 外执行。零长度时不初始化循环子句，也不执行主体或 `#:fill` 表达式。TR 前端为此保留显式的零长度短路：TR 的 `for/vector` 展开不会在循环之外短路零长度，所以这个分支承担的是求值边界，不能当作冗余删掉。
   - 保留 v2 的 `#:fill e`：填充的槽是备选。
   - 无长度时用 v2 的协程供应，两个前端共用 `private/choice.rkt` 的 `make-choice-generator`：子句在 `make-amb` 的供应里运行，续延用 `call/cc` 记在循环自己的 prompt 之内。不用 `for/stream`：stream 可能带来额外开销，有些边界情况也不好处理。`amb/demo` 为了易读，仍用 `for/stream`。
-  - `#:break`、`#:final` 由原生循环承接。
+  - `#:break`、`#:final` 由原生循环承接。已知的 TR 原生缺陷：Racket 9.3 CS 的 typed `for*/vector`（以及 `for*`）可能不遵守 `#:final`，去掉 amb 也能复现（[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6897260927)）。typed 的 `for*/amb` 因此继承这个差别；手册已写明，测试期望不迁就错误的结果，也不加绕行实现。
 
 ## 8. 局部搜索：`amb-generate*`
 
@@ -230,7 +242,7 @@ current-amb-merger : (Parameter Merger)
 
 ## 11. 实施状态
 
-实现在 PR #24（分支 `v3`，到 `05c8255`）。Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
+实现在 PR #24（分支 `v3`，到 `c0c8fd9`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
 
 已完成：
 
@@ -240,16 +252,19 @@ current-amb-merger : (Parameter Merger)
 - 四个观察入口和 `#:on-pause`，包括缓存流的异常恢复；
 - 协程版无长度 `for/amb`；
 - §9 的供应检查；
-- rank-2 `Merger`；
-- scribble 文档和 `README.org`；
+- `Merger` 类型（§2；先为 rank-2，后改为 dotted 并采用可信的 unsafe 导入边界）；
+- scribble 文档和 `README.org`，包括观察器不在保证之内的三点（`bf25d1c`）；
 - `amb/demo`；
-- 测试：v2 测试全部移植并整理出冲突表；§3 两种相等的差分测试；调用前缀的在线检查、单遍检测、merger 内部异常注入；只用 `amb/base` 写的 kanren 层及其规律测试。
+- 测试：v2 测试全部移植并整理出冲突表；§3 两种相等的差分测试；调用前缀的在线检查、单遍检测、merger 内部异常注入；只用 `amb/base` 写的 kanren 层及其规律测试。书中例子测试已移交 ambKanren，本仓库删去，`build-deps` 中的 `typed-racket-lib` 一并去掉（`48c97bb`）。
 
-验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；`raco test pkgs/amb/tests pkgs/typed-amb pkgs/amb/demo` 269 个测试通过；CI 通过。
+验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；amb 与 typed-amb 共 271 个测试通过。
+
+**ambKanren 迁移**：[ambKanren#17](https://github.com/NoahStoryM/ambKanren/pull/17)，版本 3.0，711 个测试通过。书中例子对照见 [迁移报告](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/MIGRATION-V3.md) 与 [逐例差异](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/research/v3-results/DIFFERENCES.md)。与 miniKanren-typed 原生实现相比，TRS1、TRS2 的耗时约为原生的 1.4 倍（[comment](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6897552500)）。
 
 待做：
 
-1. 手册的观察器说明：集中写明 §10 "不在保证之内"的三点。
-2. 书中例子（TRS1、TRS2）：`tests/kanren/book-*.rkt` 只在装了 miniKanren-typed 时运行，否则跳过，不复制进本仓库。ambKanren 迁到 v3 之后由它负责，届时可以删掉这些测试，`build-deps` 里的 `typed-racket-lib` 也随之去掉。ambKanren 的迁移等审核结束后再做；它目前还用 `typed/amb` 的 v2 接口，编译不过。
-3. 之后：性能。kanren 层比原型慢，TRS2 慢 15–30%，TRS1 慢一倍多，原因还没分析；还有 v2 的槽位释放、纯暂停空轮的合并。
-4. 旧 PR #10、#13–#21、#23 与 issue #11：v3 正式版敲定后关闭，分支保留；#22 在 PR #24 合并后关闭。
+1. Astra 复核 `c0c8fd9` 的类型与信任边界（§2），以及 ambKanren#17 中 `once`、`conda`、`condu` 的语义和书中例子的差异说明。
+2. 发布：合并 PR #24 → 包目录更新到 3.0 → ambKanren 的 CI 改回从包目录安装 → 合并 ambKanren#17。
+3. 处理 ambKanren 中较早的 PR #16（lawful-search）和 #15（研究草稿）：确认是否已被 #17 取代。
+4. 旧 PR #10、#13–#21、#23 与 issue #11：关闭，分支保留；#22 在 PR #24 合并后关闭。
+5. 之后：性能。kanren 层约为原生的 1.4 倍，原因还没分析；还有 v2 的槽位释放、纯暂停空轮的合并。
