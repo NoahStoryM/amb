@@ -7,7 +7,7 @@
 (define pkg-desc "Typed Ambiguous Operator")
 
 (define deps '("base" "typed-racket-lib" ["amb" #:version "3.0"]))
-(define build-deps '("rackunit-typed"))
+(define build-deps '("rackunit-lib" "rackunit-typed"))
 (define implies '("amb"))
 
 (define clean '("compiled" "private/compiled"))

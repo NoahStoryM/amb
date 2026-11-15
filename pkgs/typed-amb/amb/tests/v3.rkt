@@ -91,8 +91,14 @@
     (check-equal? (events (begin (amb) 1)) '())
     (check-equal? (events (for/amb : Integer #:length 5 ([i : Integer '(1 2)]) i)) '(1 2))
     (check-equal? (events (for/amb : Integer #:length 3 #:fill 0 ([i : Integer '(1 2)]) i)) '(1 2 0))
-    (check-equal? (events (for/amb : Integer ([i : Integer '(1 2)]) i)) '(1 2)))
-  (check-equal? (reverse sizes) '(3 0 2 3)))
+    (check-equal? (events (for/amb : Integer ([i : Integer '(1 2)]) i)) '(1 2))
+    ;; the empty vector: once for a length of zero, with or without
+    ;; #:fill, and for a loop of no iterations, as in the untyped library
+    (check-equal? (events (for/amb : Integer #:length 0 ([i : Integer '(1 2)]) i)) '())
+    (check-equal? (events (for/amb : Integer #:length 0 #:fill 9 ([i : Integer '(1 2)]) i)) '())
+    (check-equal? (events (for*/amb : Integer #:length 0 ([i : Integer '(1 2)]) i)) '())
+    (check-equal? (events (for/amb : Integer #:length 3 ([i : Integer '()]) i)) '()))
+  (check-equal? (reverse sizes) '(3 0 2 3 0 0 0 0)))
 
 (test-case "the supply of alternatives"
   ;; without #:length, as in the untyped library
