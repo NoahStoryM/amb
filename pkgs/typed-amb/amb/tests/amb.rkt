@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
 (require racket/sequence typed/rackunit)
-(require "../../amb.rkt")
+(require "../../amb.rkt"
+         "../merge.rkt")
 
 (displayln "Test `amb.rkt'")
 
@@ -110,19 +111,23 @@
              ([x : Integer (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))])
      x)
    '(1 2 3 4 5 6 7 8))
+  ;; CONFLICT with v2 (see amb/tests/v2-conflicts.rkt, entry 1): v2 had
+  ;; (parameterize ([current-amb-depth-first? #f]) ...) → (1 7 8 2 3 4 5 6).
+  ;; amb-level is breadth-first by pauses, and this program has none.
   (check-equal?
-   (parameterize ([current-amb-depth-first? #f])
+   (parameterize ([current-amb-merger amb-level])
      (for/list : (Listof Any)
                ([x : Integer (in-amb (amb 1 (amb 2 3) (amb 4 5 6) 7 8))])
        x))
-   '(1 7 8 2 3 4 5 6))
+   '(1 2 3 4 5 6 7 8))
   (check-equal?
    (for/list : (Listof Any)
              ([i : (∪ Symbol Integer) (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))])
      i)
    '(1 2 3 a b c))
   (check-equal?
-   (parameterize ([current-amb-fair? #t])
+   ;; v2: (parameterize ([current-amb-fair? #t]) ...)
+   (parameterize ([current-amb-merger amb-alternate])
      (for/list : (Listof Any)
                ([i : (∪ Symbol Integer) (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c)))])
        i))
