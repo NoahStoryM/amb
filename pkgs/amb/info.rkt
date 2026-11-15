@@ -10,6 +10,7 @@
 (define build-deps
   '("scribble-lib"
     "rackunit-lib"
+    "typed-racket-lib"
     "racket-doc"
     "srfi-lib"
     "srfi-doc"))
