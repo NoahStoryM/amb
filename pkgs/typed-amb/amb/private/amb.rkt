@@ -74,6 +74,10 @@
    (∀ (a ...)
       (→ (Sequenceof a ... a)
          (Values a ... a)))]
+  [amb-local*
+   (∀ (a ...)
+      (→ (→ (Values a ... a))
+         (Values a ... a)))]
   [in-amb*
    ;; The type variables c and d come first, so an explicit
    ;; instantiation must supply them: (inst in-amb* c d a ...).
@@ -150,11 +154,8 @@
 
 ;; Identical to the untyped version; defined here so that it expands in
 ;; a typed context.
-(define-syntax (amb-local stx)
-  (syntax-parse stx
-    [(_ expr)
-     (syntax/loc stx
-       (make-amb (λ () (amb-generate* (λ () expr)))))]))
+(define-syntax-rule (amb-local expr)
+  (amb-local* (λ () expr)))
 
 
 ;; ---- for/amb: Nondeterministic Choice over Sequences ----
@@ -183,9 +184,8 @@
 ;;    iteration fills hold `amb-fail` and are cut off.  With `#:fill`,
 ;;    they are alternatives; the fill thunk is annotated as `(→ T₁)`.
 ;;
-;; 2. Without `#:length` — The untyped `for/amb` makes a lazy stream of
-;;    the body thunks; `for/stream` has no types, so here the loop is a
-;;    coroutine instead, which is the generator of `make-amb`.  The
+;; 2. Without `#:length` — As in the untyped `for/amb`, the loop is a
+;;    coroutine, which is the generator of `make-amb`.  The
 ;;    loop runs under a prompt of its own; at each iteration it captures
 ;;    its continuation as `retry` and aborts to the prompt with the body
 ;;    thunk.  The next call of the generator re-enters the loop through

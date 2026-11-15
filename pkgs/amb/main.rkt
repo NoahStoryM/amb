@@ -36,7 +36,7 @@
 (provide (all-from-out "base.rkt")
          amb for/amb for*/amb
          sequence->amb
-         amb-local
+         amb-local amb-local*
          current-amb-shuffler
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
          in-amb/do in-amb*/do)
@@ -54,11 +54,13 @@
 ;; choices of expr are merged with each other before the rest of the
 ;; computation sees any of its answers.  The answers of the search of
 ;; expr are the alternatives of one choice.
-(define-syntax (amb-local stx)
-  (syntax-parse stx
-    [(_ expr)
-     (syntax/loc stx
-       (make-amb (λ () (amb-generate* (λ () expr)))))]))
+(define (amb-local* thk)
+  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
+    (raise-argument-error 'amb-local* "(-> any)" thk))
+  (make-amb (λ () (amb-generate* thk))))
+
+(define-syntax-rule (amb-local expr)
+  (amb-local* (λ () expr)))
 
 ;; Called once on the vector of the alternatives of every `amb` and
 ;; every `for/amb` with `#:length`, where the choice is made, to put

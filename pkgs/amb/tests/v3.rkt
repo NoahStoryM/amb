@@ -192,6 +192,34 @@
     (check-equal? (events (list (amb-local (amb (later 1 1) 2)) (amb 'x (later 1 'y))))
                   '((2 x) P (2 y) (1 x) P (1 y)))))
 
+(test-case "amb-local* is the function behind amb-local"
+  (define (local) (amb (later 2 'a) 'b))
+  (for ([m mergers])
+    (with m
+      (check-equal? (events (list (amb-local* local) (amb 'x 'y)))
+                    (events (list (amb-local (local)) (amb 'x 'y))))))
+  (check-equal? (events (amb-local* amb-fail)) '())
+  (check-equal? (for/list ([() (in-amb/do (amb-local* (λ () (values))))]) 'zero)
+                '(zero))
+  (check-equal? (for/list ([(a b) (in-amb/do (amb-local* (λ () (values 1 'x))))]) (list a b))
+                '((1 x)))
+  (define ran? #f)
+  (define seq (in-amb*/do (λ () (amb-local* (λ () (set! ran? #t) 42)))))
+  (check-false ran?)
+  (check-equal? (for/list ([v seq]) v) '(42))
+  (check-true ran?)
+  (check-exn #rx"amb-local\\*: contract violation" (λ () (amb-local* 42)))
+  (check-exn #rx"not allowed while" (λ () (events (with-amb-mark (amb-local* local)))))
+  ;; Local pauses keep giving the enclosing search its turn.
+  (define (never) (amb-pause) (never))
+  (with amb-interleave
+    (let loop ([g (λ () (amb-generate* (λ () (amb (amb-local* never) 'x))))]
+               [fuel 8] [seen '()])
+      (if (zero? fuel)
+          (check-equal? (reverse seen) '(1 (x) 1 1 1 1 1 1))
+          (let-values ([(v next) (g)])
+            (loop next (sub1 fuel) (cons v seen)))))))
+
 (test-case "once, written with amb-generate*, amb-pause and amb-fail"
   ;; (for/first ([v (in-amb* thk)]) v) is the first answer too, but the
   ;; pauses of (thk) stay in its search: the search around it gets no

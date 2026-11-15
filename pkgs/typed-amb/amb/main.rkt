@@ -29,7 +29,7 @@
          current-amb-merger
          with-amb-mark call-with-amb-mark
          amb for/amb for*/amb
-         amb-local
+         amb-local amb-local*
          sequence->amb
          current-amb-shuffler
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])

@@ -25,6 +25,10 @@ overhead at the typed-untyped boundary.
 =typed/amb/base= and =typed/amb/merge= are the typed =amb/base= and
 =amb/merge=.
 
+=amb-local= is syntax for =(amb-local* (λ () expr))=.  The function
+=amb-local*= is imported from =amb= and keeps zero or multiple return
+values, so typed languages can reuse it without reproducing its macro.
+
 All forms (=amb=, =for/amb=, =in-amb=, etc.) work the same as in the
 untyped version.  =for/amb= additionally accepts optional type
 annotations:

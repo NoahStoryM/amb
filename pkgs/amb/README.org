@@ -129,7 +129,7 @@ An observer sees the pauses when it asks for them:
 - =amb/merge= :: the four standard mergers.  It does not depend on the
   effects.
 - =amb= :: =amb/base=, and =amb=, =for/amb=, =for*/amb=,
-  =sequence->amb=, =amb-local=, =current-amb-shuffler=, =in-amb=, =in-amb*=,
+  =sequence->amb=, =amb-local=, =amb-local*=, =current-amb-shuffler=, =in-amb=, =in-amb*=,
   =in-amb/do=, =in-amb*/do=.
 
 * Implementation

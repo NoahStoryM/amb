@@ -60,6 +60,20 @@
                   (list a b))
                 '((1 x) (2 y))))
 
+(test-case "amb-local* preserves the thunk's result types"
+  (check-equal? (events (amb-local* (λ () : Integer (amb 1 (begin (amb-pause) 2)))))
+                '(1 P 2))
+  (check-equal? (for/list : (Listof (List Integer Symbol))
+                  ([(a b) (in-amb (amb-local* (λ () (values 1 'x))))])
+                  (list a b))
+                '((1 x)))
+  (: zero-local (→ Integer))
+  (define (zero-local)
+    (define-values () ((inst amb-local*) (λ () (values))))
+    7)
+  (check-equal? (events (zero-local)) '(7))
+  (check-equal? (events ((inst amb-local* Integer) (λ () : Integer (amb-fail)))) '()))
+
 (test-case "the shuffler"
   (define sizes : (Listof Integer) '())
   (parameterize ([current-amb-shuffler

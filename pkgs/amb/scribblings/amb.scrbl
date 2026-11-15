@@ -440,13 +440,17 @@ provide, such as the first answer of a search.
 }
 
 @defform[(amb-local expr)]{
-An answer of @racket[expr], searched for on its own: a @deftech{local
-search}.  The choices of @racket[expr] are merged with each other
+Equivalent to @racket[(amb-local* (λ () expr))].
+}
+
+@defproc[(amb-local* [thk (-> any)]) any]{
+An answer of @racket[(thk)], searched for on its own: a @deftech{local
+search}.  The choices of @racket[(thk)] are merged with each other
 before the rest of the computation sees any of its answers, and these
 answers are the alternatives of one choice.  It is
 
 @racketblock[
-(make-amb (λ () (amb-generate* (λ () expr))))
+(make-amb (λ () (amb-generate* thk)))
 ]
 
 The pauses of the local search are pauses of the search around it.
@@ -804,3 +808,10 @@ those of @racketmodname[amb/base] and @racketmodname[amb/merge].
 @item{@racket[for/amb] and @racket[for*/amb] take the type
       annotations of the second forms of their grammar above.}
 ]
+
+On Racket 9.3, Typed Racket's @racket[for] type checker raises an
+internal error for a clause with no identifiers over a zero-valued
+sequence, including @racket[(in-amb/do (values))].  Zero-valued
+computations themselves work: receive their values with
+@racket[define-values] inside the search and return an ordinary element
+for typed iteration.  This limitation does not affect untyped iteration.
