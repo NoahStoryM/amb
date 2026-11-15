@@ -9,9 +9,8 @@
          racket/sequence
          racket/stream)
 
-(provide in-amb in-amb* in-amb/do in-amb*/do
-         sequence->amb
-         make-amb amb for/amb for*/amb
+(provide amb-generate* in-amb in-amb* in-amb/do in-amb*/do
+         make-amb sequence->amb amb for/amb for*/amb
          amb-fail amb-pause
          current-amb-merger amb-append amb-interleave amb-alternate amb-level)
 
@@ -35,23 +34,26 @@
 
 (define ((amb-append s t))
   (let-values ([(v s) (s)])
-    (cond [(or (list? v) (exact-positive-integer? v)) (values v (amb-append s t))]
-          [(false? v) (t)]
-          [else (raise-argument-error 'amb-append "(or/c list? exact-positive-integer? #f)" v)])))
+    (cond
+      [(or (list? v) (exact-positive-integer? v)) (values v (amb-append s t))]
+      [(false? v) (t)]
+      [else (raise-argument-error 'amb-append "(or/c list? exact-positive-integer? #f)" v)])))
 
 (define ((amb-interleave s t))
   (let-values ([(v s) (s)])
-    (cond [(list? v) (values v (amb-interleave s t))]
-          [(exact-positive-integer? v) (values 1 (amb-interleave t (pauses (sub1 v) s)))]
-          [(false? v) (t)]
-          [else (raise-argument-error 'amb-interleave "(or/c list? exact-positive-integer? #f)" v)])))
+    (cond
+      [(list? v) (values v (amb-interleave s t))]
+      [(exact-positive-integer? v) (values 1 (amb-interleave t (pauses (sub1 v) s)))]
+      [(false? v) (t)]
+      [else (raise-argument-error 'amb-interleave "(or/c list? exact-positive-integer? #f)" v)])))
 
 (define ((amb-alternate s t))
   (let-values ([(v s) (s)])
-    (cond [(list? v) (values v (amb-alternate t s))]
-          [(exact-positive-integer? v) (values 1 (amb-alternate t (pauses (sub1 v) s)))]
-          [(false? v) (t)]
-          [else (raise-argument-error 'amb-alternate "(or/c list? exact-positive-integer? #f)" v)])))
+    (cond
+      [(list? v) (values v (amb-alternate t s))]
+      [(exact-positive-integer? v) (values 1 (amb-alternate t (pauses (sub1 v) s)))]
+      [(false? v) (t)]
+      [else (raise-argument-error 'amb-alternate "(or/c list? exact-positive-integer? #f)" v)])))
 
 (define ((amb-level s t))
   (let-values ([(v s) (s)])
@@ -93,8 +95,12 @@
 
 ;; ---- Sequence boundaries: one cursor, optionally cached as a stream. ----
 
+(define (amb-generate* thk)
+  (reset-at amb-prompt-tag
+    (values (call-with-values thk list) end)))
+
 (define (in-amb*/do thk [handler #f])
-  (define (gen) (reset-at amb-prompt-tag (values (call-with-values thk list) end)))
+  (define (gen) (amb-generate* thk))
   (define cache #f)
   (define done? #f)
   (define (more? . _)
