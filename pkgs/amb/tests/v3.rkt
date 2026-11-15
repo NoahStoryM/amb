@@ -430,3 +430,96 @@
   ;; a stream that is asked for an element while it computes it
   (define u (in-amb (stream-first u)))
   (check-exn #rx"in-amb: the search cannot go on" (λ () (stream-first u))))
+
+(test-case "the handler of a pause cannot read the element that it is producing"
+  ;; the two examples of the second review of PR #24: the search ran
+  ;; twice
+  (define runs 0)
+  (define calls 0)
+  (define-syntax-rule (search) (begin (amb-pause) (set! runs (add1 runs)) 42))
+  (define (reset!) (set! runs 0) (set! calls 0))
+  (define reentry #rx"in-amb: an element cannot be read by the handler of its own pause")
+
+  ;; -- the stream: every way of reading the cell that is being produced
+  (for ([read (list stream-first stream-empty? stream-rest stream->list
+                    (λ (s) (for/list ([x (in-stream s)]) x)))])
+    (reset!)
+    (define s
+      (in-amb (search)
+              #:on-pause (λ () (set! calls (add1 calls)) (read s))))
+    ;; the handler raises, so its pause has no element
+    (check-exn reentry (λ () (stream-first s)))
+    (check-equal? (stream->list s) '(42))
+    (check-equal? (stream->list s) '(42))
+    (check-equal? (list runs calls) '(1 1)))
+
+  ;; -- the sequence: get and more?
+  (for ([use (list (λ (more? get) (get)) (λ (more? get) (more?)))])
+    (reset!)
+    (define-values (more? get)
+      (sequence-generate
+       (in-amb/do (search)
+                  #:on-pause (λ () (set! calls (add1 calls)) (use more? get)))))
+    (check-exn reentry get)
+    (check-equal? (get) 42)
+    (check-false (more?))
+    (check-equal? (list runs calls) '(1 1)))
+
+  ;; -- a handler that catches the error and returns: its values are
+  ;; the element of the pause, and the search goes on once
+  (reset!)
+  (define s
+    (in-amb (search)
+            #:on-pause (λ ()
+                         (set! calls (add1 calls))
+                         (with-handlers ([exn:fail? (λ (e) 'caught)])
+                           (stream-first s)))))
+  (check-equal? (stream->list s) '(caught 42))
+  (check-equal? (stream->list s) '(caught 42))
+  (check-equal? (list runs calls) '(1 1))
+  (reset!)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (search)
+                #:on-pause (λ ()
+                             (set! calls (add1 calls))
+                             (with-handlers ([exn:fail? (λ (e) 'caught)])
+                               (get))))))
+  (check-equal? (list (get) (get) (more?)) '(caught 42 #f))
+  (check-equal? (list runs calls) '(1 1))
+
+  ;; -- a handler that catches the error and raises another one
+  (reset!)
+  (define t
+    (in-amb (search)
+            #:on-pause (λ ()
+                         (set! calls (add1 calls))
+                         (with-handlers ([exn:fail? (λ (e) (error "another"))])
+                           (stream-first t)))))
+  (check-exn #rx"another" (λ () (stream-first t)))
+  (check-equal? (stream->list t) '(42))
+  (check-equal? (list runs calls) '(1 1))
+
+  ;; -- the handler may read what the stream has read before
+  (reset!)
+  (define u
+    (in-amb (begin (amb-pause) (amb-pause) (set! runs (add1 runs)) 42)
+            #:on-pause (λ ()
+                         (set! calls (add1 calls))
+                         (if (= calls 1) 'first (list 'after (stream-first u))))))
+  (check-equal? (stream->list u) '(first (after first) 42))
+  (check-equal? (list runs calls) '(1 2))
+
+  ;; -- and another search, with a handler of its own that reads this one
+  (reset!)
+  (define v
+    (in-amb (search)
+            #:on-pause (λ ()
+                         (set! calls (add1 calls))
+                         (stream->list
+                          (in-amb (begin (amb-pause) 'inner)
+                                  #:on-pause (λ ()
+                                               (with-handlers ([exn:fail? (λ (e) 'caught)])
+                                                 (stream-first v))))))))
+  (check-equal? (stream->list v) '((caught inner) 42))
+  (check-equal? (list runs calls) '(1 1)))
