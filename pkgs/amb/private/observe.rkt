@@ -22,19 +22,24 @@
 
 ;; The elements of the generator `gen`, in the shape that
 ;; `sequence-generate*` returns: (values (or/c list? #f) next).
-(define ((elements gen handler))
-  (let loop ([gen gen])
-    (let-values ([(v next) (gen)])
-      (cond
-        [(list? v) (values v (elements next handler))]
-        [(not v) (values #f raise-empty-sequence-error)]
-        [(pause-count? v)
-         (if handler
-             (let ([next (pauses (sub1 v) next)])
-               (values (call-with-values handler list)
-                       (elements next handler)))
-             (loop next))]
-        [else (raise-result-error 'in-amb v)]))))
+;;
+;; A pause is over before its handler is called: if the handler raises,
+;; the next call goes on after the pause.
+(define (elements gen handler)
+  (λ ()
+    (let loop ([gen* gen])
+      (let-values ([(v next) (gen*)])
+        (cond
+          [(list? v) (values v (elements next handler))]
+          [(not v) (values #f raise-empty-sequence-error)]
+          [(pause-count? v)
+           (if handler
+               (let ([next (pauses (sub1 v) next)])
+                 (set! gen next)
+                 (values (call-with-values handler list)
+                         (elements next handler)))
+               (loop next))]
+          [else (raise-result-error 'in-amb v)])))))
 
 (define ((make make-sequence) thk #:on-pause [handler #f])
   (make-sequence (elements (λ () (amb-generate* thk)) handler)))
