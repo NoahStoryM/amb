@@ -68,10 +68,9 @@
 ;; generator: an effect there is not an effect of the search that the
 ;; generator belongs to.
 (define-syntax-rule (with-amb-mark e)
-  (with-continuation-mark amb-mark-key #t e))
+  (call-with-amb-mark (λ () e)))
 
-;; The same, for where a macro of this module cannot be used (Typed
-;; Racket has no type for `amb-mark-key`).
+;; The mark belongs to this call; the syntax above only supplies a thunk.
 (define (call-with-amb-mark thk)
   (with-continuation-mark amb-mark-key #t (thk)))
 

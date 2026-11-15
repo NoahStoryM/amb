@@ -18,8 +18,7 @@
 
 (provide Generatorof Generator Merger
          amb amb-local
-         for/amb for*/amb
-         in-amb  in-amb/do)
+         for/amb for*/amb)
 
 
 ;; ---- The generator protocol ----
@@ -67,7 +66,10 @@
                  (Generatorof (List a ... a)))))]
   [amb-fail  (→ ⊥)]
   [amb-pause (→ Void)]
-  [call-with-amb-mark (∀ (a) (→ (→ a) a))]
+  [call-with-amb-mark
+   (∀ (a ...)
+      (case→ (→ (→ ⊥) ⊥)
+             (→ (→ (Values a ... a)) (Values a ... a))))]
   [current-amb-merger   (Parameter Merger)]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
   [sequence->amb
@@ -104,8 +106,7 @@
 
 (provide thunks choose choose-none with-amb-mark)
 
-;; The typed `with-amb-mark`: the macro of the untyped library expands
-;; into a binding that has no type.
+;; Use the typed procedure binding, just as the untyped syntax does.
 (define-syntax-rule (with-amb-mark e)
   (call-with-amb-mark (λ () e)))
 
@@ -142,12 +143,12 @@
 
 ;; ---- amb Syntax ----
 
-(define-syntax (amb stx)
-  (syntax-parse stx
+(define-syntax amb
+  (syntax-rules ()
     [(_)
-     (syntax/loc stx (choose-none))]
+     (choose-none)]
     [(_ expr* ...)
-     (syntax/loc stx ((choose (thunks (λ () expr*) ...))))]))
+     ((choose (thunks (λ () expr*) ...)))]))
 
 
 ;; ---- amb-local Syntax ----
@@ -174,8 +175,8 @@
 ;;     No type annotations — defaults to `AnyValues` for both `T₁` and
 ;;     `T₂`, and re-dispatches to one of the above.
 ;;
-;; The `type` syntax class normalizes `(Values T₁ T₂ ...)` and bare `T`
-;; into a uniform `ts` attribute for splicing.
+;; Result annotations, including `(Values T₁ T₂ ...)`, are put directly
+;; on the body thunks and their vector or producer.
 ;;
 ;; Two compilation strategies:
 ;;
@@ -198,17 +199,40 @@
 (define call/prompt call-with-continuation-prompt)
 (define abort/cc abort-current-continuation)
 
+;; The typed counterpart of the coroutine in amb/main.  Its elements
+;; are body thunks; a is the whole thunk type, including its result arity.
+(provide make-choice-generator)
+(: make-choice-generator
+   (∀ (a) (→ (→ (→ a Void) Void) (Generatorof (List a)))))
+(define (make-choice-generator produce)
+  (define tag
+    ((inst make-continuation-prompt-tag
+           (∪ False (List a)) (→ (List a) (∪ False (List a))))))
+  (: retry (∪ False (¬ False)))
+  (define retry #f)
+  (: yield (→ a Void))
+  (define (yield alt)
+    (define choice (call/cc (inst values (¬ False)) tag))
+    (when choice
+      (set! retry choice)
+      (abort/cc tag (list alt))))
+  (: next (Generatorof (List a)))
+  (define (next)
+    (values
+     (call/prompt
+      (λ ()
+        (let ([retry retry])
+          (when retry (retry #f)))
+        (produce yield)
+        #f)
+      tag (inst values (List a)))
+     next))
+  next)
+
 (define-for-syntax (append* v**) (apply append v**))
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
-    (define-syntax-class type
-      [pattern ((~or* (~literal Values)
-                      (~literal values))
-                t*:expr ...)
-               #:with ts #'(t* ...)]
-      [pattern t:expr
-               #:with ts #'(t)])
     (define-splicing-syntax-class length-clause
       [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])
     (define-splicing-syntax-class break-clause
@@ -216,12 +240,12 @@
     (define (make-for/amb for/vector for)
       (define (parser stx)
         (syntax-parse stx
-          #:datum-literals (: values Values)
+          #:datum-literals (:)
           [(name
-            : t1:type
+            : t1:expr
             #:length n (~optional (~seq #:fill fill-expr))
             (clauses ...)
-            : t2:type
+            : t2:expr
             break-expr:break-clause ...
             body ...+)
            #:with fill
@@ -254,7 +278,7 @@
                        (if (or keep-all? (= count (vector-length thk*)))
                            thk*
                            (vector-copy thk* 0 count)))))))))]
-          [(_ : t1:type (clauses ...) : t2:type break-expr:break-clause ... body ...+)
+          [(_ : t1:expr (clauses ...) : t2:expr break-expr:break-clause ... body ...+)
            #:do
            [(define break
               (if (attribute break-expr)
@@ -263,34 +287,13 @@
                   '()))]
            (quasisyntax/loc stx
              (((inst make-amb (→ t1))
-               (let ([prompt-tag ((inst make-continuation-prompt-tag
-                                        (∪ False (→ t1))
-                                        (→ (→ t1) (∪ False (→ t1)))))])
-                 (: retry (∪ False (¬ False)))
-                 (define retry #f)
-                 (: next (Generatorof (List (→ t1))))
-                 (define (next)
-                   (define alt
-                     (call/prompt
-                      (λ ()
-                        (let ([retry retry])
-                          (when retry (retry #f)))
-                        (#,for (clauses ...) #,@break
-                         (define choice
-                           (call/cc (inst values (¬ False)) prompt-tag))
-                         (when choice
-                           (define (alt) : t2 body ...)
-                           (set! retry choice)
-                           (abort/cc prompt-tag alt)))
-                        #f)
-                      prompt-tag
-                      (inst values (→ t1))))
-                   (if alt
-                       (values (list alt) next)
-                       (values #f next)))
-                 next))))]
-          [(~or* (name : t0:type (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+)
-                 (name (~optional length:length-clause) (clauses ...) : t0:type break-expr:break-clause ... body ...+)
+               ((inst make-choice-generator (→ t1))
+                (λ (yield)
+                  (#,for (clauses ...) #,@break
+                   (define (alt) : t2 body ...)
+                   (yield (ann alt (→ t1)))))))))]
+          [(~or* (name : t0:expr (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+)
+                 (name (~optional length:length-clause) (clauses ...) : t0:expr break-expr:break-clause ... body ...+)
                  (name (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+))
            #:with t (if (attribute t0) #'t0 #'AnyValues)
            #:with (maybe-length ...) (if (attribute length) #'length #'())
@@ -306,22 +309,3 @@
       parser)
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
-
-
-;; ---- in-amb / in-amb/do Syntax ----
-
-;; Wrap the expression in a thunk and delegate to `in-amb*` or
-;; `in-amb*/do`.  Identical to the untyped versions; defined here
-;; so that they expand in a typed context.
-(define-syntaxes (in-amb in-amb/do)
-  (let ()
-    (define ((make derived-stx) stx)
-      (syntax-parse stx
-        [(_ expr)
-         (quasisyntax/loc stx
-           (#,derived-stx (λ () expr)))]
-        [(_ expr #:on-pause handler)
-         (quasisyntax/loc stx
-           (#,derived-stx (λ () expr) handler))]))
-    (values (make #'in-amb*)
-            (make #'in-amb*/do))))

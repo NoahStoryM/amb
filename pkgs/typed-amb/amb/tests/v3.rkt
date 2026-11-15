@@ -74,6 +74,14 @@
   (check-equal? (events (zero-local)) '(7))
   (check-equal? (events ((inst amb-local* Integer) (λ () : Integer (amb-fail)))) '()))
 
+(test-case "with-amb-mark forwards zero or multiple values"
+  (define-values (a b) (with-amb-mark (values 1 'x)))
+  (check-equal? (list a b) '(1 x))
+  (define-values (c d) (call-with-amb-mark (λ () (values 2 'y))))
+  (check-equal? (list c d) '(2 y))
+  (define-values () (with-amb-mark (values)))
+  (check-equal? (events (begin (with-amb-mark (void)) (amb 1 2))) '(1 2)))
+
 (test-case "the shuffler"
   (define sizes : (Listof Integer) '())
   (parameterize ([current-amb-shuffler

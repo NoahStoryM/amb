@@ -703,6 +703,10 @@ gets to the iteration that has the effect.
 Evaluates @racket[expr], or calls @racket[thk], as code that supplies
 alternatives: an effect of the search in it is an error.
 
+@racket[(with-amb-mark expr)] is shorthand for
+@racket[(call-with-amb-mark (λ () expr))].  Both preserve all return
+values, including zero values.
+
 @racket[make-amb] does this for its generator.  A form that collects
 its alternatives before it calls @racket[make-amb], as
 @racket[for/amb] with @racket[#:length] does, uses one of these for

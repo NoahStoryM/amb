@@ -126,4 +126,8 @@
   (check-equal? (with-amb-mark (answers (amb 1 2))) '(1 2))
   (check-equal? (answers (with-amb-mark (answers (amb 1 2)))) '((1 2)))
   ;; the values of the expression
-  (check-equal? (call-with-values (λ () (with-amb-mark (values 1 2))) list) '(1 2)))
+  (check-equal? (call-with-values (λ () (with-amb-mark (values 1 2))) list) '(1 2))
+  (check-equal? (call-with-values (λ () (with-amb-mark (values))) list) '())
+  ;; Leaving the helper also leaves its mark, including by exception.
+  (check-exn #rx"boom" (λ () (with-amb-mark (error "boom"))))
+  (check-equal? (answers (begin (with-amb-mark (void)) (amb 1 2))) '(1 2)))

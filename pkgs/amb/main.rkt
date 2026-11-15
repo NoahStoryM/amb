@@ -84,10 +84,30 @@
 
 ;; (amb e ...) is a choice among the expressions: none of them is
 ;; evaluated before it is chosen.  (amb) fails.
-(define-syntax (amb stx)
-  (syntax-parse stx
-    [(_ expr ...)
-     (syntax/loc stx ((choose (vector (λ () expr) ...))))]))
+(define-syntax-rule (amb expr ...)
+  ((choose (vector (λ () expr) ...))))
+
+;; Turn a producer into a single-pass generator.  The producer calls
+;; yield once for each alternative; each next call resumes it there.
+;; Keeping this coroutine here leaves the loop's bindings to the macro.
+(define (make-choice-generator produce)
+  (define tag (make-continuation-prompt-tag 'for/amb))
+  (define retry #f)
+  (define (yield alt)
+    (define choice (call/cc values tag))
+    (when choice
+      (set! retry choice)
+      (abort-current-continuation tag (list alt))))
+  (define (next)
+    (values
+     (call-with-continuation-prompt
+      (λ ()
+        (when retry (retry #f))
+        (produce yield)
+        #f)
+      tag values)
+     next))
+  next)
 
 ;; (for/amb (clause ...) body ...+) is a choice among the values of the
 ;; body, one alternative for each iteration; the body runs where the
@@ -114,27 +134,10 @@
          #:with (break* ...) #'((~@ . break) ...)
          (quasisyntax/loc stx
            ((make-amb
-             (let ([tag (make-continuation-prompt-tag 'for/amb)]
-                   [retry #f])
-               (define (next)
-                 (define alt
-                   (call-with-continuation-prompt
-                    (λ ()
-                      (when retry (retry #f))
-                      (#,for (clause ...) break* ...
-                        (define choice (call/cc values tag))
-                        (when choice
-                          (set! retry choice)
-                          (abort-current-continuation
-                           tag
-                           (λ () body ...))))
-                      #f)
-                    tag
-                    values))
-                 (if alt
-                     (values (list alt) next)
-                     (values #f next)))
-               next))))]
+             (make-choice-generator
+              (λ (yield)
+                (#,for (clause ...) break* ...
+                  (yield (λ () body ...))))))))]
         ;; The slots that no iteration fills hold `amb-fail`, and are
         ;; cut off: the iterations are counted, so no value in the
         ;; vector has to be told from an alternative.
