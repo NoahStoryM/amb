@@ -8,7 +8,8 @@
          racket/stream
          amb
          amb/merge
-         (prefix-in base: amb/base))
+         (prefix-in base: amb/base)
+         (prefix-in choice: "../private/choice.rkt"))
 
 (define mergers (list amb-append amb-interleave amb-alternate amb-level))
 (define-syntax-rule (events e)
@@ -35,6 +36,14 @@
   (check-eq? current-amb-merger base:current-amb-merger)
   (check-eq? call-with-amb-mark base:call-with-amb-mark)
   (check-eq? (current-amb-merger) amb-append))
+
+(test-case "choice runtime is shared without exporting its helpers"
+  (check-eq? sequence->amb choice:sequence->amb)
+  (check-eq? amb-local* choice:amb-local*)
+  (check-eq? current-amb-shuffler choice:current-amb-shuffler)
+  (for* ([module '(amb amb/base)]
+         [name '(thunks choose choose-none make-choice-generator)])
+    (check-exn exn:fail? (λ () (dynamic-require module name)))))
 
 (test-case "the parameters check their values"
   (check-exn exn:fail:contract? (λ () (current-amb-merger 'append)))

@@ -21,6 +21,7 @@
          racket/stream
          racket/vector
          "base.rkt"
+         "private/choice.rkt"
          (rename-in "private/observe.rkt"
                     [in-amb*    -in-amb*]
                     [in-amb*/do -in-amb*/do]))
@@ -44,70 +45,13 @@
 
 ;; ---- Choices ----
 
-;; An element of the sequence: a choice among all of them.
-(define (sequence->amb seq)
-  (unless (sequence? seq)
-    (raise-argument-error 'sequence->amb "sequence?" seq))
-  (make-amb (λ () (sequence-generate* seq))))
-
-;; (amb-local expr) is an answer of expr, searched for on its own: the
-;; choices of expr are merged with each other before the rest of the
-;; computation sees any of its answers.  The answers of the search of
-;; expr are the alternatives of one choice.
-(define (amb-local* thk)
-  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
-    (raise-argument-error 'amb-local* "(-> any)" thk))
-  (make-amb (λ () (amb-generate* thk))))
-
 (define-syntax-rule (amb-local expr)
   (amb-local* (λ () expr)))
-
-;; Called once on the vector of the alternatives of every `amb` and
-;; every `for/amb` with `#:length`, where the choice is made, to put
-;; them in another order.  The vector may be empty.
-(define current-amb-shuffler
-  (make-parameter
-   void
-   (λ (shuffle!)
-     (unless (and (procedure? shuffle!) (procedure-arity-includes? shuffle! 1))
-       (raise-argument-error 'current-amb-shuffler
-                             "(-> mutable-vector? void?)"
-                             shuffle!))
-     shuffle!)
-   'current-amb-shuffler))
-
-;; A choice among the thunks of the mutable vector `thk*`; the chosen
-;; thunk is returned, to be called where the choice was made.
-(define (choose thk*)
-  (with-amb-mark ((current-amb-shuffler) thk*))
-  (sequence->amb thk*))
 
 ;; (amb e ...) is a choice among the expressions: none of them is
 ;; evaluated before it is chosen.  (amb) fails.
 (define-syntax-rule (amb expr ...)
   ((choose (vector (λ () expr) ...))))
-
-;; Turn a producer into a single-pass generator.  The producer calls
-;; yield once for each alternative; each next call resumes it there.
-;; Keeping this coroutine here leaves the loop's bindings to the macro.
-(define (make-choice-generator produce)
-  (define tag (make-continuation-prompt-tag 'for/amb))
-  (define retry #f)
-  (define (yield alt)
-    (define choice (call/cc values tag))
-    (when choice
-      (set! retry choice)
-      (abort-current-continuation tag (list alt))))
-  (define (next)
-    (values
-     (call-with-continuation-prompt
-      (λ ()
-        (when retry (retry #f))
-        (produce yield)
-        #f)
-      tag values)
-     next))
-  next)
 
 ;; (for/amb (clause ...) body ...+) is a choice among the values of the
 ;; body, one alternative for each iteration; the body runs where the
