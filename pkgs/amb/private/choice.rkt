@@ -98,7 +98,8 @@
   (raise (exn:fail:contract
           (string-append
            "amb: a generator of a choice was called again;\n"
-           " a generator, and each generator that it returns, is called at most once")
+           " a generator, and each generator that it returns, is called at most once;\n"
+           " a merger must not call the same generator twice")
           (current-continuation-marks))))
 
 ;; There is no slot a shuffler can mutate in this shared vector.

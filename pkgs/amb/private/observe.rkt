@@ -66,7 +66,7 @@
          (exn:fail:contract
           (string-append
            "in-amb: an element cannot be read by the handler of its own pause;\n"
-           " the handler is still running")
+           " the handler of that pause is still running")
           (current-continuation-marks))))
       (set! gen resume)
       (set! resume #f))
@@ -76,8 +76,8 @@
          (exn:fail:contract
           (string-append
            "in-amb: the search cannot go on;\n"
-           " its last step did not return: it is still running, it raised an exception,\n"
-           " or control left it")
+           " its last step has not returned: it is still running,\n"
+           " it raised an exception, or control escaped from it")
           (current-continuation-marks))))
       (let-values ([(v after) (gen*)])
         (cond
