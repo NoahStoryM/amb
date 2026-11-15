@@ -404,6 +404,16 @@ There are two cases, and they are different.
       that a stream has read before stay in it.}
 ]
 
+A handler cannot read the element that it is producing.  While the
+handler of a pause runs, a read of that same element, of the stream
+or of the sequence, raises @racket[exn:fail:contract] with the message
+@litchar{in-amb: an element cannot be read by the handler of its own pause},
+and nothing of the search runs.  The error is an exception in the
+handler like any other: a handler that catches it goes on, and the
+values that it returns are the element; if it leaves the handler, the
+first case applies.  The handler may read the elements that the stream
+has read before.
+
 @amb-examples[
 (define-values (more? get)
   (sequence-generate (in-amb/do (amb 1 (error "boom") 3))))
@@ -743,6 +753,11 @@ the code that collects them; without it, that code would be part of
 the search, and a choice in it would run the rest of the collection
 once for each alternative.
 
+The mark only refuses.  For the same control path to an effect, adding
+it does not turn a call that was refused into one that is allowed, and
+it does not set up a search of its own: the effects that it does not
+refuse are still those of the search around it.
+
 @amb-examples[
 (define (choose-among . thunks)
   ((sequence->amb thunks)))
@@ -868,18 +883,22 @@ what is left is an answer:
       (λ () (values 1 (pauses (sub1 n) g)))))
 ]
 
-The type is a guarantee about mergers written in typed code.  The
-parameter is shared with untyped code, and there the guarantee ends:
+The type is a guarantee about code that passes the type checker and
+has no unsafe or unchecked boundary in it: such code cannot make an
+answer.  A typed module can still declare an untyped function to be a
+@racketidfont{Merger}, and the parameter is shared with untyped code;
+there the guarantee ends:
 
 @itemlist[
-@item{When untyped code sets @racket[current-amb-merger], nothing is
-      checked.  A merger that makes an answer of another type breaks
+@item{When untyped code sets @racket[current-amb-merger], the merger
+      is only checked to be a procedure of two arguments.  A merger that makes an answer of another type breaks
       the type of the typed code that observes the search, and the
       error, if there is one, is raised wherever the wrong value is
       used.}
 @item{An untyped merger that a shallow module imports with
-      @racket[require/typed] at the type @racketidfont{Merger} is
-      only checked to be a procedure.}
+      @racket[require/typed] at the type @racketidfont{Merger} gets
+      the shape check of a shallow import, that it is a procedure, and
+      no check of the type of its answers.}
 @item{An untyped merger that a deep module imports at the type
       @racketidfont{Merger} gets the contract of the type, which seals
       the answers.  A merger that makes an answer is stopped there.
