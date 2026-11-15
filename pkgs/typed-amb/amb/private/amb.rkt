@@ -207,7 +207,7 @@
                                 (syntax->list #'(break-expr ...))))
                   '()))]
            (quasisyntax/loc stx
-             (let ([m n])
+             (let ([m (with-amb-mark n)])
                (if (zero? m)
                    (choose-none)
                    ((choose

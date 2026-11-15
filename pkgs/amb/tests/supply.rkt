@@ -39,6 +39,25 @@
              (λ () (answers (for/amb ([x '(1)] #:when (begin (amb-pause) #t)) x))))
   (check-exn #rx"^make-amb: not allowed" (λ () (answers (for/amb ([x (in-range (amb 1 2))]) x)))))
 
+(test-case "the length expression supplies alternatives, including at zero length"
+  (check-supply-error (for/amb #:length (amb 1 2) ([x '(10 20)]) x))
+  (check-supply-error (for*/amb #:length (amb 1 2) ([x '(10 20)]) x))
+  (check-supply-error (for/amb #:length (begin (amb-pause) 0) ([x '(10 20)]) x))
+  (check-supply-error (for/amb #:length (begin (amb-fail) 0) ([x '(10 20)]) x))
+  (check-supply-error (for/amb #:length (amb 0 1) #:fill 99 ([x '(10 20)]) x))
+  (check-supply-error (for*/amb #:length (begin (amb-pause) 0) #:fill 99 ([x '(10 20)]) x))
+  ;; Pure length expressions run once; zero does not initialize clauses or fill.
+  (define lengths 0)
+  (check-equal? (answers (for/amb #:length (begin (set! lengths (add1 lengths)) 0)
+                          #:fill (error "early fill")
+                          ([x (error "early clause")]) x))
+                '())
+  (check-equal? lengths 1)
+  ;; An independent search inside the length expression is allowed.
+  (check-equal? (answers (for/amb #:length (length (answers (amb 1 2)))
+                          ([x '(10 20)]) (amb x (- x))))
+                '(10 -10 20 -20)))
+
 (test-case "the generator of make-amb, the sequence of sequence->amb, the shuffler"
   (check-supply-error (make-amb (λ () (amb-pause) (values '(1) (λ () (values #f void))))))
   (check-supply-error (make-amb (λ () (values '(1) (λ () (amb-fail))))))

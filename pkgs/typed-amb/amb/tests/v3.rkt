@@ -107,3 +107,27 @@
   (check-exn #rx"amb-fail: not allowed"
              (λ () (events (with-amb-mark (amb-fail)))))
   (check-equal? (events (call-with-amb-mark (λ () 1))) '(1)))
+
+(test-case "length expressions use the same supply boundary as untyped for/amb"
+  (check-exn #rx"make-amb: not allowed"
+             (λ () (events (for/amb : Integer #:length (amb 1 2) ([x '(10 20)]) x))))
+  (check-exn #rx"make-amb: not allowed"
+             (λ () (events (for*/amb : Integer #:length (amb 1 2) ([x '(10 20)]) x))))
+  (check-exn #rx"amb-pause: not allowed"
+             (λ () (events (for/amb : Integer #:length (begin (amb-pause) 0) ([x '(10 20)]) x))))
+  (check-exn #rx"amb-fail: not allowed"
+             (λ () (events (for/amb : Integer #:length (begin (amb-fail) 0) ([x '(10 20)]) x))))
+  (check-exn #rx"make-amb: not allowed"
+             (λ () (events (for/amb : Integer #:length (amb 0 1) #:fill 99 ([x '(10 20)]) x))))
+  (check-exn #rx"amb-pause: not allowed"
+             (λ () (events (for*/amb : Integer #:length (begin (amb-pause) 0)
+                             #:fill 99 ([x '(10 20)]) x))))
+  (define lengths : Integer 0)
+  (check-equal? (events (for/amb : Integer #:length (begin (set! lengths (add1 lengths)) 0)
+                          #:fill (error "early fill")
+                          ([x : Integer (error "early clause")]) x))
+                '())
+  (check-equal? lengths 1)
+  (check-equal? (events (for/amb : Integer #:length (length (events (amb 1 2)))
+                          ([x '(10 20)]) (amb x (- x))))
+                '(10 -10 20 -20)))
