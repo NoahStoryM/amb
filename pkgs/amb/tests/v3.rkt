@@ -220,6 +220,26 @@
           (let-values ([(v next) (g)])
             (loop next (sub1 fuel) (cons v seen)))))))
 
+(test-case "an exception inside a merger invalidates the observing cursor"
+  (for ([phase '(build before after)])
+    (define error-value (exn:fail "injected merger failure" (current-continuation-marks)))
+    (define reads 0)
+    (define (broken s t)
+      (when (eq? phase 'build) (raise error-value))
+      (λ ()
+        (when (eq? phase 'before) (raise error-value))
+        (define-values (v next) (s))
+        (raise error-value)))
+    (define seq
+      (in-amb/do
+       (parameterize ([current-amb-merger broken])
+         (amb (begin (set! reads (add1 reads)) 'a) 'b))))
+    (define-values (more? get) (sequence-generate seq))
+    (check-exn (λ (e) (eq? e error-value)) more?)
+    (check-equal? reads (if (eq? phase 'after) 1 0))
+    (check-exn #rx"the search cannot go on" more?)
+    (check-equal? reads (if (eq? phase 'after) 1 0))))
+
 (test-case "once, written with amb-generate*, amb-pause and amb-fail"
   ;; (for/first ([v (in-amb* thk)]) v) is the first answer too, but the
   ;; pauses of (thk) stay in its search: the search around it gets no
