@@ -661,6 +661,30 @@ choice is made, so the error is raised there, even if only the first
 answer is asked for.  Without it, the error is raised when the search
 gets to the iteration that has the effect.
 
+@deftogether[(@defform[(with-amb-mark expr)]
+              @defproc[(call-with-amb-mark [thk (-> any)]) any])]{
+Evaluates @racket[expr], or calls @racket[thk], as code that supplies
+alternatives: an effect of the search in it is an error.
+
+@racket[make-amb] does this for its generator.  A form that collects
+its alternatives before it calls @racket[make-amb], as
+@racket[for/amb] with @racket[#:length] does, uses one of these for
+the code that collects them; without it, that code would be part of
+the search, and a choice in it would run the rest of the collection
+once for each alternative.
+
+@amb-examples[
+(define (choose-among . thunks)
+  ((sequence->amb thunks)))
+(eval:error
+ (stream->list
+  (in-amb (apply choose-among
+                 (with-amb-mark
+                  (for/list ([i 3] #:when (amb #t #f))
+                    (λ () i)))))))
+]
+}
+
 What is protected is the body of a search and the continuations that
 it captures.  Other code that runs when a generator is called, a
 merger in particular, runs in the dynamic context of whoever calls the
@@ -678,9 +702,10 @@ message that ends in @litchar{not in a search}.
 
 @defmodule[amb/base #:packages ("amb") #:no-declare]
 
-@racketmodname[amb/base] exports the five bindings that the rest is
+@racketmodname[amb/base] exports the seven bindings that the rest is
 made of, and nothing else: @racket[make-amb], @racket[amb-generate*],
-@racket[amb-fail], @racket[amb-pause] and @racket[current-amb-merger].
+@racket[amb-fail], @racket[amb-pause], @racket[current-amb-merger],
+@racket[with-amb-mark] and @racket[call-with-amb-mark].
 @racketmodname[amb] exports them too.  A library that builds its own
 language on searches, such as a miniKanren, needs no more: a
 disjunction is @racket[make-amb], a relation pauses with
@@ -745,8 +770,4 @@ those of @racketmodname[amb/base] and @racketmodname[amb/merge].
       generators that typed code applies them to.}
 @item{@racket[for/amb] and @racket[for*/amb] take the type
       annotations of the second forms of their grammar above.}
-@item{In the typed @racket[for/amb] with @racket[#:length], the
-      clauses and the shuffler are not checked as code that supplies
-      alternatives (@secref["supply"]): an effect in them is not
-      reported.}
 ]

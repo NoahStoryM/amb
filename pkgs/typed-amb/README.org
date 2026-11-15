@@ -26,9 +26,8 @@ overhead at the typed-untyped boundary.
 =amb/merge=.
 
 All forms (=amb=, =for/amb=, =in-amb=, etc.) work the same as in the
-untyped version, with one exception: in =for/amb= with =#:length=, an
-effect in a clause is not reported as an error.  =for/amb=
-additionally accepts optional type annotations:
+untyped version.  =for/amb= additionally accepts optional type
+annotations:
 
 #+begin_src racket
 (for/list ([x (in-amb (amb 1 2 3))])

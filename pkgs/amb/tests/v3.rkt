@@ -33,6 +33,7 @@
   (check-eq? amb-fail base:amb-fail)
   (check-eq? amb-pause base:amb-pause)
   (check-eq? current-amb-merger base:current-amb-merger)
+  (check-eq? call-with-amb-mark base:call-with-amb-mark)
   (check-eq? (current-amb-merger) amb-append))
 
 (test-case "the parameters check their values"

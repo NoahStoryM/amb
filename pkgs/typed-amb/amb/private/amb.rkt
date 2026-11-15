@@ -67,6 +67,7 @@
                  (Generatorof (List a ... a)))))]
   [amb-fail  (→ ⊥)]
   [amb-pause (→ Void)]
+  [call-with-amb-mark (∀ (a) (→ (→ a) a))]
   [current-amb-merger   (Parameter Merger)]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
   [sequence->amb
@@ -97,7 +98,12 @@
 
 ;; ---- Choices among the thunks of a vector ----
 
-(provide thunks choose choose-none)
+(provide thunks choose choose-none with-amb-mark)
+
+;; The typed `with-amb-mark`: the macro of the untyped library expands
+;; into a binding that has no type.
+(define-syntax-rule (with-amb-mark e)
+  (call-with-amb-mark (λ () e)))
 
 (: thunks
    (∀ (a ...)
@@ -112,22 +118,21 @@
 ;; them in another order; the chosen thunk is returned, to be called
 ;; where the choice was made.
 ;;
-;; KNOWN GAP: in the untyped library the shuffler, and the clauses of a
-;; `for/amb` with `#:length`, run as code that supplies alternatives, in
-;; which an effect of the search is an error.  The mark for that is not
-;; public, so here they run as part of the search.
+;; The shuffler, and the clauses of a `for/amb` with `#:length`, run as
+;; code that supplies alternatives (`call-with-amb-mark`): an effect of
+;; the search in them is an error, as in the untyped library.
 (: choose
    (∀ (a ...)
       (→ (Mutable-Vectorof (→ (Values a ... a)))
          (→ (Values a ... a)))))
 (define (choose thk*)
-  ((current-amb-shuffler) thk*)
+  (with-amb-mark ((current-amb-shuffler) thk*))
   ((inst sequence->amb (→ (Values a ... a))) thk*))
 
 ;; The choice among no alternatives.
 (: choose-none (→ ⊥))
 (define (choose-none)
-  ((current-amb-shuffler) (vector))
+  (with-amb-mark ((current-amb-shuffler) (vector)))
   (amb-fail))
 
 
@@ -224,7 +229,8 @@
                (if (zero? m)
                    (choose-none)
                    ((choose
-                     (let* ([count : Integer 0]
+                     (with-amb-mark
+                      (let* ([count : Integer 0]
                             [thk* (#,for/vector
                                    : (Mutable-Vectorof (→ t1))
                                    #:length m #:fill fill
@@ -236,7 +242,7 @@
                                    (ann alt (→ t1)))])
                        (if (or keep-all? (= count (vector-length thk*)))
                            thk*
-                           (vector-copy thk* 0 count))))))))]
+                           (vector-copy thk* 0 count)))))))))]
           [(_ : t1:type (clauses ...) : t2:type break-expr:break-clause ... body ...+)
            #:do
            [(define break

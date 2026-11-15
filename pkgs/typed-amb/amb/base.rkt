@@ -6,4 +6,5 @@
 
 (provide Generatorof Generator Merger
          make-amb amb-generate* amb-fail amb-pause
-         current-amb-merger)
+         current-amb-merger
+         with-amb-mark call-with-amb-mark)

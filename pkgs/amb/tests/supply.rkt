@@ -108,3 +108,22 @@
   ;; supplied to no search: a stream of alternatives forced by hand
   (check-exn #rx"^make-amb: not in a search"
              (λ () (for/list ([x (in-producer (λ () (amb 1 2)))] [_ 1]) x))))
+
+(test-case "with-amb-mark and call-with-amb-mark"
+  ;; a form of one's own that collects its alternatives first
+  (define (choose-among thunks) ((sequence->amb thunks)))
+  (check-equal? (answers (choose-among (with-amb-mark (for/list ([i 3]) (λ () (amb i (- i)))))))
+                '(0 0 1 -1 2 -2))
+  (check-supply-error
+   (choose-among (with-amb-mark (for/list ([i 3] #:when (amb #t #f)) (λ () i)))))
+  (check-supply-error
+   (choose-among (call-with-amb-mark (λ () (for/list ([i 3] #:when (amb #t #f)) (λ () i))))))
+  ;; without the mark, the clause is part of the search: both branches
+  ;; of the choice go on with the same loop
+  (check-equal? (answers (choose-among (for/list ([i 2] #:when (amb #t #f)) (λ () i))))
+                '(0 1 0 1))
+  ;; a search of its own inside is not concerned
+  (check-equal? (with-amb-mark (answers (amb 1 2))) '(1 2))
+  (check-equal? (answers (with-amb-mark (answers (amb 1 2)))) '((1 2)))
+  ;; the values of the expression
+  (check-equal? (call-with-values (λ () (with-amb-mark (values 1 2))) list) '(1 2)))

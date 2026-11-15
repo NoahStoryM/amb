@@ -70,8 +70,13 @@
   ;; without #:length, as in the untyped library
   (check-exn #rx"make-amb: not allowed while the alternatives of a choice are supplied"
              (λ () (events (for/amb : Integer ([i : Integer '(1 2 3)] #:when (amb #t #f)) i))))
-  ;; KNOWN GAP: with #:length the clauses run in the search, and the
-  ;; public interface of amb has no way to mark them as supply.  The
-  ;; untyped library raises here.
-  (check-not-exn
-   (λ () (events (for/amb : Integer #:length 3 ([i : Integer '(1 2 3)] #:when (amb #t #f)) i)))))
+  ;; with #:length, and in the shuffler
+  (check-exn #rx"make-amb: not allowed while the alternatives of a choice are supplied"
+             (λ () (events (for/amb : Integer #:length 3 ([i : Integer '(1 2 3)] #:when (amb #t #f)) i))))
+  (check-exn #rx"amb-pause: not allowed while the alternatives of a choice are supplied"
+             (λ () (parameterize ([current-amb-shuffler (λ ([v : Mutable-VectorTop]) (amb-pause))])
+                     (events (amb 1 2)))))
+  ;; one's own
+  (check-exn #rx"amb-fail: not allowed"
+             (λ () (events (with-amb-mark (amb-fail)))))
+  (check-equal? (events (call-with-amb-mark (λ () 1))) '(1)))

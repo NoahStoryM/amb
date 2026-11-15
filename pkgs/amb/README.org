@@ -123,7 +123,8 @@ An observer sees the pauses when it asks for them:
 * Modules
 
 - =amb/base= :: the core: =make-amb=, =amb-generate*=, =amb-fail=,
-  =amb-pause=, =current-amb-merger=.  Enough to build a language on,
+  =amb-pause=, =current-amb-merger=, =with-amb-mark=,
+  =call-with-amb-mark=.  Enough to build a language on,
   such as a miniKanren (see [[file:tests/kanren/]]).
 - =amb/merge= :: the four standard mergers.  It does not depend on the
   effects.

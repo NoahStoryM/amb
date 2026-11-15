@@ -22,13 +22,13 @@
          "generator.rkt"
          (only-in "../merge.rkt" amb-append))
 
-;; amb/base exports the first five.
 (provide make-amb
          amb-generate*
          amb-fail
          amb-pause
          current-amb-merger
-         supplying)
+         with-amb-mark
+         call-with-amb-mark)
 
 ;; Every effect is delimited by the nearest search.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
@@ -54,7 +54,10 @@
 ;; is; an effect in it has no meaning for the search it supplies, and is
 ;; an error.
 ;;
-;; (supplying e) evaluates e as such code.  An effect looks for its mark
+;; (with-amb-mark e) evaluates e as such code, and (call-with-amb-mark
+;; thk) calls thk as such code: `make-amb` does it for its generator,
+;; and a form that collects alternatives before it calls `make-amb` does
+;; it for the code that collects them.  An effect looks for the mark
 ;; no further than the nearest search, so a search of its own that the
 ;; code runs, or goes on with, is not concerned: the body of a search
 ;; and the continuations that it captures run inside the boundary of
@@ -68,8 +71,13 @@
 ;; generator belongs to.
 (define supply-key (make-continuation-mark-key 'amb-supply))
 
-(define-syntax-rule (supplying e)
+(define-syntax-rule (with-amb-mark e)
   (with-continuation-mark supply-key #t e))
+
+;; The same, for where a macro of this module cannot be used (Typed
+;; Racket has no type for `supply-key`).
+(define (call-with-amb-mark thk)
+  (with-continuation-mark supply-key #t (thk)))
 
 ;; Called by every effect before anything else.
 (define (check-effect who)
@@ -118,7 +126,7 @@
   (define merge (current-amb-merger))
   (shift-at amb-prompt-tag k
     (let loop ([next next])
-      (let-values ([(v next) (supplying (next))])
+      (let-values ([(v next) (with-amb-mark (next))])
         (cond
           [(list? v) ((merge (λ () (apply k v)) (λ () (loop next))))]
           [(pause-count? v) (values v (λ () (loop next)))]
