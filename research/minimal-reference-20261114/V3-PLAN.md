@@ -65,10 +65,11 @@
 current-amb-merger : (Parameter Merger)
 ```
 
-- 这样 typed 代码写不出伪造答案的 merger（Astra 的 `forge` 是类型错误）。
+- 这样，通过类型检查、且不经过 unsafe 或未验证边界的实现，写不出伪造答案的 merger（Astra 的 `forge` 是类型错误）。代码写在 typed 文件里，不等于函数满足参数性：shallow 模块也能给无类型函数声明 `Merger` 类型。
+- 这个类型不保证单遍消费、合同性、公平性或不抛异常，这些仍由 §4 的协议约束。
 - 类型变量必须是整个答案，不能是"答案列表的元素"：merger 可以合法地交出 `'()`、截短或颠倒答案列表，对元素多态的类型不可靠。
 - 因为 `a` 不被知道是列表，typed 的 merger 按 `#f`、正整数、其余（答案）的次序判别结果，不能用 `list?`。
-- 边界保证：rank-2 类型保证的是"typed 代码写不出伪造答案的 merger"，不保证参数里的值是参数性的。无类型代码自己设置参数，或 shallow 模块以 `Merger` 类型导入无类型 merger，都没有检查；deep 模块导入时，TR 生成参数性合约，把答案封装起来。
+- 边界保证：rank-2 类型是静态保证，不保证共享参数里的值都经过了运行时验证。无类型代码自己设置参数时，没有任何检查；shallow 模块以 `Merger` 类型导入无类型 merger 时，只有形状检查，没有深层的答案类型保持检查；deep 模块导入时，TR 生成参数性合约，把答案封装起来。
 - **已知限制**：deep 模块以 `Merger` 类型导入一个用 `list?` 识别答案的无类型 merger，会因答案被封装而报值域错误。`amb/merge` 的四个标准 merger 正是这样识别答案的，所以从 deep 模块直接或间接导入它们会失败；`typed/amb/merge` 导出的不受影响。标准 merger 不为此改变识别方式（那样它们就不再自己报非法结果），只在文档中写明。
 - 以上关于 rank-2 和参数性合约的结论，只在 Typed Racket 9.3 上验证过。
 
@@ -188,7 +189,7 @@ current-amb-merger : (Parameter Merger)
 ## 9. 供应阶段的效应边界
 
 - 在供应备选期间（子句、枚举器、shuffler、`#:length` 的长度表达式），试图影响**当前**搜索的选择、失败、暂停，明确报错；主体中的效应照常工作。实现：供应代码在一个 continuation mark 下运行，三个效应入口查这个 mark，只查到最近的搜索边界为止。
-- 这个 mark 由 `with-amb-mark`、`call-with-amb-mark` 公开。任何"先收集备选、再调用 `make-amb`"的形式都应当用它包住收集过程，不要把选中 thunk 的执行包进去。公开的入口只能加上标记，不能取消，所以它只会让检查更严、多报错，不会漏掉错误。
+- 这个 mark 由 `with-amb-mark`、`call-with-amb-mark` 公开。任何"先收集备选、再调用 `make-amb`"的形式都应当用它包住收集过程，不要把选中 thunk 的执行包进去。保证的准确表述：对到达同一效应入口的相同控制路径，添加公开供应标记不会把原本拒绝的调用变成允许；它也不建立新的搜索边界。理由是公开入口只能安装同一个 key 的 `#t`，不能安装 `#f`，也不能改变搜索 prompt。这不是"整个程序的异常集合单调"：新增的异常可以被捕获，程序由此走另一条路径。它也不约束续延跳转，以及直接访问私有实现的代码。
 - 完整的独立嵌套搜索允许。**搜索边界保护的是该搜索的主体，以及它捕获的续延**：`amb-generate*` 的初始 reset，和恢复续延时自带的 prompt。不按函数身份特判"这个 next 是 reify 出来的"。
 - 这个保证**不**延伸到运行 next 的全部代码。`make-amb` 返回的余生成器、自定义 merger 返回的生成器，本身没有 reset；供应者和自定义 merger 的宿主代码，按调用者的动态环境执行。若要让任意 next 中的效应都属于内层搜索，需要另设计覆盖整个恢复过程的边界，v3.0 不提供。
 - 有 `#:length` 的形式在选择点一次性收集全部备选，所以即使只取第一个答案，后面某一行子句有效应也会报错；无长度的形式到那一行才报。这符合两者的供应时机，不要求一致。
@@ -209,12 +210,27 @@ current-amb-merger : (Parameter Merger)
 - handler 抛异常：那次暂停已经结束，下一次读取从它之后继续；handler 不会为同一次暂停再被调用，流里也没有这次暂停对应的元素。
 - 搜索主体抛异常，或控制用续延跳出：游标失效，之后再读取报 `in-amb: the search cannot go on`，不重跑已经调用过的生成器（§2 的单遍所有权）。缓存流中已经读到的元素仍然保留。不选"重抛记录下来的异常"，因为同一个机制也覆盖了续延跳出的情况，而且不需要给每次读取套 `with-handlers`。
 - 流在计算某个元素的过程中又被要求给出这个元素（自引用），报同一条错误，并注明它还在运行。
+- **handler 不能读取它正在生产的元素。** handler 运行期间，读取同一个元素（流的 first、empty?、rest，或 /do 的 get、more?）报 `in-amb: an element cannot be read by the handler of its own pause`，搜索一步都不运行。这个错误和 handler 里的其他异常一样：handler 捕获它并正常返回，返回值就是该暂停的元素；离开 handler，就按"handler 抛异常"处理。handler 可以读取此前已经缓存的其他元素。用户在 handler 里另设的 prompt（默认的或其他 tag 的）、嵌套的观察器，都不改变这一点。
 
-实现：缓存流不用 Racket 的 delay（它在异常后会进入 broken 状态），而是自己的流结构，实现 `gen:stream`。每个单元里放着"还没返回过的生产过程"，它正常返回后，单元才换成"元素 + 后继单元"；生产过程抛异常时，单元保持原样。
+共享观察层（`private/observe.rkt`，两种观察入口共用）用三个状态区分这些情况：
+
+- `gen`：将要调用的生成器，一被调用就置 `#f`；源抛异常或被跳出后，不会重新调用已消费的源。
+- `resume`：从 handler 被调用到它返回之间，保存"暂停之后"的生成器，作为异常或退出后的恢复位置，但不因此开放下一次读取。
+- `running?`：控制是否在 handler 里，由包住 handler 调用的 `dynamic-wind` 维护：进入置真，离开置假，离开包括正常返回、异常和任何续延跳转。
+
+不用 continuation mark 判断 handler 是否在运行：查询 mark 会被用户的 prompt 截断，"查不到 mark"推不出"handler 已退出"。`dynamic-wind` 只包在带 handler 的暂停上，普通读取只多一次变量判断。
+
+**不在保证之内**，手册的观察器说明应当集中写明：
+
+- 观察器不保证线程安全。另一个线程在 handler 运行期间读同一元素，会得到重入错误。
+- handler 所在线程在 handler 运行中被杀死时，`dynamic-wind` 的退出过程不会执行，该元素保持"运行中"，之后的读取都报重入错误。这不能从正常异常退出的状态转移推出。
+- 多次恢复 handler 的续延，不能用来重复消费单遍状态。
+
+缓存流的实现：缓存流不用 Racket 的 delay（它在异常后会进入 broken 状态），而是自己的流结构，实现 `gen:stream`。每个单元里放着"还没返回过的生产过程"，它正常返回后，单元才换成"元素 + 后继单元"；生产过程抛异常时，单元保持原样。
 
 ## 11. 实施状态
 
-实现在草稿 PR #24（分支 `v3`，到 `772c3ca`）。
+实现在 PR #24（分支 `v3`，到 `05c8255`）。Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
 
 已完成：
 
@@ -229,11 +245,11 @@ current-amb-merger : (Parameter Merger)
 - `amb/demo`；
 - 测试：v2 测试全部移植并整理出冲突表；§3 两种相等的差分测试；调用前缀的在线检查、单遍检测、merger 内部异常注入；只用 `amb/base` 写的 kanren 层及其规律测试。
 
-验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；`raco test pkgs/amb/tests pkgs/typed-amb pkgs/amb/demo` 266 个测试通过。
+验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；`raco test pkgs/amb/tests pkgs/typed-amb pkgs/amb/demo` 269 个测试通过；CI 通过。
 
 待做：
 
-1. 请 Astra 复核 rank-2 `Merger` 和缓存流的恢复（`c762453`、`6b9fe68`、`772c3ca`）。
+1. 手册的观察器说明：集中写明 §10 "不在保证之内"的三点。
 2. 书中例子（TRS1、TRS2）：`tests/kanren/book-*.rkt` 只在装了 miniKanren-typed 时运行，否则跳过，不复制进本仓库。ambKanren 迁到 v3 之后由它负责，届时可以删掉这些测试，`build-deps` 里的 `typed-racket-lib` 也随之去掉。ambKanren 的迁移等审核结束后再做；它目前还用 `typed/amb` 的 v2 接口，编译不过。
 3. 之后：性能。kanren 层比原型慢，TRS2 慢 15–30%，TRS1 慢一倍多，原因还没分析；还有 v2 的槽位释放、纯暂停空轮的合并。
-4. 旧 PR #10、#13–#21、#23 与 issue #11：v3 正式版敲定后关闭，分支保留。
+4. 旧 PR #10、#13–#21、#23 与 issue #11：v3 正式版敲定后关闭，分支保留；#22 在 PR #24 合并后关闭。
