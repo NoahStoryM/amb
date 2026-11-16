@@ -102,7 +102,7 @@
 ;; `sequence-generate*` does for a sequence.  No effect of (thk) reaches
 ;; an enclosing search, and nothing more of the search runs until the
 ;; generator is called.
-(define (amb-generate* thk)
+(define (amb-generate*/orig thk)
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
     (raise-argument-error 'amb-generate* "(-> any)" thk))
   (reset-at amb-prompt-tag
@@ -115,7 +115,7 @@
 ;; made; the last one is merged with the end of the supply.
 ;;
 ;; The pauses of the supply are pauses of the choice, where they are.
-(define (make-amb next)
+(define (make-amb/orig next)
   (unless (and (procedure? next) (procedure-arity-includes? next 0))
     (raise-argument-error 'make-amb "(-> any)" next))
   (check-effect 'make-amb)
@@ -130,12 +130,60 @@
           [else (raise-result-error 'make-amb v)])))))
 
 ;; The computation ends here, with no answer.
-(define (amb-fail)
+(define (amb-fail/orig)
   (check-effect 'amb-fail)
   (shift-at amb-prompt-tag k (end)))
 
 ;; The search pauses here: a merger may pass the turn on to another
 ;; alternative.  Returns (void) when the computation goes on.
-(define (amb-pause)
+(define (amb-pause/orig)
   (check-effect 'amb-pause)
   (shift-at amb-prompt-tag k (values 1 (λ () (k (void))))))
+
+;; ABLATION: AMB_IMPL = orig | a (shift, one capture) | s0 (shift0)
+(define impl (string->symbol (or (getenv "AMB_IMPL") (if (getenv "AMB_FAST") "a" "orig"))))
+(define (h0 thk) (thk))
+(define handler (if (eq? impl 's0) h0 #f))
+(define (prompt thk) (if handler (call-with-continuation-prompt thk amb-prompt-tag handler) (call-with-continuation-prompt thk amb-prompt-tag)))
+(define (amb-generate*/fast thk)
+  (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
+    (raise-argument-error 'amb-generate* "(-> any)" thk))
+  (prompt (λ () (values (call-with-values thk list) end))))
+(define (make-amb/fast next)
+  (unless (and (procedure? next) (procedure-arity-includes? next 0))
+    (raise-argument-error 'make-amb "(-> any)" next))
+  (check-effect 'make-amb)
+  (define merge (current-amb-merger))
+  (call-with-composable-continuation
+   (λ (k0)
+     (abort-current-continuation
+      amb-prompt-tag
+      (λ ()
+        (define (k vs)
+          (prompt (if (and (pair? vs) (null? (cdr vs)))
+                      (let ([v (car vs)]) (λ () (k0 v)))
+                      (λ () (apply k0 vs)))))
+        (let loop ([next next])
+          (let-values ([(v next) (with-amb-mark (next))])
+            (cond
+              [(list? v) ((merge (λ () (k v)) (λ () (loop next))))]
+              [(pause-count? v) (values v (λ () (loop next)))]
+              [(not v) (values v next)]
+              [else (raise-result-error 'make-amb v)]))))))
+   amb-prompt-tag))
+(define (amb-fail/fast)
+  (check-effect 'amb-fail)
+  (abort-current-continuation amb-prompt-tag end))
+(define (amb-pause/fast)
+  (check-effect 'amb-pause)
+  (call-with-composable-continuation
+   (λ (k0)
+     (abort-current-continuation
+      amb-prompt-tag
+      (λ () (values 1 (λ () (prompt (λ () (k0 (void)))))))))
+   amb-prompt-tag))
+(define fast? (not (eq? impl 'orig)))
+(define amb-generate* (if fast? amb-generate*/fast amb-generate*/orig))
+(define make-amb (if fast? make-amb/fast make-amb/orig))
+(define amb-fail (if fast? amb-fail/fast amb-fail/orig))
+(define amb-pause (if fast? amb-pause/fast amb-pause/orig))
