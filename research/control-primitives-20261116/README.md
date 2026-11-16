@@ -15,4 +15,6 @@
 - `shift-vs-shift0.rkt`：比较方案 A 与 shift0 两种写法每次效应的耗时和分配。
 - `fail-barrier.rkt`：在异常 handler 中（处于续延屏障之下）调用失败。只捕获加 abort 会报错，普通 abort 能正常失败；脚本同时测两者的开销。
 
+- `differential.rkt`：逐项打印数值个数、dynamic-wind 日志、parameterize、续延标记、break、prompt 可用性、merger 中的效应、异常和屏障等情形的结果。在三种实现下各运行一次，输出保存在 `differential-orig.txt`、`differential-a.txt`、`differential-s0.txt`。
+
 这个切换只用于对照测量，正式实现会去掉它。
