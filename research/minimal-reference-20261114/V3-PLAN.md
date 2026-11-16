@@ -37,7 +37,7 @@
 - 私有模块：`private/tag.rkt` 放 `amb-prompt-tag` 和 `amb-mark-key`，不由任何公开模块导出；`private/choice.rkt` 放选择的运行时（`choose`、协程供应 `make-choice-generator` 等），以及 `sequence->amb`、`amb-local*`、`current-amb-shuffler` 的实现，由 main 重导出。无类型与 typed 两个前端共用这些私有模块，工具函数不为共享而变成公共 API。
 - 宏只负责把表达式包成 thunk、生成原生循环和绑定，语义由函数实现：`(amb-local e)` 是 `(amb-local* (λ () e))`，`(with-amb-mark e)` 是 `(call-with-amb-mark (λ () e))`。
 - 不提供 `amb/unsafe`。
-- `amb-pause` 是原语，不由 `make-amb` 派生：派生写法 `1、(list (void))、#f` 会多出一次 `μ(k(void), empty)`，在缺右单位律的 merger 下行为不同。`amb-fail` 可以精确地派生为"一开始就结束的供应"，但与 `amb-pause` 成对放在 base。
+- `amb-pause` 是原语，不由 `make-amb` 派生：派生写法 `1、(list (void))、#f` 会多出一次 `μ(k(void), empty)`，在缺右单位律的 merger 下行为不同。`amb-fail` 在纯事件语义下等价于"一开始就结束的供应"；但这个派生要经过 `make-amb`，仍然捕获续延，不保留直接 `amb-fail` 的无捕获性质（§9；`tests/control.rkt` 中，屏障内的 `amb-fail` 正常结束，`make-amb` 的空供应报捕获屏障错误）。`amb-fail` 与 `amb-pause` 成对放在 base。
 - v2 的 `current-amb-depth-first?`、`current-amb-fair?` 由 `current-amb-merger` 取代，不提供逐项对应的替代。与 v2 的全部行为差别见 `v3` 的 [`tests/v2-conflicts.rkt`](https://github.com/NoahStoryM/amb/blob/v3/pkgs/amb/tests/v2-conflicts.rkt)，文档要逐条写明，尤其是 §6 的那一条。
 - 参数检查在入口用 guard，抛 `exn:fail:contract`；不给 merger 套 contract，以免每次合并多一层 chaperone。`in-amb*`、`in-amb*/do` 沿用 v2 的模块边界 contract。
 - 在搜索之外调用效应，报 `not in a search`。
@@ -68,7 +68,7 @@
 current-amb-merger : (Parameter Merger)
 ```
 
-这一版（`c0c8fd9`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6897474521)）取代了 Astra 复核过的 `(∀ (a) …)` 版本，**尚待 Astra 复核**。
+这一版（`c0c8fd9`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6897474521)）取代了 Astra 复核过的 `(∀ (a) …)` 版本，已经 Astra 复核（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904142284)）。
 
 - typed 代码通过类型检查写不出伪造答案的 merger（Astra 的 `forge` 仍是类型错误）。这个保证不覆盖 unsafe 导入或未验证的边界；代码写在 typed 文件里，也不等于函数满足参数性。
 - 因为答案已知是列表，typed 的 merger 可以用 `list?` 区分答案；零值和多值答案的静态类型得以保留。
@@ -173,8 +173,8 @@ current-amb-merger : (Parameter Merger)
 
 - `make-amb next`：在执行时捕获后续 k，读取并固定当前的 `current-amb-merger`。对供应者交出的每组值 v，分支是 `(λ () (apply k v))`，各分支按原始右折叠交给 merger。供应者的暂停作为选择点的暂停原样交出；供应结束则交出 `#f`，不经过 merger。
 - `sequence->amb seq` ≡ `(make-amb (λ () (sequence-generate* seq)))`。
-- `amb`：把备选包成 thunk 放进向量，调用一次 shuffler，再交给 `sequence->amb`，并在后续中调用选中的 thunk。不提前执行任何备选。
-  - `(amb)` 也走这条路径，语义与 `(amb-fail)` 相同：供应一开始就结束，与 merger 是否有单位律无关。
+- `amb`：把备选包成 thunk 放进宏新建的向量，调用一次 shuffler，再由 `make-amb` 和私有的 `mutable-vector-generate*` 供应（取走即清空槽位，长向量压缩；§11），并在后续中调用选中的 thunk。不提前执行任何备选。事件与交给 `sequence->amb` 相同，但不经过它。
+  - `(amb)`：调用 shuffler（空向量）之后走 `choose-none`，即 `amb-fail`，不经过 `make-amb`。语义与 `(amb-fail)` 相同，与 merger 是否有单位律无关；也因此不捕获续延（§9）。
   - 每个向量选择恰好调用一次 shuffler，包括空向量和单元素向量。shuffler 必须接受空向量，这是相对 v2 的行为变化。shuffler 算作供应阶段（§9）。两个前端在五种零长度情形下都遵守这一点：`(amb)`、`#:length 0`、`#:length 0 #:fill e`、`for*/amb #:length 0`、长度非零但循环零次。
 - `for/amb`、`for*/amb`：通过原生 sequence 供应主体 thunk。
   - 有 `#:length` 时用向量，与 `amb` 一致。没填满的槽按迭代次数截掉，不是备选，也不交给 shuffler；不靠比较哨兵值识别它们。理由：把它们当作失败的备选，`#:length` 给大了每次选择都要多合并几次，而且在没有单位律的 merger 下可见。
