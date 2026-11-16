@@ -245,7 +245,7 @@ current-amb-merger : (Parameter Merger)
 
 ## 11. 实施状态
 
-实现在 PR #24（分支 `v3`，到 `cb0b2ec`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
+实现在 PR #24（分支 `v3`，到 `5f8b793`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
 
 已完成：
 
@@ -268,7 +268,7 @@ current-amb-merger : (Parameter Merger)
 
 待做：
 
-1. Astra 复核：`c0c8fd9` 及 ambKanren#17 的 `767803d` 已通过（[amb](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904142284)、[ambKanren](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6904142506)）；待复核 `b5b05ff`、`6e34312` 的槽位释放与压缩，`81bf0c9` 的报错信息，`cb0b2ec` 的控制原语，以及 ambKanren 的 `5eee073`（局部 bind）。
+1. Astra 复核：全部通过。amb 到 `cb0b2ec`（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6905070265)，含槽位释放、压缩、报错信息和控制原语；之后的 `5f8b793` 只按复核意见改了一处注释），ambKanren#17 到 `eb554ad`（[comment](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6905076028)，含局部 bind）。
 2. 发布：合并 PR #24 → 包目录更新到 3.0 → ambKanren 的 CI 改回从包目录安装 → 合并 ambKanren#17。
 3. 处理 ambKanren 中较早的 PR #16（lawful-search）和 #15（研究草稿）：确认是否已被 #17 取代。
 4. 旧 PR #10、#13–#21、#23 与 issue #11：关闭，分支保留；#22 在 PR #24 合并后关闭。
