@@ -24,13 +24,16 @@
 (require "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
-(provide make-amb amb-fail
+(provide Generatorof Merger
+         make-amb amb-generate* amb-fail amb-pause
+         current-amb-merger
+         with-amb-mark call-with-amb-mark
          amb for/amb for*/amb
+         amb-local amb-local*
+         sequence->amb
+         current-amb-shuffler
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
-         in-amb/do in-amb*/do
-         current-amb-depth-first?
-         current-amb-fair?
-         current-amb-shuffler)
+         in-amb/do in-amb*/do)
 
 
 ;; ---- in-amb* (function form) ----
@@ -65,7 +68,7 @@
     [(_ expr)
      (syntax/loc stx
        (in-amb* (λ () expr)))]
-    [(_ expr #:empty-handler handler)
+    [(_ expr #:on-pause handler)
      (syntax/loc stx
        (in-amb* (λ () expr) handler))]))
 
@@ -84,7 +87,7 @@
        (syntax/loc stx
          [(id ...)
           (in-amb*/do (λ () expr))])]
-      [[(id:id ...) (_ expr #:empty-handler handler)]
+      [[(id:id ...) (_ expr #:on-pause handler)]
        (syntax/loc stx
          [(id ...)
           (in-amb*/do (λ () expr) handler)])])))
@@ -99,6 +102,6 @@
     [(_ expr)
      (syntax/loc stx
        (in-amb*/do (λ () expr)))]
-    [(_ expr #:empty-handler handler)
+    [(_ expr #:on-pause handler)
      (syntax/loc stx
        (in-amb*/do (λ () expr) handler))]))

@@ -13,6 +13,7 @@
    '(require racket/sequence
              racket/stream
              amb
+             amb/merge
              (only-in amb/private/data/stream
                       stream-flatten))))
 (define-syntax-rule (amb-examples body ...)

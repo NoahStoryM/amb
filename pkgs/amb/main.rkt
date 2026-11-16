@@ -4,140 +4,179 @@
 ;; Public API for the `amb` library
 ;; ===================================================================
 ;;
-;; This module re-exports the core primitives from the private
-;; implementation and wraps them with contracts, input validation,
-;; and `define-sequence-syntax` optimizations for use in `for`
-;; comprehensions.
+;; amb/base has the effects of a search; this module adds the syntax
+;; that makes the alternatives of a choice, and the ways to observe a
+;; search.
 ;;
-;; The two layers of sequence syntax (`in-amb` and `in-amb*`)
-;; each have a dual role:
+;; `in-amb` and `in-amb*` each have two roles:
 ;;
-;;   - As an expression (outside `for`): returns a lazy stream
-;;     via `in-amb*` from the private module.
+;;   - as an expression (outside `for`): a stream, which remembers the
+;;     answers it has produced;
 ;;
-;;   - Inside a `for` clause: expands directly to the more efficient
-;;     `in-amb*/do` (a `make-do-sequence`-based sequence) to avoid
-;;     the overhead of stream construction.
+;;   - in a `for` clause: the single-pass sequence of `in-amb*/do`
+;;     directly, without the stream.
 
 (require (for-syntax racket/base syntax/parse)
          racket/contract/base
          racket/stream
-         racket/mutability
-         (rename-in "private/amb.rkt"
+         racket/vector
+         "base.rkt"
+         "private/choice.rkt"
+         (rename-in "private/observe.rkt"
                     [in-amb*    -in-amb*]
                     [in-amb*/do -in-amb*/do]))
 
-;; Module-boundary contracts (rather than `contract-in`): the module
+;; Module-boundary contracts (rather than `contract-out`): the module
 ;; that uses `in-amb*` / `in-amb*/do` -- including through the `for`
 ;; clause expansion below -- is the one blamed for a bad argument.
 (define-module-boundary-contract in-amb*
-  -in-amb*    (->* ((-> any)) ((-> any)) stream?))
+  -in-amb*    (->* ((-> any)) ((or/c #f (-> any))) stream?))
 (define-module-boundary-contract in-amb*/do
-  -in-amb*/do (->* ((-> any)) ((-> any)) sequence?))
+  -in-amb*/do (->* ((-> any)) ((or/c #f (-> any))) sequence?))
 
-(provide amb
-         for/amb for*/amb
+(provide (all-from-out "base.rkt")
+         amb for/amb for*/amb
+         sequence->amb
+         amb-local amb-local*
+         current-amb-shuffler
          (rename-out [*in-amb in-amb] [*in-amb* in-amb*])
-         in-amb/do in-amb*/do
-         amb-fail
-         (contract-out
-          [make-amb (-> (-> boolean?) (-> any) any)]
-          [current-amb-depth-first? (parameter/c boolean?)]
-          [current-amb-fair?        (parameter/c boolean?)]
-          [current-amb-shuffler     (parameter/c (-> mutable-vector? void?))]))
+         in-amb/do in-amb*/do)
 
+
+;; ---- Choices ----
+
+(define-syntax-rule (amb-local expr)
+  (amb-local* (λ () expr)))
+
+;; (amb e ...) is a choice among the expressions: none of them is
+;; evaluated before it is chosen.  (amb) fails.
+(define-syntax amb
+  (syntax-rules ()
+    [(_) (choose-none)]
+    [(_ expr ...) ((choose (vector (λ () expr) ...)))]))
+
+;; (for/amb (clause ...) body ...+) is a choice among the values of the
+;; body, one alternative for each iteration; the body runs where the
+;; choice was made.
+;;
+;;   with #:length n   the alternatives are collected first, as by
+;;                     `for/vector`: at most n of them.  With `#:fill`,
+;;                     the slots that are left are alternatives too,
+;;                     each with the value of the fill expression.
+;;   without           the iterations go on as the search does.  The
+;;                     loop is a coroutine, which is the generator of
+;;                     `make-amb`: it runs under a prompt of its own;
+;;                     at each iteration it captures its continuation
+;;                     as `retry` and aborts to the prompt with the
+;;                     thunk of the body.  The next call of the
+;;                     generator goes back into the loop by `retry`.
+(define-syntaxes (for/amb for*/amb)
+  (let ()
+    (define-splicing-syntax-class break-clause
+      [pattern (~seq (~or* #:break #:final) guard:expr)])
+    (define ((make-for/amb for/vector for) stx)
+      (syntax-parse stx
+        [(_ (clause ...) break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           ((make-amb
+             (make-choice-generator
+              (λ (yield)
+                (#,for (clause ... break* ...)
+                  (yield (λ () body ...))))))))]
+        ;; The slots that no iteration fills hold `amb-fail`, and are
+        ;; cut off: the iterations are counted, so no value in the
+        ;; vector has to be told from an alternative.
+        [(_ #:length n (clause ...) break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
+                    (let* ([count 0]
+                           [thk* (#,for/vector #:length m #:fill amb-fail
+                                  (clause ... break* ...)
+                                  (set! count (add1 count))
+                                  (λ () body ...))])
+                      (if (= count (vector-length thk*))
+                          thk*
+                          (vector-copy thk* 0 count)))))))))]
+        [(_ #:length n #:fill fill-expr
+            (clause ...) break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
+                    (#,for/vector #:length m #:fill (λ () fill-expr)
+                     (clause ... break* ...) (λ () body ...))))))))]))
+    (values (make-for/amb #'for/vector  #'for)
+            (make-for/amb #'for*/vector #'for*))))
 
 ;; ---- in-amb* (function form) ----
 
-;; Validate the arguments before calling the private `in-amb*/do`:
-;; `thk` and `handler` (the empty handler, which answers `(amb)`) must
-;; be zero-arity procedures.  If they are not, call the contracted
-;; `in-amb*` only to raise its contract error; it never runs the search.
+;; Validate the arguments before calling the private `in-amb*/do`: `thk`
+;; must be a thunk, and the pause handler a thunk or #f.  If they are
+;; not, call the contracted `in-amb*` only to raise its contract error;
+;; it never runs the search.
 ;;
 ;; `check-args` is a macro, not a function, so that the contracted call
 ;; is part of the expansion at the use site: the module using `in-amb*`
 ;; is blamed, not this module.
-(define-syntax check-args
-  (syntax-rules ()
-    [(_ thk) (check-args thk amb-fail)]
-    [(_ thk handler)
-     (unless (and (procedure? thk)
-                  (procedure-arity-includes? thk 0)
-                  (procedure? handler)
-                  (procedure-arity-includes? handler 0))
-       (in-amb* thk handler))]))
+(define-syntax-rule (check-args thk handler)
+  (unless (and (procedure? thk)
+               (procedure-arity-includes? thk 0)
+               (or (not handler)
+                   (and (procedure? handler)
+                        (procedure-arity-includes? handler 0))))
+    (in-amb* thk handler)))
 
-;; `*in-amb*` is the public binding for `in-amb*`.
-;;
-;; As an expression: falls through to the contracted `in-amb*`,
-;; returning a lazy stream.
-;;
-;; Inside a `for` clause: validates the arguments (blaming the
-;; caller), then dispatches to `-in-amb*/do` for direct
-;; `make-do-sequence` iteration.
+;; `*in-amb*` is the public binding for `in-amb*`.  The function forms
+;; take the pause handler as an optional argument, not by keyword, as
+;; the empty handler of v2 was: a keyword argument costs at every call.
 (define-sequence-syntax *in-amb*
   (λ () #'in-amb*)
   (λ (stx)
     (syntax-parse stx
-      [[(id:id ...) (_ expr)]
+      [[(id:id ...) (_ expr (~optional handler-expr))]
+       #:with handler-e (or (attribute handler-expr) #'#f)
        (syntax/loc stx
          [(id ...)
-          (let ([thk expr])
-            (check-args thk)
-            (-in-amb*/do thk))])]
-      [[(id:id ...) (_ expr handler-expr)]
-       (syntax/loc stx
-         [(id ...)
-          (let ([thk expr] [handler handler-expr])
+          (let ([thk expr] [handler handler-e])
             (check-args thk handler)
             (-in-amb*/do thk handler))])])))
 
 
 ;; ---- in-amb (macro form) ----
 
-;; Transformer for the expression position: wraps the body in a thunk
-;; and calls the private `in-amb*`.
-(define-for-syntax (in-amb stx)
-  (syntax-parse stx
-    [(_ expr)
-     (syntax/loc stx
-       (-in-amb* (λ () expr)))]
-    [(_ expr #:empty-handler handler)
-     (syntax/loc stx
-       (in-amb* (λ () expr) handler))]))
-
 ;; `*in-amb` is the public binding for `in-amb`.
-;;
-;; As an expression: expands via `in-amb` above, returning
-;; a lazy stream.
-;;
-;; Inside a `for` clause: wraps the body in a thunk and dispatches
-;; directly to `-in-amb*/do`, bypassing stream construction entirely.
 (define-sequence-syntax *in-amb
-  in-amb
+  (λ (stx)
+    (syntax-parse stx
+      [(_ expr)
+       (syntax/loc stx (-in-amb* (λ () expr)))]
+      [(_ expr #:on-pause handler)
+       (syntax/loc stx (in-amb* (λ () expr) handler))]))
   (λ (stx)
     (syntax-parse stx
       [[(id:id ...) (_ expr)]
        (syntax/loc stx
-         [(id ...)
-          (-in-amb*/do (λ () expr))])]
-      [[(id:id ...) (_ expr #:empty-handler handler)]
+         [(id ...) (-in-amb*/do (λ () expr))])]
+      [[(id:id ...) (_ expr #:on-pause handler)]
        (syntax/loc stx
-         [(id ...)
-          (in-amb*/do (λ () expr) handler)])])))
+         [(id ...) (in-amb*/do (λ () expr) handler)])])))
 
 
 ;; ---- in-amb/do (macro form, sequence only) ----
 
-;; Unlike `in-amb`, this form always produces a `make-do-sequence`
-;; sequence (never a stream).  It is intended for use cases where
-;; the caller only needs `for`-style iteration and wants to avoid
-;; the overhead of lazy stream construction.
+;; Always the single-pass sequence, never a stream.
 (define-syntax (in-amb/do stx)
   (syntax-parse stx
     [(_ expr)
-     (syntax/loc stx
-       (in-amb*/do (λ () expr)))]
-    [(_ expr #:empty-handler handler)
-     (syntax/loc stx
-       (in-amb*/do (λ () expr) handler))]))
+     (syntax/loc stx (in-amb*/do (λ () expr)))]
+    [(_ expr #:on-pause handler)
+     (syntax/loc stx (in-amb*/do (λ () expr) handler))]))

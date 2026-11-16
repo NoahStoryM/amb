@@ -13,14 +13,23 @@
 Typed Racket interface for the [[https://docs.racket-lang.org/amb/index.html][amb]] library.
 
 Provides the same API as the untyped =amb= package with Typed Racket
-annotations.  Uses =typed/racket/base/shallow= for lower contract
-overhead at the typed-untyped boundary.
+annotations.  The front end is written in =typed/racket/base/shallow=,
+so that its macros expand in Deep, Shallow and Optional clients, and it
+imports the untyped implementations through a trusted
+=unsafe-require/typed/provide= boundary, without run-time contracts.
 
 * Usage
 
 #+begin_src racket
 (require typed/amb)
 #+end_src
+
+=typed/amb/base= and =typed/amb/merge= are the typed =amb/base= and
+=amb/merge=.
+
+=amb-local= is syntax for =(amb-local* (λ () expr))=.  The function
+=amb-local*= is imported from =amb= and keeps zero or multiple return
+values, so typed languages can reuse it without reproducing its macro.
 
 All forms (=amb=, =for/amb=, =in-amb=, etc.) work the same as in the
 untyped version.  =for/amb= additionally accepts optional type
@@ -35,6 +44,26 @@ annotations:
   x)
 ;; => '(1 2 3 4 5)
 #+end_src
+
+The types of the generator protocol:
+
+#+begin_src racket
+(define-type (Generatorof a)                 ; a: the type of an answer, a list
+  (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
+(define-type Merger                          ; keeps the types of the values
+  (∀ (a ...)
+    (→ (Generatorof (List a ... a))
+       (Generatorof (List a ... a))
+       (Generatorof (List a ... a)))))
+
+(: current-amb-merger (Parameter Merger))
+#+end_src
+
+A typed merger can drop, repeat and reorder answers and add pauses,
+but it cannot make up an answer, so an observer can give the elements
+of a search the type of its computation.  This is checked for mergers
+written in typed code.  An untyped merger or shuffler is trusted to
+preserve the types; see the documentation.
 
 * Dependencies
 

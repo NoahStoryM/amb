@@ -14,6 +14,10 @@
 John McCarthy's ambiguous operator for Racket, implemented via
 delimited continuations.
 
+This is version 3: a search is a merge of generators of events, and the
+search strategy is a value, the merger of a choice.  It is not
+compatible with version 2; see [[file:pkgs/amb/README.org][the package README]] for the changes.
+
 This repository contains two packages:
 
 - [[file:pkgs/amb/][amb]] — the core library

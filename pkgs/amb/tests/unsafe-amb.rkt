@@ -18,9 +18,13 @@
 ;;   - enumeration completeness across four strategy combinations
 ;; ===================================================================
 
+;; Ported to v3.  `unsafe-amb*` and its compaction of the vector are
+;; gone (a choice among a vector is `sequence->amb`), so sections 4-7
+;; now only check the answers of `for/amb #:length`.  CONFLICTS with v2
+;; are marked below and listed in v2-conflicts.rkt.
 (require racket/stream
          amb
-         (rename-in (only-in amb/private/amb unsafe-amb* thunks amb-fail)))
+         amb/merge)
 
 (define-syntax-rule (enum expr)          ; single-value computation → bare value list
   (stream->list (in-amb expr)))
@@ -178,9 +182,10 @@
                     (enum (amb (for/amb #:length 300 ([x '()]) x) 42))
                     '(42)))
 
+;; CONFLICT with v2 ("unsafe-amb*"): was (unsafe-amb* (vector)).
 (test "P7b"
-      (assert-equal "P7b: empty vector direct call to unsafe-amb*"
-                    (enum (amb (unsafe-amb* (vector)) 9))
+      (assert-equal "P7b: empty vector direct call to sequence->amb"
+                    (enum (amb ((sequence->amb (vector))) 9))
                     '(9)))
 
 (test "P7c"
@@ -191,9 +196,17 @@
 ;; -------------------------------------------------------------------
 ;; 9. Four strategy combinations: completeness + exact DFS order
 ;; -------------------------------------------------------------------
+;; CONFLICT with v2 ("strategy parameters"): the four combinations of
+;; `current-amb-depth-first?` and `current-amb-fair?` are replaced here
+;; by the four standard mergers.  They are not the same four strategies;
+;; the tests below only compare sets of answers.
+(define (merger df? fair?)
+  (cond [(and df? (not fair?)) amb-append]
+        [(and df? fair?) amb-alternate]
+        [(and (not df?) (not fair?)) amb-level]
+        [else amb-interleave]))
 (define (strategy-enum df? fair?)
-  (parameterize ([current-amb-depth-first? df?]
-                 [current-amb-fair? fair?])
+  (parameterize ([current-amb-merger (merger df? fair?)])
     (stream->list (in-amb (list (amb 'a 'b 'c) (amb 1 2))))))
 
 (test "P8"
@@ -213,18 +226,17 @@
 
 (printf "\nStrategy order comparison ((amb a b c) × (amb 1 2)):\n")
 (for* ([df? '(#t #f)] [fair? '(#t #f)])
-  (printf "  depth-first?=~a fair?=~a → ~a\n" df? fair?
+  (printf "  ~a → ~a\n" (object-name (merger df? fair?))
           (strategy-enum df? fair?)))
 
 ;; Deeper three-level tree, to make depth-first? differences visible
 (define (strategy-enum3 df? fair?)
-  (parameterize ([current-amb-depth-first? df?]
-                 [current-amb-fair? fair?])
+  (parameterize ([current-amb-merger (merger df? fair?)])
     (stream->list (in-amb (list (amb 'a 'b) (amb 1 2) (amb 'x 'y))))))
 
 (printf "\nThree-level tree strategy order comparison:\n")
 (for* ([df? '(#t #f)] [fair? '(#t #f)])
-  (printf "  depth-first?=~a fair?=~a → ~a\n" df? fair?
+  (printf "  ~a → ~a\n" (object-name (merger df? fair?))
           (strategy-enum3 df? fair?)))
 
 (test "P8c"
@@ -238,8 +250,7 @@
       (let ([expected (for/list ([i 1000]) i)])
         (assert-equal "P8d: large scale (1000 alt) four-strategy set consistency"
                       (for*/list ([df? '(#t #f)] [fair? '(#t #f)])
-                        (sort (parameterize ([current-amb-depth-first? df?]
-                                             [current-amb-fair? fair?])
+                        (sort (parameterize ([current-amb-merger (merger df? fair?)])
                                 (enum* (λ () (for/amb #:length 1000 ([i 1000]) i))))
                               <))
                       (list expected expected expected expected))))
@@ -251,8 +262,7 @@
       (let ([r (stream->list
                 (in-amb
                  (list (amb 'x 'y)
-                       (parameterize ([current-amb-depth-first? #f]
-                                      [current-amb-fair? #t])
+                       (parameterize ([current-amb-merger (merger #f #t)])
                          (amb 1 2 3)))))])
         (assert-equal "P9: subtree strategy switch doesn't lose solutions"
                       (list (length r) (sort (map cadr r) <))

@@ -4,63 +4,85 @@
 ;; Typed Front-End for `amb`
 ;; ===================================================================
 ;;
-;; This module provides the typed interface to the untyped core in
-;; `amb/private/amb`.  It uses `require/typed/provide` to re-export
-;; the untyped bindings with Typed Racket annotations, and defines
-;; typed versions of the syntactic forms (`amb`, `for/amb`, `in-amb`,
-;; etc.) that cannot be handled by `require/typed` alone.
+;; This module gives types to the public bindings of `amb/base`,
+;; `amb/merge` and `amb/main`, and defines typed versions of the
+;; syntactic forms (`amb`, `for/amb`, `in-amb`, ...), which cannot be
+;; imported with `require/typed`.  Runtime helpers shared with amb/main
+;; are imported from amb/private/choice; their implementations stay in
+;; the untyped package.
 ;;
-;; Uses `typed/racket/base/shallow` for lower contract overhead at the
-;; typed-untyped boundary.
+;; The untyped implementation is a trusted boundary: its own checks
+;; enforce the generator protocol, and these declarations supply static
+;; types without installing another layer of run-time contracts.
 
-(require (for-syntax racket/base syntax/parse))
+(require typed/racket/unsafe
+         (for-syntax racket/base syntax/parse)
+         racket/vector)
 
-(provide amb
-         for/amb for*/amb
-         in-amb  in-amb/do)
+(provide Generatorof Merger
+         amb amb-local
+         for/amb for*/amb)
 
 
-;; ---- Typed Re-Exports from the Untyped Core ----
+;; ---- The generator protocol ----
 ;;
-;; Each binding from `amb/private/amb` is annotated with its type.
+;; A merger preserves the complete list of an element's return values.
+;; The dotted variables fix that list's arity at each instantiation;
+;; `list?` therefore distinguishes an answer in typed implementations.
 ;;
-;; `thunks` and `unsafe-amb*` use `case→` to distinguish the empty
-;; case (an empty mutable vector: the choice is `(amb)` and does not
-;; return → ⊥) from a vector of thunks (their shared return type).
-;; Consumed slots are overwritten with `amb-fail` as a sentinel; since
-;; `amb-fail` is itself a procedure, this is type-compatible with
-;; `(Mutable-Vectorof (→ ...))`.
-;;
-;; `in-amb*` and `in-amb*/do` take an optional empty handler; the
+;; Unsafe imports below trust our untyped implementation to preserve
+;; these types. Protocol checks alone do not establish parametricity
+;; for arbitrary untyped mergers supplied by clients.
+(define-type (Generatorof a)
+  (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
+(define-type Merger
+  (∀ (a ...)
+     (→ (Generatorof (List a ... a))
+        (Generatorof (List a ... a))
+        (Generatorof (List a ... a)))))
+
+(define-type ⊥ Nothing)
+
+
+;; ---- Typed Re-Exports ----
+
+(unsafe-require/typed/provide amb/merge
+  [amb-append     Merger]
+  [amb-interleave Merger]
+  [amb-alternate  Merger]
+  [amb-level      Merger])
+
+;; `in-amb*` and `in-amb*/do` take an optional pause handler; the
 ;; sequence type is the union of the body's type and the handler's.
-;;
-;; `make-amb-tree` returns `(Values)` (zero values) because the first
-;; call shifts out and never returns; on resumption the continuation
-;; produces no useful value — the amb tree's state is managed
-;; internally.
-(require/typed/provide amb/private/amb
-  [thunks
-   (∀ (a ...)
-      (case→ (→ (Mutable-Vector))
-             (→ (→ (Values a ... a))
-                (→ (Values a ... a))
-                *
-                (Mutable-Vectorof (→ (Values a ... a))))))]
-  [unsafe-amb*
-   (∀ (a ...)
-      (case→ (¬ (Mutable-Vector))
-             (→ (Mutable-Vectorof (→ (Values a ... a)))
-                (Values a ... a))))]
+(unsafe-require/typed/provide amb
   [make-amb
    (∀ (a ...)
-      (→ (→ Boolean) (→ (Values a ... a))
+      (→ (Generatorof (List a ... a))
+         (Values a ... a)))]
+  [amb-generate*
+   (∀ (a ...)
+      (→ (→ (Values a ... a))
+         (Values (∪ (List a ... a) #f Positive-Integer)
+                 (Generatorof (List a ... a)))))]
+  [amb-fail  (→ ⊥)]
+  [amb-pause (→ Void)]
+  [call-with-amb-mark
+   (∀ (a ...)
+      (case→ (→ (→ ⊥) ⊥)
+             (→ (→ (Values a ... a)) (Values a ... a))))]
+  [current-amb-merger   (Parameter Merger)]
+  [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
+  [sequence->amb
+   (∀ (a ...)
+      (→ (Sequenceof a ... a)
+         (Values a ... a)))]
+  [amb-local*
+   (∀ (a ...)
+      (→ (→ (Values a ... a))
          (Values a ... a)))]
   [in-amb*
-   ;; With an empty handler: the sequence type is the union of the
-   ;; body's type and the handler's; the default handler, amb-fail,
-   ;; returns ⊥.
    ;; The type variables c and d come first, so an explicit
-   ;; instantiation must now supply them: (inst in-amb* c d a ...).
+   ;; instantiation must supply them: (inst in-amb* c d a ...).
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
@@ -70,11 +92,6 @@
              (→ (→ (Values a ... a)) (→ (Values a ... a))
                 (Sequenceof a ... a))))]
   [in-amb*/do
-   ;; With an empty handler: the sequence type is the union of the
-   ;; body's type and the handler's; the default handler, amb-fail,
-   ;; returns ⊥.
-   ;; The type variables c and d come first, so an explicit
-   ;; instantiation must now supply them: (inst in-amb* c d a ...).
    (∀ (c d a ...)
       (case→ (→ (→ ⊥)
                 (∀ (b ...) (Sequenceof b ... b)))
@@ -82,210 +99,141 @@
                 (Sequenceof a ... a))
              (→ (→ c) (→ d) (Sequenceof (∪ c d)))
              (→ (→ (Values a ... a)) (→ (Values a ... a))
-                (Sequenceof a ... a))))]
-  [current-amb-depth-first? (Parameter Boolean)]
-  [current-amb-fair?        (Parameter Boolean)]
-  [current-amb-shuffler     (Parameter (→ Mutable-VectorTop Void))]
-  [unsafe-fail (→ ⊥)]
-  [amb-empty-handler (→ ⊥)]
-  [amb-fail    (→ ⊥)]
-  [make-amb-tree (→ (Values))])
-
-(require/typed/provide amb/private/data/mutable-vector
-  [empty-mutable-vector (Mutable-Vector)])
+                (Sequenceof a ... a))))])
 
 
-;; ---- Aliases ----
+;; ---- Shared runtime support for the syntax ----
 
-(define-for-syntax (append* v**) (apply append v**))
+(unsafe-require/typed/provide amb/private/choice
+  [thunks
+   (∀ (a ...)
+      (→ (→ (Values a ... a))
+         (→ (Values a ... a))
+         *
+         (Mutable-Vectorof (→ (Values a ... a)))))]
+  [choose
+   (∀ (a ...)
+      (→ (Mutable-Vectorof (→ (Values a ... a)))
+         (→ (Values a ... a))))]
+  [choose-none (→ ⊥)]
+  [make-choice-generator
+   (∀ (a) (→ (→ (→ a Void) Void) (Generatorof (List a))))])
 
-(define-type ⊥ Nothing)
-(define-type (¬ a) (→ a ⊥))
-
-(define call/prompt call-with-continuation-prompt)
-(define abort/cc abort-current-continuation)
+;; Use the typed procedure binding, just as the untyped syntax does.
+(provide with-amb-mark)
+(define-syntax-rule (with-amb-mark e)
+  (call-with-amb-mark (λ () e)))
 
 
 ;; ---- amb Syntax ----
 
-;; Wraps each expression in a thunk and delegates to `unsafe-amb*`.
-;; Identical to the untyped version; defined here so that it
-;; expands in a typed context.
-(define-syntax (amb stx)
-  (syntax-parse stx
+(define-syntax amb
+  (syntax-rules ()
     [(_)
-     (syntax/loc stx (amb-empty-handler))]
+     (choose-none)]
     [(_ expr* ...)
-     (syntax/loc stx (unsafe-amb* (thunks (λ () expr*) ...)))]))
+     ((choose (thunks (λ () expr*) ...)))]))
+
+
+;; ---- amb-local Syntax ----
+
+;; Identical to the untyped version; defined here so that it expands in
+;; a typed context.
+(define-syntax-rule (amb-local expr)
+  (amb-local* (λ () expr)))
 
 
 ;; ---- for/amb: Nondeterministic Choice over Sequences ----
 ;;
-;; The typed `for/amb` is substantially more complex than the
-;; untyped version because Typed Racket needs explicit type
-;; annotations to check the vector and thunk types.
-;;
 ;; Three syntax patterns are supported:
 ;;
 ;;   (for/amb : T₁ #:length n (clauses ...) : T₂ body ...)
-;;     Known iteration count — collects thunks into a typed
-;;     `(Mutable-Vectorof (→ T₁))` via `for/vector`, then
-;;     delegates to `unsafe-amb*`.  `T₁` is the outer result
-;;     type; `T₂` is the body type (must be a subtype of `T₁`).
+;;     The alternatives are collected first, as by `for/vector`: at
+;;     most n of them.  `T₁` is the outer result type; `T₂` is the body
+;;     type (must be a subtype of `T₁`).
 ;;
 ;;   (for/amb : T₁ (clauses ...) : T₂ body ...)
-;;     Unknown iteration count — creates a fresh prompt tag
-;;     typed as `(Prompt-Tagof (→ T₁) ...)` and uses `call/cc`
-;;     + `abort/cc` to yield body thunks one at a time.  The
-;;     fresh tag (rather than the shared `return-prompt-tag`)
-;;     is necessary because each `for/amb` site may have a
-;;     different result type `T₁`.
+;;     The iterations go on as the search does.
 ;;
 ;;   (for/amb (clauses ...) body ...)
-;;     No type annotations — defaults to `AnyValues` for both
-;;     `T₁` and `T₂`, and re-dispatches to one of the above.
+;;     No type annotations — defaults to `AnyValues` for both `T₁` and
+;;     `T₂`, and re-dispatches to one of the above.
 ;;
-;; The `type` syntax class normalizes `(Values T₁ T₂ ...)` and
-;; bare `T` into a uniform `ts` attribute for splicing.
+;; Result annotations, including `(Values T₁ T₂ ...)`, are put directly
+;; on the body thunks and their vector or producer.
 ;;
 ;; Two compilation strategies:
 ;;
-;; 1. With `#:length` — Collect body thunks into a typed vector via
-;;    `for/vector`, then delegate to `unsafe-amb*`.  The optional
-;;    `#:fill` thunk is annotated as `(→ T₁)` to enforce that it is a
-;;    subtype of the outer result type.  Without `#:fill`, `amb-fail`
-;;    is used as the fill value (a procedure, so type-compatible with
-;;    the vector element type).  A length of 0 gives an empty vector,
-;;    which `unsafe-amb*` treats as `(amb)`.
+;; 1. With `#:length` — Collect the body thunks into a typed vector via
+;;    `for/vector`, counting the iterations; the slots that no
+;;    iteration fills hold `amb-fail` and are cut off.  With `#:fill`,
+;;    they are alternatives; the fill thunk is annotated as `(→ T₁)`.
 ;;
-;; 2. Without `#:length` — Create a fresh prompt tag typed for this
-;;    specific result type.  `retry` is typed as `(∪ False (¬ False))`
-;;    — either #f (not yet captured) or an escape continuation that
-;;    accepts #f to advance the loop.
-;;
-;;    `(let ([retry retry])` re-binds `retry` in a local scope so that
-;;    Typed Racket can narrow its type after `when`.
-;;    `started?` records whether the loop has produced an alternative:
-;;    a loop with no iterations is `(amb)`, one that runs out later is
-;;    a dead end.
+;; 2. Without `#:length` — As in the untyped `for/amb`, the loop is a
+;;    coroutine, which is the generator of `make-amb`.  The
+;;    loop runs under a prompt of its own; at each iteration it captures
+;;    its continuation as `retry` and aborts to the prompt with the body
+;;    thunk.  The next call of the generator re-enters the loop through
+;;    `retry`.
 
 (define-syntaxes (for/amb for*/amb)
   (let ()
-    (define-syntax-class type
-      [pattern ((~or* (~literal Values)
-                      (~literal values))
-                t*:expr ...)
-               #:with ts #'(t* ...)]
-      [pattern t:expr
-               #:with ts #'(t)])
     (define-splicing-syntax-class length-clause
       [pattern (~seq #:length n:expr (~optional (~seq #:fill fill:expr)))])
     (define-splicing-syntax-class break-clause
       [pattern (~seq (~or* #:break #:final) guard:expr)])
-    (define (make-for/amb for/vector for)
-      (define (parser stx)
-        (syntax-parse stx
-          #:datum-literals (: values Values)
-          [(name
-            : t1:type
-            #:length n (~optional (~seq #:fill fill-expr))
-            (clauses ...)
-            : t2:type
-            break-expr:break-clause ...
-            body ...+)
-           #:with fill
-           (if (attribute fill-expr)
-               #'(ann (λ () : t2 fill-expr) (→ t1)) ; ensure `t2 <: t1`
-               #'amb-fail)
-           #:do
-           [(define break
-              (if (attribute break-expr)
-                  (append* (map syntax->list
-                                (syntax->list #'(break-expr ...))))
-                  '()))]
-           (quasisyntax/loc stx
-             (unsafe-amb*
-              (let ([m n])
-                (if (zero? m)
-                    (ann empty-mutable-vector (Mutable-Vectorof (→ t1)))
+    (define ((make-for/amb for/vector for) stx)
+      (syntax-parse stx
+        #:datum-literals (:)
+        [(_ : t1:expr (clause ...) : t2:expr break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (((inst make-amb (→ t1))
+             ((inst make-choice-generator (→ t1))
+              (λ (yield)
+                (#,for (clause ... break* ...)
+                  (yield (ann (λ () : t2 body ...) (→ t1)))))))))]
+        [(_ : t1:expr #:length n (clause ...) : t2:expr
+            break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
+                    (let* ([count : Integer 0]
+                           [thk* (#,for/vector
+                                  : (Mutable-Vectorof (→ t1))
+                                  #:length m #:fill amb-fail
+                                  (clause ... break* ...)
+                                  (set! count (add1 count))
+                                  (ann (λ () : t2 body ...) (→ t1)))])
+                      (if (= count (vector-length thk*))
+                          thk*
+                          (vector-copy thk* 0 count)))))))))]
+        [(_ : t1:expr #:length n #:fill fill-expr
+            (clause ...) : t2:expr break:break-clause ... body ...+)
+         #:with (break* ...) #'((~@ . break) ...)
+         (quasisyntax/loc stx
+           (let ([m (with-amb-mark n)])
+             (if (eqv? m 0)
+                 (choose-none)
+                 ((choose
+                   (with-amb-mark
                     (#,for/vector
                      : (Mutable-Vectorof (→ t1))
-                     #:length m #:fill fill
-                     (clauses ...)
-                     : (→ t2)
-                     #,@break
-                     (define (alt) : t2 body ...)
-                     (ann alt (→ t1)))))))]
-          [(_ : t1:type (clauses ...) : t2:type break-expr:break-clause ... body ...+)
-           #:do
-           [(define break
-              (if (attribute break-expr)
-                  (append* (map syntax->list
-                                (syntax->list #'(break-expr ...))))
-                  '()))]
-           (quasisyntax/loc stx
-             ((let ([prompt-tag ((inst make-continuation-prompt-tag
-                                       (→ t1) (→ (→ t1) (→ t1))))])
-                (call/prompt
-                 (λ ()
-                   (: retry (∪ False (¬ False)))
-                   (define retry #f)
-                   (define started? : Boolean #f)
-                   (make-amb-tree)
-                   ;; resumed after (amb) was answered: a dead end, as in
-                   ;; the untyped version
-                   (let ([retry retry])
-                     (cond
-                       [retry (retry #f)]
-                       [started? (unsafe-fail)]))
-                   (#,for (clauses ...) #,@break
-                    (define choice
-                      (call/cc (inst values (¬ False)) prompt-tag))
-                    (when choice
-                      (define (alt) : t2 body ...)
-                      (set! retry choice)
-                      (set! started? #t)
-                      (abort/cc prompt-tag alt)))
-                   (set! retry #f)
-                   ;; no alternative at all: this for/amb is (amb)
-                   (cond
-                     [started? (unsafe-fail)]
-                     [else (set! started? #t) (amb-empty-handler)]))
-                 prompt-tag
-                 (inst values (→ t1))))))]
-          [(~or* (name : t0:type (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+)
-                 (name (~optional length:length-clause) (clauses ...) : t0:type break-expr:break-clause ... body ...+)
-                 (name (~optional length:length-clause) (clauses ...) break-expr:break-clause ... body ...+))
-           #:with t (if (attribute t0) #'t0 #'AnyValues)
-           #:with (maybe-length ...) (if (attribute length) #'length #'())
-           #:do
-           [(define break
-              (if (attribute break-expr)
-                  (append* (map syntax->list
-                                (syntax->list #'(break-expr ...))))
-                  '()))]
-           (parser
-            (quasisyntax/loc stx
-              (name : t maybe-length ... (clauses ...) : t #,@break body ...)))]))
-      parser)
+                     #:length m #:fill (ann (λ () : t2 fill-expr) (→ t1))
+                     (clause ... break* ...)
+                     (ann (λ () : t2 body ...) (→ t1)))))))))]
+        [(~or* (name : t0:expr (~optional length:length-clause) (clause ...) break:break-clause ... body ...+)
+               (name (~optional length:length-clause) (clause ...) : t0:expr break:break-clause ... body ...+)
+               (name (~optional length:length-clause) (clause ...) break:break-clause ... body ...+))
+         #:with t (if (attribute t0) #'t0 #'AnyValues)
+         #:with (maybe-length ...) (if (attribute length) #'length #'())
+         #:with (break* ...) #'((~@ . break) ...)
+         ((make-for/amb for/vector for)
+          (quasisyntax/loc stx
+            (name : t maybe-length ... (clause ...) : t break* ... body ...)))]))
     (values (make-for/amb #'for/vector  #'for)
             (make-for/amb #'for*/vector #'for*))))
-
-
-;; ---- in-amb / in-amb/do Syntax ----
-
-;; Wrap the expression in a thunk and delegate to `in-amb*` or
-;; `in-amb*/do`.  Identical to the untyped versions; defined here
-;; so that they expand in a typed context.
-(define-syntaxes (in-amb in-amb/do)
-  (let ()
-    (define ((make derived-stx) stx)
-      (syntax-parse stx
-        [(_ expr)
-         (quasisyntax/loc stx
-           (#,derived-stx (λ () expr)))]
-        [(_ expr #:empty-handler handler)
-         (quasisyntax/loc stx
-           (#,derived-stx (λ () expr) handler))]))
-    (values (make #'in-amb*)
-            (make #'in-amb*/do))))
