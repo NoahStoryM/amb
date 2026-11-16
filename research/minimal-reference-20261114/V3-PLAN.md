@@ -174,7 +174,7 @@ current-amb-merger : (Parameter Merger)
 - `make-amb next`：在执行时捕获后续 k，读取并固定当前的 `current-amb-merger`。对供应者交出的每组值 v，分支是 `(λ () (apply k v))`，各分支按原始右折叠交给 merger。供应者的暂停作为选择点的暂停原样交出；供应结束则交出 `#f`，不经过 merger。
 - `sequence->amb seq` ≡ `(make-amb (λ () (sequence-generate* seq)))`。
 - `amb`：把备选包成 thunk 放进宏新建的向量，调用一次 shuffler，再由 `make-amb` 和私有的 `mutable-vector-generate*` 供应（取走即清空槽位，长向量压缩；§11），并在后续中调用选中的 thunk。不提前执行任何备选。事件与交给 `sequence->amb` 相同，但不经过它。
-  - `(amb)`：调用 shuffler（空向量）之后走 `choose-none`，即 `amb-fail`，不经过 `make-amb`。语义与 `(amb-fail)` 相同，与 merger 是否有单位律无关；也因此不捕获续延（§9）。
+  - `(amb)` 和空的 `for/amb` 是选择，与非空选择一致：调用 shuffler（空向量）之后由 `make-amb` 供应，供应一开始就结束。事件与 `(amb-fail)` 相同，与 merger 是否有单位律无关（空供应不经过 merger）；但与所有选择一样捕获续延（§9）。在意失败开销或屏障的代码用 `amb-fail`。
   - 每个向量选择恰好调用一次 shuffler，包括空向量和单元素向量。shuffler 必须接受空向量，这是相对 v2 的行为变化。shuffler 算作供应阶段（§9）。两个前端在五种零长度情形下都遵守这一点：`(amb)`、`#:length 0`、`#:length 0 #:fill e`、`for*/amb #:length 0`、长度非零但循环零次。
 - `for/amb`、`for*/amb`：通过原生 sequence 供应主体 thunk。
   - 有 `#:length` 时用向量，与 `amb` 一致。没填满的槽按迭代次数截掉，不是备选，也不交给 shuffler；不靠比较哨兵值识别它们。理由：把它们当作失败的备选，`#:length` 给大了每次选择都要多合并几次，而且在没有单位律的 merger 下可见。
@@ -205,7 +205,7 @@ current-amb-merger : (Parameter Merger)
 - 完整的独立嵌套搜索允许。**搜索边界保护的是该搜索的主体，以及它捕获的续延**：`amb-generate*` 的初始 prompt，和恢复续延时自带的 prompt。不按函数身份特判"这个 next 是 reify 出来的"。
 - **控制：shift0。** 效应把续延捕获到最近的搜索边界，离开这个搜索，在它之外运行自己的代码；恢复续延时，它在自己的 prompt 中运行，所以续延里的下一个效应仍由它自己的搜索处理。因此，解释选择的宿主代码——供应，以及 merger（从第一次调用起）——在被处理的搜索之外运行：第一次由搜索的调用者调用（效应已经离开搜索），之后由请求下一个事件的人调用。两者遵循同一归属规则，但不必看见同一动态环境（例如后来的请求可能在另一个 parameterize 下）。供应者仍受 `with-amb-mark` 限制。这是明确选定的宿主控制边界，不是对 shift 实现的全观察等价替换；纯事件方程不变（[讨论](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904647099)）。
 - 实现约束：这个 tag 的 prompt 一律由 `in-search` 安装，handler 调用 abort 传来的 thunk、不重新安装 prompt（`private/tag.rkt`、`private/core.rkt` 注明）。这是实现内部的约定，不是抵御刻意 require 私有模块的代码的安全边界。
-- **失败不捕获续延。** `amb-fail` 直接 abort 到搜索，所以它与搜索之间的续延屏障（例如 `raise` 调用的异常 handler 周围的屏障）不阻止它；选择和暂停捕获续延，遇到屏障报错。空选择的纯搜索结果都是失败，但在屏障下不保证所有构造空选择的方法都与 `amb-fail` 等价：`(amb)` 走 `amb-fail`，`(sequence->amb '())` 等经 `make-amb` 的空供应会捕获续延。
+- **失败不捕获续延。** `amb-fail` 直接 abort 到搜索，所以它与搜索之间的续延屏障（例如 `raise` 调用的异常 handler 周围的屏障）不阻止它；选择和暂停捕获续延，遇到屏障报错。空选择（`(amb)`、空的 `for/amb`、`(sequence->amb '())`）的纯搜索结果都是失败，但它们是选择，经 `make-amb` 捕获续延，屏障下报错；只有 `amb-fail` 不捕获。
 - 这个保证**不**延伸到运行 next 的全部代码。`make-amb` 返回的余生成器、自定义 merger 返回的生成器，本身没有搜索边界；供应者和自定义 merger 的宿主代码，从第一次调用起都按调用者的动态环境执行（见上一条）。若要让任意 next 中的效应都属于内层搜索，需要另设计覆盖整个恢复过程的边界，v3.0 不提供。
 - 有 `#:length` 的形式在选择点一次性收集全部备选，所以即使只取第一个答案，后面某一行子句有效应也会报错；无长度的形式到那一行才报。这符合两者的供应时机，不要求一致。
 - `#:on-pause` 的 handler 在被观察的搜索之外、观察者的环境中运行，不额外检查；观察者本身处在供应阶段时，那里的规则照常适用。
@@ -245,7 +245,7 @@ current-amb-merger : (Parameter Merger)
 
 ## 11. 实施状态
 
-实现在 PR #24（分支 `v3`，到 `5f8b793`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
+实现在 PR #24（分支 `v3`，到 `1c47e90`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
 
 已完成：
 
@@ -268,7 +268,7 @@ current-amb-merger : (Parameter Merger)
 
 待做：
 
-1. Astra 复核：全部通过。amb 到 `cb0b2ec`（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6905070265)，含槽位释放、压缩、报错信息和控制原语；之后的 `5f8b793` 只按复核意见改了一处注释），ambKanren#17 到 `eb554ad`（[comment](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6905076028)，含局部 bind）。
+1. Astra 复核：全部通过。amb 到 `cb0b2ec`（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6905070265)，含槽位释放、压缩、报错信息和控制原语；之后的 `5f8b793` 只按复核意见改了一处注释），ambKanren#17 到 `eb554ad`（[comment](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6905076028)，含局部 bind）。待复核：amb 的 `1c47e90`（空选择改为经 `make-amb`；控制原语用 racket/control 的别名），ambKanren 的 `51abaa3`（失败改用 `amb-fail`）。
 2. 发布：合并 PR #24 → 包目录更新到 3.0 → ambKanren 的 CI 改回从包目录安装 → 合并 ambKanren#17。
 3. 处理 ambKanren 中较早的 PR #16（lawful-search）和 #15（研究草稿）：确认是否已被 #17 取代。
 4. 旧 PR #10、#13–#21、#23 与 issue #11：关闭，分支保留；#22 在 PR #24 合并后关闭。
