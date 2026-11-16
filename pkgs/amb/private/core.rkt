@@ -29,8 +29,7 @@
 ;; prompt again; that is what puts the code of an effect outside the
 ;; search.  The prompts are installed nowhere else.
 
-(require (for-syntax racket/base)
-         "tag.rkt"
+(require "tag.rkt"
          "generator.rkt"
          (only-in "../merge.rkt" amb-append))
 
@@ -120,9 +119,14 @@
   (in-search (λ () (values (call-with-values thk list) end))))
 
 ;; The names of racket/control for the primitives of racket/base.
-(define-syntax call/prompt (make-rename-transformer #'call-with-continuation-prompt))
-(define-syntax call/comp (make-rename-transformer #'call-with-composable-continuation))
-(define-syntax abort/cc (make-rename-transformer #'abort-current-continuation))
+(define call/prompt call-with-continuation-prompt)
+(define call/comp call-with-composable-continuation)
+(define abort/cc abort-current-continuation)
+
+;; (let/comp k body ...) binds k to the composable continuation up to
+;; the nearest search, as let/cc does for call/cc.
+(define-syntax-rule (let/comp k body ...)
+  (call/comp (λ (k) body ...) amb-prompt-tag))
 
 ;; (in-search thk) calls (thk) in a prompt of a search.  An abort to it
 ;; removes it, and calls the thunk of the abort in its place.
@@ -137,9 +141,8 @@
 ;; must resume it with `resume`, or inside `in-search`, so that the
 ;; computation goes on in a search of its own.
 (define (leave-search proc)
-  (call/comp
-   (λ (k) (abort/cc amb-prompt-tag (λ () (proc k))))
-   amb-prompt-tag))
+  (let/comp k
+    (abort/cc amb-prompt-tag (λ () (proc k)))))
 
 ;; (resume k vs) resumes k with the values vs, in a search of its own.
 (define (resume k vs)
