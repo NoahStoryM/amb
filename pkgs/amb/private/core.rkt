@@ -128,8 +128,9 @@
 
 ;; (leave-search proc) captures the continuation k of the current
 ;; effect up to the nearest search, leaves that search, and calls
-;; (proc k) there; (k v ...) resumes the computation in a search of its
-;; own.
+;; (proc k) there.  k is the bare composable continuation: the caller
+;; must resume it with `resume`, or inside `in-search`, so that the
+;; computation goes on in a search of its own.
 (define (leave-search proc)
   (call-with-composable-continuation
    (λ (k)
