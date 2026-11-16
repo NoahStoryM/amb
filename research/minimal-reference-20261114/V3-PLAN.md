@@ -123,7 +123,7 @@ current-amb-merger : (Parameter Merger)
 
 协议要求保证 merger 在等价类上有定义；可选代数律是等价类上的额外等式。依赖这些规律的化简或优化，只能用在已知满足它们的策略上，不能作用于任意 merger。代数律只给出 `≈` 意义下的化简，**不自动保持源调用轨迹**：例如先调用右侧 empty、再原样运行左侧的 merger，满足右单位律，却多调用了一次源。库内优化若承诺 §3 的较强标准，还要另证调用轨迹不变。
 
-**merger 中的效应。** merger 里调用 `amb`、`amb-fail`、`amb-pause` 不在保证之内，也不属于 merger 的数学模型：同一行代码的效应归属取决于它是第几次合并（第一次在选择点、被观察搜索的 prompt 内调用，之后的在观察者那边调用）。文档直接写明：不要这样写。
+**merger 中的效应。** merger 里调用 `amb`、`amb-fail`、`amb-pause` 不在保证之内，也不属于 merger 的数学模型。按 §9 的控制边界，merger 从第一次调用起都在被合并的搜索之外运行：第一次由搜索的调用者调用（效应已离开搜索），之后由请求下一个事件的人调用；这样的效应从不属于被合并的搜索，而属于调用者周围的搜索（若有），merger 无从得知是哪一个。文档直接写明：不要这样写。
 
 **原始右折叠。** 对供应 a、b 后结束的选择，固定捕获的 k 和该选择点的 μ，`make-amb` 的结果是 `μ(K_a, μ(K_b, empty))`，其中内层 μ 在右支被请求时才构造和调用。供应中的暂停留在原位：供应 `a, 2, b, #f` 对应 `μ(K_a, P²(μ(K_b, empty)))`。
 
@@ -174,7 +174,7 @@ current-amb-merger : (Parameter Merger)
 - `make-amb next`：在执行时捕获后续 k，读取并固定当前的 `current-amb-merger`。对供应者交出的每组值 v，分支是 `(λ () (apply k v))`，各分支按原始右折叠交给 merger。供应者的暂停作为选择点的暂停原样交出；供应结束则交出 `#f`，不经过 merger。
 - `sequence->amb seq` ≡ `(make-amb (λ () (sequence-generate* seq)))`。
 - `amb`：把备选包成 thunk 放进宏新建的向量，调用一次 shuffler，再由 `make-amb` 和私有的 `mutable-vector-generate*` 供应（取走即清空槽位，长向量压缩；§11），并在后续中调用选中的 thunk。不提前执行任何备选。事件与交给 `sequence->amb` 相同，但不经过它。
-  - `(amb)` 和空的 `for/amb` 是选择，与非空选择一致：调用 shuffler（空向量）之后由 `make-amb` 供应，供应一开始就结束。事件与 `(amb-fail)` 相同，与 merger 是否有单位律无关（空供应不经过 merger）；但与所有选择一样捕获续延（§9）。在意失败开销或屏障的代码用 `amb-fail`。
+  - `(amb)` 和空的 `for/amb` 是选择，与非空选择一致，都由 `make-amb` 供应，供应一开始就结束。向量形式（`(amb)`、有 `#:length` 的 `for/amb`）先调用一次 shuffler（空向量）；无长度的 `for/amb` 走协程供应，从不调用 shuffler，零次迭代时也一样。事件与 `(amb-fail)` 相同，与 merger 是否有单位律无关（空供应不经过 merger）；但与所有选择一样捕获续延（§9）。在意失败开销或屏障的代码用 `amb-fail`。
   - 每个向量选择恰好调用一次 shuffler，包括空向量和单元素向量。shuffler 必须接受空向量，这是相对 v2 的行为变化。shuffler 算作供应阶段（§9）。两个前端在五种零长度情形下都遵守这一点：`(amb)`、`#:length 0`、`#:length 0 #:fill e`、`for*/amb #:length 0`、长度非零但循环零次。
 - `for/amb`、`for*/amb`：通过原生 sequence 供应主体 thunk。
   - 有 `#:length` 时用向量，与 `amb` 一致。没填满的槽按迭代次数截掉，不是备选，也不交给 shuffler；不靠比较哨兵值识别它们。理由：把它们当作失败的备选，`#:length` 给大了每次选择都要多合并几次，而且在没有单位律的 merger 下可见。
