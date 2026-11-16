@@ -10,7 +10,9 @@
 (provide amb-prompt-tag amb-mark-key)
 
 ;; The boundary of a search: every effect is delimited by the nearest
-;; prompt with this tag.
+;; prompt with this tag.  All of them are installed by `in-search` of
+;; private/core.rkt, with a handler that does not install the prompt
+;; again; the effects depend on that.
 (define amb-prompt-tag (make-continuation-prompt-tag 'amb))
 
 ;; The mark of the code that supplies the alternatives of a choice: an

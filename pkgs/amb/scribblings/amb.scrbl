@@ -231,6 +231,15 @@ generated as the search goes on.  The sequence may be infinite.
 @defproc[(amb-fail) none/c]{
 Failure: the computation ends here, with no answer.
 
+Nothing of the computation is resumed, so @racket[amb-fail] does not
+capture its continuation: a continuation barrier between it and its
+search, such as the one around an exception handler that
+@racket[raise] calls, does not stop it.  A choice and a pause capture
+theirs, and a barrier stops them.  A choice with no alternatives also
+ends the computation, but only @racket[amb-fail] is sure not to
+capture: @racket[(sequence->amb '())] is a choice of
+@racket[make-amb], and captures as every choice does.
+
 @amb-examples[
 (stream->list (in-amb (amb 1 (amb-fail) 2)))
 ]
@@ -591,11 +600,12 @@ of it.
       next.}
 @item{@bold{It has no effects of a search.}  A merger must not call
       @racket[amb], @racket[amb-pause], @racket[amb-fail] or any other
-      choice.  A merger is called by whoever asks the merged generator
-      for an event, not by the search that it merges in; which search
-      such an effect would belong to, if any, depends on when the
-      merger happens to be called, and is not defined.  A merger
-      pauses by returning a number.}
+      choice.  A merger runs outside the search that it merges in,
+      the first time too: it is called by the caller of that search,
+      and then by whoever asks the merged generator for an event.  Such
+      an effect is never one of the search that the merger merges in;
+      it belongs to whatever search is around the caller, if any, which
+      a merger cannot know.  A merger pauses by returning a number.}
 ]
 
 Here is @racket[amb-interleave], written out; it is the pattern of a
@@ -785,9 +795,15 @@ refuse are still those of the search around it.
 }
 
 What is protected is the body of a search and the continuations that
-it captures.  Other code that runs when a generator is called, a
-merger in particular, runs in the dynamic context of whoever calls the
-generator; see @secref["mergers"].
+it captures.  The code that interprets a choice runs outside the
+search: an effect leaves its search before that code runs, and only
+the continuation of the effect, when it is resumed, is in a search
+again.  So the supply of a choice, and its merger from the first call
+on, run in the dynamic context of whoever calls them: the first time,
+the caller of the search, and then whoever asks for the next event.
+They follow the same rule, but need not see the same context.  An
+effect in a merger is an effect of the search around that caller, if
+there is one; see @secref["mergers"].
 
 The handler of @racket[#:on-pause] runs outside the search that it
 observes.  An effect in it is an effect of the search around the

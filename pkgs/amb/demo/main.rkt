@@ -3,6 +3,12 @@
 ;; A small, independent choice-as-merge kernel for study and exposition.
 ;; Adapted from research/minimal-reference-20261114/demo.rkt (2613c43).
 ;; Supply effects and exception recovery are left to the full library.
+;;
+;; The kernel uses shift and reset of racket/control, to show the
+;; equations of the events.  It is not a reference for where the full
+;; library runs host code: there, an effect leaves its search before
+;; the code that interprets a choice runs (shift0), and amb-fail does
+;; not capture its continuation (see private/core.rkt).
 
 (require (for-syntax racket/base)
          racket/control

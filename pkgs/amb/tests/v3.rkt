@@ -372,17 +372,18 @@
   (check-equal? (get*) 'x))
 
 (test-case "an effect in a merger is not an effect of the search that it merges"
-  ;; The merger pauses before it calls its generators.  The pause is an
-  ;; effect of whatever search the merged generator is called in, and
-  ;; that is not a guarantee of anything: the first merge of a choice is
-  ;; called where the choice was made, in the search; the others are
-  ;; called by whoever asks for the next event.
+  ;; The merger pauses before it calls its generators.  The code that
+  ;; interprets a choice runs outside the search that it serves, so the
+  ;; pause is an effect of whatever search the merged generator is
+  ;; called in: the first merge of a choice is called by the caller of
+  ;; the search, after the effect left it, and the others by whoever
+  ;; asks for the next event.
   (define ((pausing s t)) (amb-pause) ((amb-append s t)))
   ;; (amb 1 2) is two merges.  The observer is not in a search:
   (check-exn #rx"amb-pause: not in a search"
              (λ () (with pausing (events (amb 1 2)))))
-  ;; it is in a search: that one pauses for the second merge
-  (check-equal? (events (with pausing (events (amb 1 2)))) '(P (P 1 2)))
+  ;; it is in a search: that one pauses for both merges
+  (check-equal? (events (with pausing (events (amb 1 2)))) '(P P (1 2)))
   ;; a supplier
   (check-exn #rx"amb-pause: not allowed while the alternatives of a choice are supplied"
              (λ () (events (sequence->amb (in-amb/do (with pausing (amb 1 2))))))))

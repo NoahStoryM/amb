@@ -17,9 +17,19 @@
 ;;                where merge is the merger of the choice
 ;;
 ;; `amb-generate*` runs a computation as a search of its own.
+;;
+;; ---- Control ----
+;;
+;; A search is a prompt of `amb-prompt-tag`.  An effect captures its
+;; continuation up to the nearest one, k, aborts to it, and then runs
+;; what it contributes outside it: with shift0, not shift.  When k is
+;; resumed, it runs in a prompt of its own, so that its next effect is
+;; handled by it.  Every prompt of the tag is installed by `in-search`,
+;; whose handler calls the thunk of the abort without installing the
+;; prompt again; that is what puts the code of an effect outside the
+;; search.  The prompts are installed nowhere else.
 
-(require racket/control
-         "tag.rkt"
+(require "tag.rkt"
          "generator.rkt"
          (only-in "../merge.rkt" amb-append))
 
@@ -59,14 +69,16 @@
 ;; no further than the nearest search, so a search of its own that the
 ;; code runs, or goes on with, is not concerned: the body of a search
 ;; and the continuations that it captures run inside the boundary of
-;; that search (the reset of `amb-generate*`, and the prompt of every
-;; continuation that `shift-at` hands out).
+;; that search (the prompt of `amb-generate*`, and the prompt in which
+;; every captured continuation is resumed).
 ;;
-;; That is all the boundary covers.  The other code that runs when a
-;; generator is called -- a supplier, a merger that is not one of
-;; amb/merge -- runs in the dynamic environment of whoever calls the
-;; generator: an effect there is not an effect of the search that the
-;; generator belongs to.
+;; That is all the boundary covers.  The code that interprets a choice
+;; -- the supply of `make-amb`, and the merger, from its first call on
+;; -- runs outside the search that it serves, in the dynamic environment
+;; of whoever calls it: the first time, the caller of the search, after
+;; the effect left it; later, whoever asks for the next event.  An
+;; effect there is not an effect of the search that the generator
+;; belongs to.
 (define-syntax-rule (with-amb-mark e)
   (call-with-amb-mark (λ () e)))
 
@@ -105,8 +117,30 @@
 (define (amb-generate* thk)
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
     (raise-argument-error 'amb-generate* "(-> any)" thk))
-  (reset-at amb-prompt-tag
-    (values (call-with-values thk list) end)))
+  (in-search (λ () (values (call-with-values thk list) end))))
+
+;; (in-search thk) calls (thk) in a prompt of a search.  An abort to it
+;; removes it, and calls the thunk of the abort in its place.
+(define (in-search thk)
+  (call-with-continuation-prompt thk amb-prompt-tag call-thunk))
+
+(define (call-thunk thk) (thk))
+
+;; (leave-search proc) captures the continuation k of the current
+;; effect up to the nearest search, leaves that search, and calls
+;; (proc k) there; (k v ...) resumes the computation in a search of its
+;; own.
+(define (leave-search proc)
+  (call-with-composable-continuation
+   (λ (k)
+     (abort-current-continuation amb-prompt-tag (λ () (proc k))))
+   amb-prompt-tag))
+
+;; (resume k vs) resumes k with the values vs, in a search of its own.
+(define (resume k vs)
+  (in-search (if (and (pair? vs) (null? (cdr vs)))
+                 (let ([v (car vs)]) (λ () (k v)))
+                 (λ () (apply k vs)))))
 
 ;; A choice among the alternatives that the generator `next` supplies:
 ;; each answer of `next` is the values of one alternative, which
@@ -120,22 +154,25 @@
     (raise-argument-error 'make-amb "(-> any)" next))
   (check-effect 'make-amb)
   (define merge (current-amb-merger))
-  (shift-at amb-prompt-tag k
-    (let loop ([next next])
-      (let-values ([(v next) (with-amb-mark (next))])
-        (cond
-          [(list? v) ((merge (λ () (apply k v)) (λ () (loop next))))]
-          [(pause-count? v) (values v (λ () (loop next)))]
-          [(not v) (values v next)]
-          [else (raise-result-error 'make-amb v)])))))
+  (leave-search
+   (λ (k)
+     (let loop ([next next])
+       (let-values ([(v next) (with-amb-mark (next))])
+         (cond
+           [(list? v) ((merge (λ () (resume k v)) (λ () (loop next))))]
+           [(pause-count? v) (values v (λ () (loop next)))]
+           [(not v) (values v next)]
+           [else (raise-result-error 'make-amb v)]))))))
 
-;; The computation ends here, with no answer.
+;; The computation ends here, with no answer.  Nothing of it is resumed,
+;; so its continuation is not captured: a continuation barrier between
+;; here and the search does not stop it.
 (define (amb-fail)
   (check-effect 'amb-fail)
-  (shift-at amb-prompt-tag k (end)))
+  (abort-current-continuation amb-prompt-tag end))
 
 ;; The search pauses here: a merger may pass the turn on to another
 ;; alternative.  Returns (void) when the computation goes on.
 (define (amb-pause)
   (check-effect 'amb-pause)
-  (shift-at amb-prompt-tag k (values 1 (λ () (k (void))))))
+  (leave-search (λ (k) (values 1 (λ () (in-search (λ () (k (void)))))))))
