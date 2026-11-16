@@ -42,9 +42,9 @@ This is version 3.  It is not compatible with version 2; see
 
 ** Pruning with =(amb)=
 
-Calling =amb= with no arguments fails, causing the search to
-backtrack; =(amb-fail)= does the same.  Use it to prune the
-computations that violate a constraint:
+Calling =amb= with no arguments is a choice among no alternatives, so
+it fails and the search backtracks.  Use it to prune the computations
+that violate a constraint:
 
 #+begin_src racket
 (for/list ([x (in-amb (let ([n (amb 1 2 3 4 5)])
@@ -53,6 +53,10 @@ computations that violate a constraint:
   x)
 ;; => '(1 9 25)
 #+end_src
+
+=(amb-fail)= has the same effect with less work: it is not a choice, so
+it does not capture the continuation.  Use it where the cost of a
+failure matters.
 
 ** Iteration with =for/amb=
 
@@ -137,11 +141,14 @@ An observer sees the pauses when it asks for them:
 A search folds a direct-style computation into a /generator/ of
 events: a procedure of no arguments that returns a result (a list of
 values for an answer, =#f= for the end, a positive integer =n= for =n=
-pauses) and the generator of what comes after.  The effects are
-=shift= / =reset= on one prompt tag, and each says what it contributes
-in terms of the generator =k= of the rest of the computation: failure
-is the end, a pause is one pause and then =k=, and a choice among =a=
-and =b= is =(merge (λ () (k a)) (merge (λ () (k b)) end))=.
+pauses) and the generator of what comes after.  A search is a prompt;
+an effect captures its continuation up to the prompt, leaves the search,
+and says what it contributes in terms of the generator =k= of the rest
+of the computation (=shift0= / =reset0=, written with the primitives
+of =racket/base=): failure is the end, a pause is one pause and then
+=k=, and a choice among =a= and =b= is
+=(merge (λ () (k a)) (merge (λ () (k b)) end))=.  A resumed =k= runs
+in a search of its own.
 
 There is no driver and no frontier: the frontier is the part of that
 expression that has not been called yet.  =amb-append= and =amb-level=
