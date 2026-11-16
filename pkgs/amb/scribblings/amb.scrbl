@@ -147,8 +147,12 @@ collected into a mutable @tech/refer{vector}, on which
 
 @racket[(amb)] is the choice among no alternatives: it fails.  This is
 commonly used to discard the computations that do not satisfy a
-constraint.  It is the same as @racket[(amb-fail)], except that the
-shuffler is called on the empty vector.
+constraint.  It is a choice like the others: the shuffler is called on
+the empty vector, and the choice is made by @racket[make-amb], which
+captures the continuation.  So the search has the same events as with
+@racket[(amb-fail)], but @racket[amb-fail] does less: where the cost of
+a failure matters, or a continuation barrier may be in the way, use
+@racket[amb-fail].
 
 @amb-examples[
 (stream->list (in-amb (amb)))
@@ -208,7 +212,8 @@ shuffler is not called.
 (for/list ([x (in-amb (for/amb ([c "hello"]) c))]) x)
 ]
 
-A @racket[for/amb] with no iterations fails, like @racket[(amb)].
+A @racket[for/amb] with no iterations fails, like @racket[(amb)]: it
+is a choice among no alternatives.
 
 The @racket[for-clause]s and @racket[break-clause]s are not part of
 the search: see @secref["supply"].
@@ -235,10 +240,10 @@ Nothing of the computation is resumed, so @racket[amb-fail] does not
 capture its continuation: a continuation barrier between it and its
 search, such as the one around an exception handler that
 @racket[raise] calls, does not stop it.  A choice and a pause capture
-theirs, and a barrier stops them.  A choice with no alternatives also
-ends the computation, but only @racket[amb-fail] is sure not to
-capture: @racket[(sequence->amb '())] is a choice of
-@racket[make-amb], and captures as every choice does.
+theirs, and a barrier stops them.  A choice with no alternatives, such as
+@racket[(amb)], an empty @racket[for/amb] or
+@racket[(sequence->amb '())], also ends the computation, but it is a
+choice: it captures its continuation, as every choice does.
 
 @amb-examples[
 (stream->list (in-amb (amb 1 (amb-fail) 2)))

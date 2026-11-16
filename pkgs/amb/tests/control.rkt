@@ -16,12 +16,13 @@
 ;;     enclosing search, if any;
 ;;   - amb-fail does not capture its continuation, so a continuation
 ;;     barrier does not stop it; a choice and a pause, which capture
-;;     theirs, are stopped by one.
+;;     theirs, are stopped by one.  A choice among no alternatives,
+;;     (amb) or an empty for/amb, is a choice too.
 ;;
 ;; The cases are those of research/control-primitives-20261116 (branch
 ;; of the same name); the results that differ from v3 before this
 ;; change are the prompt in a supply at the top, the merger that
-;; pauses, and failing under a barrier.
+;; pauses, and amb-fail under a barrier.
 
 (require rackunit
          amb amb/merge
@@ -167,7 +168,13 @@
 (case barrier-fail (events (λ () (in-barrier (amb-fail))))
   (() ()))
 (case barrier-empty-amb (events (λ () (in-barrier (amb))))
-  (() ()))
+  ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
+(case barrier-empty-for/amb (events (λ () (in-barrier (for/amb ([i '()]) i))))
+  ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
+(case barrier-empty-for/amb-length (events (λ () (in-barrier (for/amb #:length 0 ([i '()]) i))))
+  ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
+(case empty-amb-outside (amb)
+  ((error "make-amb: not in a search") ()))
 (case barrier-empty-sequence (events (λ () (in-barrier (sequence->amb '()))))
   ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
 (case barrier-choice (events (λ () (in-barrier (amb 1 2))))
