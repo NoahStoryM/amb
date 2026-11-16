@@ -202,8 +202,11 @@ current-amb-merger : (Parameter Merger)
 
 - 在供应备选期间（子句、枚举器、shuffler、`#:length` 的长度表达式），试图影响**当前**搜索的选择、失败、暂停，明确报错；主体中的效应照常工作。实现：供应代码在一个 continuation mark 下运行，三个效应入口查这个 mark，只查到最近的搜索边界为止。
 - 这个 mark 由 `with-amb-mark`、`call-with-amb-mark` 公开。任何"先收集备选、再调用 `make-amb`"的形式都应当用它包住收集过程，不要把选中 thunk 的执行包进去。保证的准确表述：对到达同一效应入口的相同控制路径，添加公开供应标记不会把原本拒绝的调用变成允许；它也不建立新的搜索边界。理由是公开入口只能安装同一个 key 的 `#t`，不能安装 `#f`，也不能改变搜索 prompt。这不是"整个程序的异常集合单调"：新增的异常可以被捕获，程序由此走另一条路径。它也不约束续延跳转，以及直接访问私有实现的代码。
-- 完整的独立嵌套搜索允许。**搜索边界保护的是该搜索的主体，以及它捕获的续延**：`amb-generate*` 的初始 reset，和恢复续延时自带的 prompt。不按函数身份特判"这个 next 是 reify 出来的"。
-- 这个保证**不**延伸到运行 next 的全部代码。`make-amb` 返回的余生成器、自定义 merger 返回的生成器，本身没有 reset；供应者和自定义 merger 的宿主代码，按调用者的动态环境执行。若要让任意 next 中的效应都属于内层搜索，需要另设计覆盖整个恢复过程的边界，v3.0 不提供。
+- 完整的独立嵌套搜索允许。**搜索边界保护的是该搜索的主体，以及它捕获的续延**：`amb-generate*` 的初始 prompt，和恢复续延时自带的 prompt。不按函数身份特判"这个 next 是 reify 出来的"。
+- **控制：shift0。** 效应把续延捕获到最近的搜索边界，离开这个搜索，在它之外运行自己的代码；恢复续延时，它在自己的 prompt 中运行，所以续延里的下一个效应仍由它自己的搜索处理。因此，解释选择的宿主代码——供应，以及 merger（从第一次调用起）——在被处理的搜索之外运行：第一次由搜索的调用者调用（效应已经离开搜索），之后由请求下一个事件的人调用。两者遵循同一归属规则，但不必看见同一动态环境（例如后来的请求可能在另一个 parameterize 下）。供应者仍受 `with-amb-mark` 限制。这是明确选定的宿主控制边界，不是对 shift 实现的全观察等价替换；纯事件方程不变（[讨论](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904647099)）。
+- 实现约束：这个 tag 的 prompt 一律由 `in-search` 安装，handler 调用 abort 传来的 thunk、不重新安装 prompt（`private/tag.rkt`、`private/core.rkt` 注明）。这是实现内部的约定，不是抵御刻意 require 私有模块的代码的安全边界。
+- **失败不捕获续延。** `amb-fail` 直接 abort 到搜索，所以它与搜索之间的续延屏障（例如 `raise` 调用的异常 handler 周围的屏障）不阻止它；选择和暂停捕获续延，遇到屏障报错。空选择的纯搜索结果都是失败，但在屏障下不保证所有构造空选择的方法都与 `amb-fail` 等价：`(amb)` 走 `amb-fail`，`(sequence->amb '())` 等经 `make-amb` 的空供应会捕获续延。
+- 这个保证**不**延伸到运行 next 的全部代码。`make-amb` 返回的余生成器、自定义 merger 返回的生成器，本身没有搜索边界；供应者和自定义 merger 的宿主代码，从第一次调用起都按调用者的动态环境执行（见上一条）。若要让任意 next 中的效应都属于内层搜索，需要另设计覆盖整个恢复过程的边界，v3.0 不提供。
 - 有 `#:length` 的形式在选择点一次性收集全部备选，所以即使只取第一个答案，后面某一行子句有效应也会报错；无长度的形式到那一行才报。这符合两者的供应时机，不要求一致。
 - `#:on-pause` 的 handler 在被观察的搜索之外、观察者的环境中运行，不额外检查；观察者本身处在供应阶段时，那里的规则照常适用。
 - 不能用迭代器偶然报出的 prompt 错误来定义这部分语义。
@@ -242,7 +245,7 @@ current-amb-merger : (Parameter Merger)
 
 ## 11. 实施状态
 
-实现在 PR #24（分支 `v3`，到 `81bf0c9`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
+实现在 PR #24（分支 `v3`，到 `cb0b2ec`）。到 `05c8255` 为止，Astra 复核后已转为正式 PR（[comment](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894380247)）；之前 handler 重入的两轮修复见 [Astra 复审](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894100398)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894206988)、[Astra 第三轮](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894262358)、[Fable 修复](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6894355098)。两个包的版本都是 3.0。
 
 已完成：
 
@@ -256,16 +259,17 @@ current-amb-merger : (Parameter Merger)
 - scribble 文档和 `README.org`，包括观察器不在保证之内的三点（`bf25d1c`）；
 - `amb/demo`；
 - 选择向量的槽位释放（`b5b05ff`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6897989664)）：宏新建的 thunk 向量（`amb`、`#:length`，两个前端共用 `choose`）由私有的 `mutable-vector-generate*` 供应，槽位取走即清空，重复调用旧的 next 报错；长向量（至少 256 个槽）取走一半后用 `vector-copy` 压缩（`6e34312`，[说明](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6898300726)）；用户交给 `sequence->amb` 的向量不修改。无长度的协程供应经检查没有同类保留。§7 的“交给 `sequence->amb`”现在只在事件意义上成立；
+- 控制原语（`cb0b2ec`）：效应改用 racket/base 的原语，按 §9 的 shift0 语义实现，`amb-fail` 不捕获续延（Noah 接受这项放宽）。诊断见 [ambKanren#18](https://github.com/NoahStoryM/ambKanren/issues/18)，方案与复核见 [提案](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904006703)、[Astra](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904153764)、[候选](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904515498)、[Astra](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904647099)；对照实现与差分用例在研究分支 `research/control-primitives-20261116`。`amb/demo` 保留 racket/control 的 shift/reset，并注明它只对应纯事件模型；
 - 测试：v2 测试全部移植并整理出冲突表；§3 两种相等的差分测试；调用前缀的在线检查、单遍检测、merger 内部异常注入；只用 `amb/base` 写的 kanren 层及其规律测试。书中例子测试已移交 ambKanren，本仓库删去，`build-deps` 中的 `typed-racket-lib` 一并去掉（`48c97bb`）。
 
-验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；amb 与 typed-amb 共 306 个测试通过（`6e34312`）。
+验证：`raco setup --check-pkg-deps --pkgs amb typed-amb`（带文档）无错误、无警告；amb 与 typed-amb 共 342 个测试通过（`cb0b2ec`）。
 
-**ambKanren 迁移**：[ambKanren#17](https://github.com/NoahStoryM/ambKanren/pull/17)，版本 3.0，711 个测试通过。书中例子对照见 [迁移报告](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/MIGRATION-V3.md) 与 [逐例差异](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/research/v3-results/DIFFERENCES.md)。与 miniKanren-typed 原生实现相比，TRS1、TRS2 的耗时约为原生的 1.4 倍（[comment](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6897552500)）。
+**ambKanren 迁移**：[ambKanren#17](https://github.com/NoahStoryM/ambKanren/pull/17)，版本 3.0，711 个测试通过。书中例子对照见 [迁移报告](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/MIGRATION-V3.md) 与 [逐例差异](https://github.com/NoahStoryM/ambKanren/blob/migration/amb-v3/research/v3-results/DIFFERENCES.md)。与 miniKanren-typed 原生实现相比，迁移时 TRS1、TRS2 的耗时约为原生的 1.4 倍（[comment](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6897552500)）；原因分析见 ambKanren#18。改用 `cb0b2ec` 的控制原语后，TRS1 的累计分配从 44.0 GB 降到 29.7 GB，TRS2（已改为局部 bind）从 28.4 GB 降到 19.9 GB；耗时 TRS1 约 17.6 s、TRS2 约 16.4 s（原生约 16.5 s、12.7 s，不同时段测量，只作记录）。
 
 待做：
 
-1. Astra 复核 `c0c8fd9` 的类型与信任边界（§2）、`b5b05ff` 和 `6e34312` 的槽位释放与压缩，以及 ambKanren#17 中 `once`、`conda`、`condu` 的语义和书中例子的差异说明。
+1. Astra 复核：`c0c8fd9` 及 ambKanren#17 的 `767803d` 已通过（[amb](https://github.com/NoahStoryM/amb/pull/24#issuecomment-6904142284)、[ambKanren](https://github.com/NoahStoryM/ambKanren/pull/17#issuecomment-6904142506)）；待复核 `b5b05ff`、`6e34312` 的槽位释放与压缩，`81bf0c9` 的报错信息，`cb0b2ec` 的控制原语，以及 ambKanren 的 `5eee073`（局部 bind）。
 2. 发布：合并 PR #24 → 包目录更新到 3.0 → ambKanren 的 CI 改回从包目录安装 → 合并 ambKanren#17。
 3. 处理 ambKanren 中较早的 PR #16（lawful-search）和 #15（研究草稿）：确认是否已被 #17 取代。
 4. 旧 PR #10、#13–#21、#23 与 issue #11：关闭，分支保留；#22 在 PR #24 合并后关闭。
-5. 之后：性能。kanren 层约为原生的 1.4 倍，原因还没分析；还有纯暂停空轮的合并。v2 的槽位释放和长向量压缩已完成（见上）；v2 压缩中的二分查找和重新整理不移植：v3 截掉未填的槽，按位置取用，不需要跳过哨兵。
+5. 之后：性能。原因已分析（ambKanren#18），控制原语已完成（见上）；剩下的主要是 Racket CS 捕获、恢复可组合续延本身的成本。还有纯暂停空轮的合并。v2 的槽位释放和长向量压缩已完成（见上）；v2 压缩中的二分查找和重新整理不移植：v3 截掉未填的槽，按位置取用，不需要跳过哨兵。
