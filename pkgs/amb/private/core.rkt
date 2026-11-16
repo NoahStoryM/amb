@@ -103,9 +103,8 @@
 (define (supply-message who)
   (format (string-append
            "~a: not allowed while the alternatives of a choice are supplied;\n"
-           " code that supplies alternatives, such as the generator of make-amb,\n"
-           " the clauses of for/amb or the shuffler, must not choose, fail or pause\n"
-           " in the search that it supplies")
+           " code that supplies alternatives must not choose, fail or pause in its search;\n"
+           " for example, the generator of make-amb, a clause of for/amb, or the shuffler")
           who))
 
 
