@@ -22,7 +22,8 @@ The @racketmodname[amb] library provides John McCarthy's ambiguous
 operator for nondeterministic programming in direct style.  A choice is
 an ordinary expression: @racket[(amb 1 2 3)] returns one of its
 alternatives, and the rest of the computation runs once for each of
-them.  A @tech{search} collects the results of all these runs.
+them as the search demands it.  A @tech{search} reports the results of
+those runs.
 
 @amb-examples[
 (for/list ([x (in-amb (let ([a (amb 1 2 3)]
@@ -56,9 +57,9 @@ takes part in the search through three @deftech{effects}:
       next event.}
 @item{A @bold{choice} (@racket[amb], @racket[for/amb],
       @racket[sequence->amb], @racket[make-amb]) runs the rest of the
-      computation once for each @deftech{alternative}, and merges the
-      events of these runs into one sequence.  A choice among no
-      alternatives, such as @racket[(amb)], fails.}
+      computation once for each @deftech{alternative} that its merger
+      runs, and merges the events of these runs into one sequence.
+      A choice among no alternatives, such as @racket[(amb)], fails.}
 ]
 
 How the events of the alternatives are merged is the search strategy.
@@ -99,8 +100,8 @@ next one.
 @defform[(amb expr ...)]{
 John McCarthy's ambiguous operator: a choice among the
 @racket[expr]s.  Its value is the value of one of them, and the rest
-of the computation runs once for each.  No @racket[expr] is evaluated
-before it is chosen.
+of the computation runs once for each alternative that the merger
+runs.  Each @racket[expr] is evaluated only when chosen.
 
 Each @racket[expr] is wrapped in a @racket[thunk], and the thunks are
 collected into a mutable @tech/refer{vector}, on which
@@ -159,8 +160,9 @@ size, infinite ones included.  The shuffler is not called.
 ]
 
 @bold{With @racket[#:length]}, the forms resemble @racket[for/vector]
-and @racket[for*/vector].  The clauses run to their end where the
-choice is made; each loop @racket[body] is wrapped in a
+and @racket[for*/vector].  Where the choice is made, the length
+expression is evaluated and the clauses run until the loop finishes
+or reaches that length.  Each loop @racket[body] is wrapped in a
 @racket[thunk]; and at most @racket[_length] thunks are collected into
 a mutable @tech/refer{vector}, on which @racket[current-amb-shuffler]
 is called once.  The slots that no iteration fills are not
@@ -178,8 +180,9 @@ alternative with the value of the fill expression.
   (cons a b))
 ]
 
-A @racket[for/amb] with no iterations is a choice among no
-alternatives, and fails like @racket[(amb)].
+With no iterations, @racket[for/amb] fails unless a positive length
+and @racket[#:fill] supply alternatives.  A length of zero skips the
+clauses and calls the shuffler on an empty vector.
 
 The @racket[for-clause]s and @racket[break-clause]s are not part of
 the search; see @secref["supply"].
@@ -407,10 +410,12 @@ generator of what comes after it.
       list is an answer of no values, not the end.}
 @item{@racket[#f] is the end.  The generator returned with it must
       not be called.}
-@item{A positive integer @racket[_n] is @racket[_n] pauses.  It means
-      exactly the same as a single pause followed by a generator that
-      returns @racket[(- _n 1)] pauses.  How pauses are grouped into
-      batches carries no information, and no code may depend on it.}
+@item{A positive integer @racket[_n] is @racket[_n] logical pauses,
+      followed by the returned generator.  For @racket[(> _n 1)],
+      the same events can be represented by a single pause, then
+      @racket[(- _n 1)] pauses, then that generator.  When @racket[_n]
+      is @racket[1], the single pause leads directly to the returned
+      generator.}
 ]
 
 @racket[0] is not a result.  A generator that returns anything else
@@ -506,9 +511,9 @@ Equivalent to @racket[(amb-local* (λ () expr))].
 
 @defproc[(amb-local* [thk (-> any)]) any]{
 An answer of @racket[(thk)], found by a search of its own: a
-@deftech{local search}.  The choices of @racket[(thk)] are merged with
-each other before the rest of the computation sees any of its answers,
-and these answers are then the alternatives of one choice.  It is
+@deftech{local search}.  The inner mergers decide the order of its
+events.  The local search runs on demand, supplying each answer as
+an alternative of one choice in the enclosing search.  It is
 
 @racketblock[
 (make-amb (λ () (amb-generate* thk)))
@@ -516,11 +521,13 @@ and these answers are then the alternatives of one choice.  It is
 
 The pauses of the local search are pauses of the search around it.
 
-At the end of a computation, @racket[(amb-local expr)] has the events
-of @racket[expr] itself under the mergers of @racketmodname[amb/merge].
-When the computation goes on after it, they can differ: the answers of
-the local search are found before the rest runs, so their order can
-change.  With @racket[amb-append] it never does.
+At the end of a computation, @racket[(amb-local expr)] has the same
+logical events as @racket[expr] when the enclosing choice uses one of
+the mergers of @racketmodname[amb/merge].  When the computation goes
+on after it, the order can change: the enclosing merger schedules the
+rest of the computation from the local search's answers.  If
+@racket[amb-append] is used throughout, both forms have the same
+logical events for any continuation.
 
 @amb-examples[
 (define (pause-then x) (amb-pause) x)
@@ -620,12 +627,14 @@ things of it.
       Its results are lists, @racket[#f] or positive integers; it
       calls each generator at most once; and it does not call a
       generator after its end.}
-@item{@bold{It does not depend on how pauses are batched.}  Two
-      generators with the same events, one returning @racket[3] where
-      the other returns @racket[1] three times, must give merged
-      generators with the same events.  The library itself regroups
-      batches of pauses, so a merger that looks at the size of a batch
-      gives results that change from one version to the next.}
+@item{@bold{It preserves equivalence of event sequences.}  Replacing
+      either input with one that produces the same logical events must
+      preserve the merged events.  Compare answers in order and count
+      individual pauses.  Reaching the end and diverging while
+      producing the next event are distinct.  For example, an input
+      that returns @racket[3] can be replaced with one that returns
+      @racket[1] three times.  The library itself regroups batches of
+      pauses.}
 @item{@bold{It has no effects of a search.}  A merger must not call
       @racket[amb], @racket[amb-pause], @racket[amb-fail] or any other
       choice.  A merger runs outside the search whose alternatives it
@@ -666,21 +675,33 @@ different events for @racket[3] than for @racket[1], @racket[1],
 
 These laws are optional.  All the mergers of this module satisfy the
 first; @racket[amb-append] and @racket[amb-level] also satisfy the
-second.  Events are compared after every batch of pauses is written as
-single pauses.
+second.  The examples below compare logical events, with a fixed
+merger and the default shuffler for every choice.
 
 @itemlist[
 @item{@bold{The end is a unit.}  Merging with a generator that ends at
       once changes no event.  @racket[make-amb] merges the last
       alternative with the end of the supply; under this law that
       merge is invisible, so @racket[(amb _e)] has the events of
-      @racket[_e], and a failing alternative can be added or removed
-      without effect.}
+      @racket[_e], and an alternative that fails immediately can be
+      added or removed without changing the events.}
 @item{@bold{Associativity.}  Nested choices have the events of one
       flat choice: @racket[(amb (amb _a _b) _c)] and
       @racket[(amb _a (amb _b _c))] are the same.  This does not hold
       for @racket[amb-interleave] and @racket[amb-alternate], where
       nesting decides how often each alternative gets the turn.}
+]
+
+An empty choice ends the branch without invoking the merger.
+@racket[(amb (amb) (amb))] still merges its two alternatives.  A
+merger without the unit law can make that difference visible.
+
+@amb-examples[
+(define ((pause-before-append s t))
+  (values 1 (amb-append s t)))
+(parameterize ([current-amb-merger pause-before-append])
+  (list (stream->list (in-amb (amb) #:on-pause (λ () 'pause)))
+        (stream->list (in-amb (amb (amb) (amb)) #:on-pause (λ () 'pause)))))
 ]
 
 Whatever the merger, the rest of the computation distributes over the
@@ -794,9 +815,10 @@ A search of its own is not concerned, wherever it runs:
  (in-amb (for/amb ([x (in-amb (amb 1 2))]) (* 10 x))))
 ]
 
-With @racket[#:length], the clauses run to their end where the choice
-is made, so the error is raised there, even if only the first answer
-is requested.  Without it, the error is raised when the search reaches
+With @racket[#:length], clauses up to the length limit or the end of
+the loop run where the choice is made.  An effect in those clauses
+raises an error there, even if only the first answer is requested.
+Without @racket[#:length], the error is raised when the search reaches
 the iteration that has the effect.
 
 @deftogether[(@defform[(with-amb-mark expr)]
@@ -852,7 +874,8 @@ the effect, when it is resumed, is inside a search again.  So:
       it observes.  An effect in it belongs to the search around the
       observer, if there is one.}
 @item{Outside any search, an effect raises
-      @racket[exn:fail:contract] with a message that ends in
+      @racket[exn:fail:contract].  With a supply mark active it reports
+      the supply-phase error.  Otherwise its message ends in
       @litchar{not in a search}.}
 ]
 
@@ -957,7 +980,7 @@ trusted @racketidfont{unsafe-require/typed}.  The standard mergers of
 the library use such a trusted boundary and do not seal the answer
 lists.
 
-@subsection{Limitations on Racket 9.3}
+@subsection[#:tag "typed-limitations"]{Limitations on Racket 9.3}
 
 @itemlist[
 @item{The type checker of Typed Racket's @racket[for] raises an

@@ -141,14 +141,15 @@ An observer sees the pauses when it asks for them:
 A search folds a direct-style computation into a /generator/ of
 events: a procedure of no arguments that returns a result (a list of
 values for an answer, =#f= for the end, a positive integer =n= for =n=
-pauses) and the generator of what comes after.  A search is a prompt;
-an effect captures its continuation up to the prompt, leaves the search,
-and says what it contributes in terms of the generator =k= of the rest
-of the computation (=shift0= / =reset0=, written with the primitives
-of =racket/base=): failure is the end, a pause is one pause and then
-=k=, and a choice among =a= and =b= is
-=(merge (λ () (k a)) (merge (λ () (k b)) end))=.  A resumed =k= runs
-in a search of its own.
+pauses) and the generator of what comes after.  A search is a prompt.
+Failure aborts to the prompt and reports the end.  Choices and pauses
+capture the continuation up to the prompt and leave the search
+(=shift0= / =reset0=, written with the primitives of =racket/base=).
+A pause reports one pause and then resumes the continuation.
+In the following schematic, =(k a)= resumes the continuation with =a=
+in its own search and returns the first event and the remaining
+generator.  A choice among =a= and =b= has the generator
+=(merge (λ () (k a)) (λ () ((merge (λ () (k b)) end))))=.
 
 There is no driver and no frontier: the frontier is the part of that
 expression that has not been called yet.  =amb-append= and =amb-level=
