@@ -96,14 +96,7 @@
                     (loop s)
                     (loop (stream* (stream-first v) (stream-rest v) s)))
                 (values (cons v v*) (λ () (loop s))))))))
-  (define-values (more? get) (generate*->generate next))
-  (make-do-sequence
-   (λ ()
-     (initiate-sequence
-      #:init-pos           0
-      #:continue-with-pos? more?
-      #:pos->element       get
-      #:next-pos           add1))))
+  (make-sequence next))
 
 (define-sequence-syntax stream-flatten
   (λ () #'stream-flatten*)

@@ -345,6 +345,15 @@
   (check-equal? (for/list ([x d]) x) '(2 3))
   (check-equal? (for/list ([x d]) x) '()))
 
+(test-case "parallel clauses over a single-pass sequence share its cursor"
+  (define d (in-amb/do (amb 1 2 3 4)))
+  (check-equal? (for/list ([x d] [y d]) (list x y)) '((1 2) (3 4)))
+  (check-equal? (for/list ([x d]) x) '())
+
+  (define odd (in-amb/do (amb 1 2 3)))
+  (check-exn #rx"sequence has no more values"
+             (λ () (for/list ([x odd] [y odd]) (list x y)))))
+
 (test-case "a single-pass observer peeks once and preserves a zero-value answer"
   (define seen '())
   (define d
