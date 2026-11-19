@@ -91,13 +91,21 @@
                 (events (begin (amb-pause) 'answer))))
 
 (test-case "amb-pause validates an explicit count and checks the search context"
-  (for ([n '(0 -1 1.0 1/2 #f)])
-    (check-exn #rx"amb-pause: contract violation.*exact-positive-integer"
+  (for ([n '(0.0 -1 1.0 1/2 #f)])
+    (check-exn #rx"amb-pause: contract violation.*exact-nonnegative-integer"
                (λ () (amb-generate* (λ () (amb-pause n))))))
   (check-exn #rx"amb-pause: not in a search" (λ () (amb-pause 3)))
   (check-exn #rx"amb-pause: not allowed while the alternatives of a choice are supplied"
              (λ () (amb-generate*
                     (λ () (make-amb (λ () (amb-pause 3))))))))
+
+(test-case "amb-pause with zero returns void without reporting an event"
+  (check-true (void? (amb-pause 0)))
+  (define-values (v _)
+    (amb-generate* (λ () (amb-pause 0) 'answer)))
+  (check-equal? v '(answer))
+  (check-equal? (events (make-amb (λ () (amb-pause 0) (values '(answer) (source)))))
+                '(answer)))
 
 (test-case "an observer demands handled pauses one at a time"
   (define calls 0)

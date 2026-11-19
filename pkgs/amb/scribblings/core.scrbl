@@ -2,6 +2,7 @@
 
 @(require (for-label racket/base
                      racket/contract/base
+                     racket/math
                      racket/sequence
                      racket/stream
                      amb
@@ -169,10 +170,14 @@ among no alternatives too, such as @racket[(amb)], an empty
 still a choice.
 }
 
-@defproc[(amb-pause [n exact-positive-integer? 1]) void?]{
-Suspends the current branch and reports a batch of @racket[n] logical
-pauses.  When the branch resumes after the batch, @racket[amb-pause]
-returns @racket[(void)].
+@defproc[(amb-pause [n natural? 1]) void?]{
+With a positive @racket[n], suspends the current branch and reports a
+batch of @racket[n] logical pauses.  When the branch resumes after the
+batch, @racket[amb-pause] returns @racket[(void)].
+
+With @racket[0], returns @racket[(void)] immediately, without
+suspending or reporting an event.  This also works outside a search
+and during the supply of alternatives.
 
 A pause is where a @tech{merger} may pass the turn to another
 alternative, including between logical pauses in a batch.  The

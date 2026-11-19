@@ -190,6 +190,8 @@
   ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
 (case barrier-pause-batch (events (λ () (in-barrier (amb-pause 3))))
   ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
+(case barrier-pause-zero (events (λ () (in-barrier (amb-pause 0)) 'answer))
+  (((answer)) ()))
 (case handler-fail (events (λ () (in-exception-handler (amb-fail))))
   (() ()))
 (case handler-choice (events (λ () (in-exception-handler (amb 1 2))))

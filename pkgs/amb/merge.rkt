@@ -43,7 +43,7 @@
   (let-values ([(v s) (s)])
     (cond
       [(list? v) (values v (amb-interleave s t))]
-      [(pause-count? v) (values 1 (amb-interleave t (pauses (sub1 v) s)))]
+      [(exact-positive-integer? v) (values 1 (amb-interleave t (pauses (sub1 v) s)))]
       [(not v) (t)]
       [else (raise-result-error 'amb-interleave v)])))
 
@@ -52,7 +52,7 @@
   (let-values ([(v s) (s)])
     (cond
       [(list? v) (values v (amb-alternate t s))]
-      [(pause-count? v) (values 1 (amb-alternate t (pauses (sub1 v) s)))]
+      [(exact-positive-integer? v) (values 1 (amb-alternate t (pauses (sub1 v) s)))]
       [(not v) (t)]
       [else (raise-result-error 'amb-alternate v)])))
 
@@ -106,7 +106,7 @@
      (let-values ([(v s) (s)])
        (cond
          ;; n pauses stay together: no turn passes on at a pause
-         [(or (list? v) (pause-count? v))
+         [(or (list? v) (exact-positive-integer? v))
           (define right (and (eq? s end) (cat-singleton? ts) (cat-first ts)))
           ;; Keep impersonated generators behind this merger so an outer
           ;; merger cannot fuse them and bypass a wrapper's procedure call.
@@ -145,7 +145,7 @@
      (let-values ([(v s) (s)])
        (cond
          [(list? v) (values v (leveled ws s ts))]
-         [(pause-count? v)
+         [(exact-positive-integer? v)
           (level-next (cat-append ws (cat-of (pauses (sub1 v) s))) ts)]
          [(not v) (level-next ws ts)]
          [else (raise-result-error 'amb-level v)]))]))

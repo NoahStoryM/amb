@@ -11,7 +11,7 @@
 ;;
 ;;   return vs    the answer vs, and then the end
 ;;   amb-fail     the end
-;;   amb-pause    a batch of pauses, and then k
+;;   amb-pause    a batch of pauses if the count is positive, and then k
 ;;   make-amb     for the alternatives a, b that it is supplied with,
 ;;                  (merge (λ () (k a)) (λ () (merge (λ () (k b)) end)))
 ;;                where merge is the merger of the choice
@@ -169,7 +169,7 @@
        (let-values ([(v next) (with-amb-mark (next))])
          (cond
            [(list? v) ((merge (λ () (resume k v)) (λ () (loop next))))]
-           [(pause-count? v) (values v (λ () (loop next)))]
+           [(exact-positive-integer? v) (values v (λ () (loop next)))]
            [(not v) (values v next)]
            [else (raise-result-error 'make-amb v)]))))))
 
@@ -187,15 +187,10 @@
   (check-effect 'amb-fail)
   (abort/cc amb-prompt-tag end))
 
-;; Suspend once for n logical pauses.  Keep the nullary path at a literal
-;; 1, without validating or closing over a count.
-(define amb-pause
-  (case-lambda
-    [()
-     (check-effect 'amb-pause)
-     (leave-search (λ (k) (values 1 (λ () (in-search (λ () (k (void))))))))]
-    [(n)
-     (check-effect 'amb-pause)
-     (unless (pause-count? n)
-       (raise-argument-error 'amb-pause "exact-positive-integer?" n))
-     (leave-search (λ (k) (values n (λ () (in-search (λ () (k (void))))))))]))
+;; Zero returns void at the call site. A positive count suspends once.
+(define (amb-pause [n 1])
+  (unless (eqv? n 0)
+    (check-effect 'amb-pause)
+    (unless (exact-positive-integer? n)
+      (raise-argument-error 'amb-pause "exact-nonnegative-integer?" n))
+    (leave-search (λ (k) (values n (λ () (in-search (λ () (k (void))))))))))

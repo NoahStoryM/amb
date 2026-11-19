@@ -75,9 +75,11 @@
   (check-equal? (events (zero-local)) '(7))
   (check-equal? (events ((inst amb-local* Integer) (λ () : Integer (amb-fail)))) '()))
 
-(test-case "amb-pause accepts an optional positive count"
-  (define n : Positive-Integer 3)
-  (check-equal? (events (begin (base:amb-pause n) 7)) '(P P P 7))
+(test-case "amb-pause accepts an optional natural count"
+  (define (forward [fuel : Natural])
+    (events (begin (base:amb-pause (quotient fuel 2)) 7)))
+  (check-equal? (forward 6) '(P P P 7))
+  (check-equal? (forward 0) '(7))
   (define pause-once : (→ Void) amb-pause)
   (check-equal? (events (begin (pause-once) 7)) '(P 7)))
 
