@@ -308,7 +308,7 @@ answer, the result is @racket[#f], not a failure.
     (cond
       [(list? v) (apply values v)]
       [(not v) (amb-fail)]
-      [else (for ([_ v]) (amb-pause)) (loop next)])))
+      [else (amb-pause v) (loop next)])))
 ]
 
 Here every pause of the search of @racket[(thk)] is passed on as a

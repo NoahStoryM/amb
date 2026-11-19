@@ -169,19 +169,22 @@ among no alternatives too, such as @racket[(amb)], an empty
 still a choice.
 }
 
-@defproc[(amb-pause) void?]{
-Makes the search report a pause.  The computation goes on from here
-when the search is asked for its next event, and @racket[amb-pause]
-then returns @racket[(void)].
+@defproc[(amb-pause [n exact-positive-integer? 1]) void?]{
+Suspends the current branch and reports a batch of @racket[n] logical
+pauses.  When the branch resumes after the batch, @racket[amb-pause]
+returns @racket[(void)].
 
 A pause is where a @tech{merger} may pass the turn to another
-alternative.  With the default merger, @racket[amb-append], a pause
-changes nothing but the events seen by an observer with a pause
-handler.  See @secref["fairness"].
+alternative, including between logical pauses in a batch.  The
+paused branch is resumed once after the batch.  For example, a
+@racket[dynamic-wind] around the call is exited once and re-entered
+when the branch resumes.  With the default merger,
+@racket[amb-append], the paused branch keeps the turn.
+See @secref["fairness"].
 
 @amb-examples[
 (stream->list (in-amb (begin (amb-pause) 'x)))
-(stream->list (in-amb (begin (amb-pause) 'x) #:on-pause (λ () 'pause)))
+(stream->list (in-amb (begin (amb-pause 3) 'x) #:on-pause (λ () 'pause)))
 ]
 }
 

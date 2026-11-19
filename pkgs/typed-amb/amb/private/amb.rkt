@@ -65,7 +65,8 @@
          (Values (∪ (List a ... a) #f Positive-Integer)
                  (Generatorof (List a ... a)))))]
   [amb-fail  (→ ⊥)]
-  [amb-pause (→ Void)]
+  [amb-pause (case→ (→ Void)
+                   (→ Positive-Integer Void))]
   [call-with-amb-mark
    (∀ (a ...)
       (case→ (→ (→ ⊥) ⊥)
