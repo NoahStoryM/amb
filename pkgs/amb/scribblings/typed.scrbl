@@ -82,7 +82,7 @@ answers; if it makes up an answer of another type, the types of a
 typed observer no longer hold.  The same holds for an untyped shuffler,
 which must leave thunks of the right type in the vector.
 
-Deep @racket[require/typed] cannot generate a contract for the
+Deep @racketidfont{require/typed} cannot generate a contract for the
 variable-arity polymorphic @racketidfont{Merger}.  A custom merger can
 be written in typed code, or imported through an explicitly trusted
 @racketidfont{unsafe-require/typed}.  The standard mergers of the

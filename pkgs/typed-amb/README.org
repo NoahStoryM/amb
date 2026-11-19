@@ -31,8 +31,8 @@ imports the untyped implementations through a trusted
 =amb-local*= is imported from =amb= and keeps zero or multiple return
 values, so typed languages can reuse it without reproducing its macro.
 
-The forms follow the untyped API.  On Racket 9.3, see the manual's
-[[https://docs.racket-lang.org/amb/index.html#%28part._typed-limitations%29][limitations on zero-valued iteration and typed =#:final=]].
+The forms follow the untyped API; see the manual's
+[[https://docs.racket-lang.org/amb/Typed_Interface.html#%28part._typed-limitations%29][known Typed Racket limitations]].
 =for/amb= also accepts optional type annotations.
 
 #+begin_src racket
