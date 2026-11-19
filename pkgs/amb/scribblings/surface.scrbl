@@ -91,7 +91,9 @@ until the loop finishes or reaches that length.  Each loop
 @racket[body] is wrapped in a @racket[thunk], and at most
 @racket[_length] thunks are collected into a mutable
 @tech/refer{vector}, on which @racket[current-amb-shuffler] is called
-once.  The slots that no iteration fills are not alternatives, unless
+once.
+
+The slots that no iteration fills are not alternatives, unless
 @racket[#:fill] is given: then @racket[fill-expr] is wrapped in a
 @racket[thunk] and each empty slot becomes an alternative that
 evaluates @racket[fill-expr] when chosen (unlike @racket[for/vector],
@@ -114,7 +116,7 @@ an empty vector.
 alternatives up front; instead, it advances lazily as the search does,
 taking a step through the clauses when the merger of the choice turns
 to the next alternative.  This works with @tech/refer{sequences} of
-any size, infinite ones included.  The shuffler is not called.
+any size, infinite ones included.  The shuffler is @bold{not} called.
 
 @amb-examples[
 (for/list ([x (in-amb (for/amb ([i (in-naturals)]) i))] [_ 5]) x)
@@ -130,7 +132,7 @@ the search; see @secref["supply"].
 
 @defproc[(sequence->amb [seq sequence?]) any]{
 A choice among the elements of @racket[seq], which are produced as
-the search goes on.  The sequence may be infinite.
+the search goes on.  The @tech/refer{sequence} may be infinite.
 
 @amb-examples[
 (define (roll-doubles)
@@ -147,8 +149,8 @@ A @tech/refer{parameter} that holds a procedure to reorder the
 @tech{alternatives} of a choice.  It is called once, where the choice
 is made, on the vector of alternatives of every @racket[amb] and of
 every @racket[for/amb] with @racket[#:length]; the vector may be
-empty.  It is not called for the alternatives of a sequence.  The
-default is @racket[void].
+empty.  It is not called for the alternatives of a @tech/refer{sequence}.
+The default is @racket[void].
 
 @amb-examples[
 (eval:alts (require (only-in srfi/43 vector-reverse!)) (void))
@@ -186,20 +188,20 @@ alternatives (@secref["supply"]).
                                    (code:line #:on-pause handler-expr)])]{
 Starts a @tech{search} of @racket[expr] and returns its
 @tech{answers} as a lazy @tech/refer{stream}.  Nothing of the search
-runs before the first element is requested, and the stream keeps its
-elements: reading them again does not run the search again.
+runs before the first element is requested, and the @tech/refer{stream}
+keeps its elements: reading them again does not run the search again.
 
 In a @racket[for] clause, @racket[in-amb] is used directly as the
-single-pass sequence of @racket[in-amb/do], without building the
-stream.
+single-pass @tech/refer{sequence} of @racket[in-amb/do], without
+building the @tech/refer{stream}.
 
 The @tech{pauses} of the search are skipped, unless
-@racket[handler-expr] is given.  It must produce a procedure of no
-arguments, which is called once for each pause (@racket[_n] times for
-a batch of @racket[_n]).  The values that it returns become one
-element of the stream, in place of the pause; they do not go back into
-the search.  The handler is called by whoever reads the stream,
-outside the search.
+@racket[handler-expr] is given.  It must produce a @racket[thunk] (or
+@racket[#f] to skip pauses), which is called once for each pause
+(@racket[_n] times for a batch of @racket[_n]).  The values that it
+returns become one element of the @tech/refer{stream}, in place of the
+pause; they do not go back into the search.  The handler is called by
+whoever reads the @tech/refer{stream}, outside the search.
 
 @amb-examples[
 (define s (in-amb (begin (amb-pause) (amb 1 2)) #:on-pause (λ () 'pause)))
@@ -212,17 +214,18 @@ outside the search.
 The procedure form of @racket[in-amb]: the search of
 @racket[(thk)].  The pause handler is an optional argument.  Like
 @racket[in-amb], in a @racket[for] clause it expands directly to the
-single-pass sequence of @racket[in-amb*/do], without building a stream.
+single-pass @tech/refer{sequence} of @racket[in-amb*/do], without
+building a @tech/refer{stream}.
 }
 
 @defform[(in-amb/do expr maybe-handler)
          #:grammar ([maybe-handler (code:line)
                                    (code:line #:on-pause handler-expr)])]{
 Like @racket[in-amb], but returns a single-pass
-@tech/refer{sequence} instead of a stream, so the answers are not kept.
-Creating the sequence runs nothing of the search.  Iterating over it
-again continues where the previous iteration stopped, and once it has
-ended it stays empty.
+@tech/refer{sequence} instead of a @tech/refer{stream}, so the answers
+are not kept.  Creating the @tech/refer{sequence} runs nothing of the
+search.  Iterating over it again continues where the previous
+iteration stopped, and once it has ended it stays empty.
 }
 
 @defproc[(in-amb*/do [thk (-> any)] [handler (or/c #f (-> any)) #f]) sequence?]{
@@ -236,16 +239,17 @@ What happens next depends on where the exception was raised.
 @itemlist[
 @item{@bold{In the pause handler.}  The pause is over.  The next read
       continues the search after that pause, and the handler is not
-      called for it again.  This holds for the stream of
-      @racket[in-amb] and for the sequence of @racket[in-amb/do]
-      alike; the stream has no element for that pause.}
+      called for it again.  This holds for the @tech/refer{stream} of
+      @racket[in-amb] and for the @tech/refer{sequence} of
+      @racket[in-amb/do] alike; the @tech/refer{stream} has no element
+      for that pause.}
 @item{@bold{In the computation of the search}, or when control leaves
       the computation through a continuation jump.  The search cannot
       go on, since the part that has run cannot be run again.  The
-      next read, of the sequence or of the stream, raises
-      @racket[exn:fail:contract] with the message
-      @litchar{in-amb: the search cannot go on}.  The elements that a
-      stream has already read stay in it.}
+      next read, of the @tech/refer{sequence} or of the
+      @tech/refer{stream}, raises @racket[exn:fail:contract] with the
+      message @litchar{in-amb: the search cannot go on}.  The elements
+      that a @tech/refer{stream} has already read stay in it.}
 ]
 
 @amb-examples[
@@ -257,14 +261,15 @@ What happens next depends on where the exception was raised.
 ]
 
 A pause handler cannot read the element that it is producing.  While
-the handler of a pause runs, reading that element, from the stream or
-from the sequence, raises @racket[exn:fail:contract] with the message
+the handler of a pause runs, reading that element, from the
+@tech/refer{stream} or from the @tech/refer{sequence}, raises
+@racket[exn:fail:contract] with the message
 @litchar{in-amb: an element cannot be read by the handler of its own pause},
 and nothing of the search runs.  This error is an exception in the
 handler like any other: if the handler catches it and returns, the
 values that it returns are the element; if it escapes from the
 handler, the first case above applies.  The handler may read the
-elements that the stream has read before.
+elements that the @tech/refer{stream} has read before.
 
 The observers are not thread-safe, and their guarantees stop here:
 
