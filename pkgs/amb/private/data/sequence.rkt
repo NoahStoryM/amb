@@ -4,7 +4,6 @@
          racket/sequence)
 (provide empty-sequence
          initiate-sequence
-         generate*->generate
          raise-empty-sequence-error
          make-sequence)
 
