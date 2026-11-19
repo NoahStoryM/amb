@@ -106,7 +106,12 @@
      (let-values ([(v s) (s)])
        (cond
          ;; n pauses stay together: no turn passes on at a pause
-         [(or (list? v) (pause-count? v)) (values v (appended s ts))]
+         [(or (list? v) (pause-count? v))
+          ;; If s is exhausted, a sole right generator is already the rest.
+          (values v
+                  (if (and (eq? s end) (cat-singleton? ts))
+                      (cat-first ts)
+                      (appended s ts)))]
          [(not v) (append-run (cat-first ts) (cat-rest ts))]
          [else (raise-result-error 'amb-append v)]))]))
 

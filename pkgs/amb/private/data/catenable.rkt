@@ -30,7 +30,7 @@
 
 (require racket/promise)
 
-(provide cat-of cat-append cat-first cat-rest
+(provide cat-of cat-append cat-first cat-rest cat-singleton?
          cat->list
          cat-steps)
 
@@ -46,6 +46,10 @@
     [(null? a) b]
     [(null? b) a]
     [else (cat (cat-first a) (queue-add (cat-kids a) b))]))
+
+;; Like cat-first and cat-rest, a is nonempty.
+(define (cat-singleton? a)
+  (queue-empty? (cat-kids a)))
 
 (define (cat-rest a)
   (link-all (cat-kids a)))
