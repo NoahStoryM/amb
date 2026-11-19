@@ -33,23 +33,22 @@ Choices, and the other @tech{effects}, can only be used within the
 three layers:
 
 @itemlist[
-@item{@racketmodname[amb/base] (@secref["base"]) is the core.  It
-      defines the @tech{generator} protocol and the primitive effects
-      that connect direct-style computations to generators:
-      @racket[amb-generate*] turns a search into a generator of events
-      (reifying it), and @racket[make-amb] turns a generator of
-      alternatives into a choice (reflecting it), alongside
-      @racket[amb-fail] and @racket[amb-pause].}
+@item{@racketmodname[amb] (@secref["surface"]) provides the everyday
+      choice forms (@racket[amb], @racket[for/amb],
+      @racket[sequence->amb], @racket[amb-local]) and observers
+      (@racket[in-amb], @racket[in-amb/do]), and re-exports
+      @racketmodname[amb/base].  @racketmodname[typed/amb]
+      (@secref["typed"]) gives the same interface Typed Racket types.}
+@item{@racketmodname[amb/base] (@secref["base"]) is the core on which
+      everything else is built.  It defines the @tech{generator}
+      protocol and the primitive effects: @racket[amb-generate*] turns
+      a search into a generator of events (reifying it), and
+      @racket[make-amb] turns a generator of alternatives into a choice
+      (reflecting it), alongside @racket[amb-fail] and
+      @racket[amb-pause].}
 @item{@racketmodname[amb/merge] (@secref["mergers"]) provides the
       standard @tech{mergers}, which decide the search strategy of each
       choice.}
-@item{@racketmodname[amb] (@secref["surface"]) re-exports
-      @racketmodname[amb/base] and builds the surface choice forms
-      (@racket[amb], @racket[for/amb], @racket[sequence->amb],
-      @racket[amb-local]) and observers (@racket[in-amb],
-      @racket[in-amb/do]) on top of @racket[make-amb] and
-      @racket[amb-generate*].  @racketmodname[typed/amb]
-      (@secref["typed"]) gives the same interface Typed Racket types.}
 ]
 
 This is version 3 of the library.  It is not compatible with

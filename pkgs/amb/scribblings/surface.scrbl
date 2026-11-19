@@ -16,9 +16,9 @@
 
 @declare-exporting[amb]
 
-The @racketmodname[amb] module re-exports @racketmodname[amb/base] and
-provides the surface choice forms, search observers, and local search
-combinators built on @racket[make-amb] and @racket[amb-generate*].
+The @racketmodname[amb] module provides the surface choice forms,
+search observers, and local search combinators, and re-exports the core
+primitives of @racketmodname[amb/base] (@secref["base"]).
 
 
 @section{Choices}
@@ -84,28 +84,20 @@ optional Typed Racket type annotations (@secref["typed"]).
 (for/list ([x (in-amb (for/amb ([x '(1 2)]) (amb x (- x))))]) x)
 ]
 
-@bold{Without @racket[#:length]}, the loop advances as the search
-does: the clauses take a step when the merger of the choice turns to
-the next alternative.  This works with @tech/refer{sequences} of any
-size, infinite ones included.  The shuffler is not called.
-
-@amb-examples[
-(for/list ([x (in-amb (for/amb ([i (in-naturals)]) i))] [_ 5]) x)
-(for/list ([x (in-amb (for/amb ([c "hello"]) c))]) x)
-]
-
-@bold{With @racket[#:length]}, the forms resemble @racket[for/vector]
-and @racket[for*/vector].  Where the choice is made,
-@racket[length-expr] is evaluated and the clauses run until the loop
-finishes or reaches that length.  Each loop @racket[body] is wrapped
-in a @racket[thunk], and at most @racket[_length] thunks are collected
-into a mutable @tech/refer{vector}, on which
-@racket[current-amb-shuffler] is called once.  The slots that no
-iteration fills are not alternatives, unless @racket[#:fill] is given:
-then @racket[fill-expr] is wrapped in a @racket[thunk] and each empty
-slot becomes an alternative that evaluates @racket[fill-expr] when
-chosen (unlike @racket[for/vector], @racket[fill-expr] is evaluated
-lazily per chosen slot, not once up front).
+@bold{With @racket[#:length]}, the forms work like @racket[amb]
+combined with @racket[for/vector] and @racket[for*/vector].  Where the
+choice is made, @racket[length-expr] is evaluated and the clauses run
+until the loop finishes or reaches that length.  Each loop
+@racket[body] is wrapped in a @racket[thunk], and at most
+@racket[_length] thunks are collected into a mutable
+@tech/refer{vector}, on which @racket[current-amb-shuffler] is called
+once.  The slots that no iteration fills are not alternatives, unless
+@racket[#:fill] is given: then @racket[fill-expr] is wrapped in a
+@racket[thunk] and each empty slot becomes an alternative that
+evaluates @racket[fill-expr] when chosen (unlike @racket[for/vector],
+@racket[fill-expr] is evaluated lazily per chosen slot, not once up
+front).  A length of zero skips the clauses and calls the shuffler on
+an empty vector.
 
 @amb-examples[
 (for/list ([(a b) (in-amb (for/amb #:length 4 #:fill (values 0 'w)
@@ -118,9 +110,19 @@ lazily per chosen slot, not once up front).
   (cons a b))
 ]
 
+@bold{Without @racket[#:length]}, the loop does not collect its
+alternatives up front; instead, it advances lazily as the search does,
+taking a step through the clauses when the merger of the choice turns
+to the next alternative.  This works with @tech/refer{sequences} of
+any size, infinite ones included.  The shuffler is not called.
+
+@amb-examples[
+(for/list ([x (in-amb (for/amb ([i (in-naturals)]) i))] [_ 5]) x)
+(for/list ([x (in-amb (for/amb ([c "hello"]) c))]) x)
+]
+
 With no iterations, @racket[for/amb] fails unless a positive length
-and @racket[#:fill] supply alternatives.  A length of zero skips the
-clauses and calls the shuffler on an empty vector.
+and @racket[#:fill] supply alternatives.
 
 The @racket[for-clause]s and @racket[break-clause]s are not part of
 the search; see @secref["supply"].
