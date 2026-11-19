@@ -192,5 +192,5 @@
   (unless (eqv? n 0)
     (check-effect 'amb-pause)
     (unless (exact-positive-integer? n)
-      (raise-argument-error 'amb-pause "exact-nonnegative-integer?" n))
+      (raise-argument-error 'amb-pause "natural?" n))
     (leave-search (λ (k) (values n (λ () (in-search (λ () (k (void))))))))))

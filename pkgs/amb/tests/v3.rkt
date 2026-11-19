@@ -92,7 +92,7 @@
 
 (test-case "amb-pause validates an explicit count and checks the search context"
   (for ([n '(0.0 -1 1.0 1/2 #f)])
-    (check-exn #rx"amb-pause: contract violation.*exact-nonnegative-integer"
+    (check-exn #rx"amb-pause: contract violation.*expected: natural[?]"
                (λ () (amb-generate* (λ () (amb-pause n))))))
   (check-exn #rx"amb-pause: not in a search" (λ () (amb-pause 3)))
   (check-exn #rx"amb-pause: not allowed while the alternatives of a choice are supplied"

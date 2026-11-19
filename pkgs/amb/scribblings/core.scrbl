@@ -64,10 +64,15 @@ this manual, two generators are considered equivalent when they produce
 the same logical events (and diverge in the same places), regardless
 of how pauses are batched.
 
-@racket[0] is not a valid result.  If a generator returns an invalid
-first value (not a list, @racket[#f], or a positive integer), the
-consumer raises @racket[exn:fail:contract].  The second value is also
-part of the protocol, but is not checked unless it is called.
+A pause batch is always nonempty so that every generator step either
+reports at least one logical event or signals the end.  A batch of
+@racket[0] would be an extra step for consumers to skip.  In direct
+style, @racket[(amb-pause 0)] returns immediately, so the search can
+continue to its next event.
+
+If a generator returns an invalid first value, such as @racket[0],
+the consumer raises @racket[exn:fail:contract].  The second value is
+also part of the protocol, but is not checked unless it is called.
 
 Because @racket[sequence-generate*] already returns either a list of
 values or @racket[#f] together with the next step,
