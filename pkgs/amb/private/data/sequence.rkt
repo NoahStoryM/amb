@@ -8,7 +8,10 @@
          raise-empty-sequence-error
          make-sequence)
 
-(define (generate*->generate next0)
+;; With `advance`, the sequence holds the raw generator.  `advance` takes
+;; the generator and returns the same two values as a call to `next0`
+;; would.  It receives #f on reentry or after an interrupted read.
+(define (generate*->generate next0 [advance #f])
   (define v0* #f)
   (define done? #f)
   ;; Once exhausted, `more?` keeps returning #f without calling `next0`
@@ -17,7 +20,10 @@
   (define (more? . _)
     (or (and v0* #t)
         (and (not done?)
-             (let-values ([(v1* next1) (next0)])
+             (let-values ([(v1* next1)
+                           (if advance
+                               (advance (begin0 next0 (set! next0 #f)))
+                               (next0))])
                (set! v0* v1*)
                (set! next0 next1)
                (set! done? (not v1*))
@@ -35,8 +41,8 @@
           "sequence has no more values"
           (current-continuation-marks))))
 
-(define (make-sequence next)
-  (define-values (more? get) (generate*->generate next))
+(define (make-sequence next [advance #f])
+  (define-values (more? get) (generate*->generate next advance))
   (make-do-sequence
    (λ ()
      (initiate-sequence
