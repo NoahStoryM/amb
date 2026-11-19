@@ -34,6 +34,7 @@
          (only-in "../merge.rkt" amb-append))
 
 (provide make-amb
+         empty-choice
          amb-generate*
          amb-fail
          amb-pause
@@ -171,6 +172,13 @@
            [(pause-count? v) (values v (λ () (loop next)))]
            [(not v) (values v next)]
            [else (raise-result-error 'make-amb v)]))))))
+
+;; Capture at the choice point even when there are no alternatives.
+;; A continuation barrier still stops the choice.
+(define (empty-choice)
+  (check-effect 'make-amb)
+  (let/comp _
+    (abort/cc amb-prompt-tag end)))
 
 ;; The computation ends here, with no answer.  Nothing of it is resumed,
 ;; so its continuation is not captured: a continuation barrier between

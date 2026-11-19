@@ -23,6 +23,7 @@
          racket/match
          (prefix-in spec: "spec-merge.rkt")
          (prefix-in flat: "../merge.rkt")
+         (only-in "../private/generator.rkt" end)
          "../private/data/catenable.rkt")
 
 (define (spec-merge m)
@@ -201,6 +202,30 @@
 
 
 ;; ---- the tests ----
+
+(test-case "append hands off to its only remaining generator without calling it"
+  (for ([event (list '() '(left) 3)])
+    (define calls 0)
+    (define (right)
+      (set! calls (add1 calls))
+      (values '(right) end))
+    (define-values (v next)
+      ((flat:amb-append (λ () (values event end)) right)))
+    (check-equal? v event)
+    (check-equal? calls 0)
+    (check-eq? next right)
+    (check-equal? (call-with-values next list) (list '(right) end))
+    (check-equal? calls 1)))
+
+(test-case "append keeps a chaperoned generator opaque to an enclosing merger"
+  (define ((answer v)) (values (list v) end))
+  (define guarded
+    (chaperone-procedure (flat:amb-level (answer 2) (answer 3))
+                         (λ () (error 'guarded "denied"))))
+  (define-values (v next)
+    ((flat:amb-level (flat:amb-append (answer 1) guarded) (answer 4))))
+  (check-equal? v '(1))
+  (check-exn #rx"^guarded: denied" next))
 
 (test-case "examples"
   (define (events m . leaves)

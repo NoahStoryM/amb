@@ -105,11 +105,10 @@
 ;; There is no slot a shuffler can mutate in this shared vector.
 (define mutable-empty-vector (vector))
 
-;; An empty choice is a choice like the others, among no alternatives:
-;; the shuffler is called once, and `make-amb` is supplied with nothing.
-;; (`amb-fail` is the failure that is not a choice.)
+;; Even an empty choice calls the shuffler at the choice point.
 (define (choose-none)
-  (choose mutable-empty-vector))
+  (with-amb-mark ((current-amb-shuffler) mutable-empty-vector))
+  (empty-choice))
 
 ;; Turn a producer into a single-pass generator.  The producer calls
 ;; yield once for each alternative; each next call resumes it there.

@@ -55,8 +55,8 @@ constraint.
 ]
 
 @racket[(amb)] is a choice like any other: the shuffler is called on
-the empty vector, and the choice is made by @racket[make-amb], which
-captures the continuation.  Its events are those of
+the empty vector, and the choice captures the continuation.
+Its events are those of
 @racket[(amb-fail)], but @racket[amb-fail] does less work; use it
 where the cost of a failure matters, or where a continuation barrier
 may be in the way.
