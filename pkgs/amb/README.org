@@ -99,7 +99,7 @@ has four:
 ** Pauses and Fairness
 
 =(amb-pause)= is where a merger may pass the turn on to another
-alternative.  A computation that runs for ever without an answer and
+alternative.  A computation that runs forever without an answer and
 without a pause keeps the turn, whatever the merger: a fair search
 needs pauses in the program.
 
