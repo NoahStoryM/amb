@@ -20,7 +20,7 @@
 
 (provide in-amb* in-amb*/do)
 
-(define-syntax-rule (raise-interrupted-search)
+(define (raise-interrupted-search)
   (raise
    (exn:fail:contract
     (string-append
