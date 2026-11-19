@@ -199,9 +199,10 @@ enough for every merger:
 @item{With @racket[amb-level], a pause-free infinite supply cannot
       finish the first round: before returning the first merged pause,
       it would have to start infinitely many alternatives.  Pauses in
-      the supply itself can let each round finish after a finite prefix
-      of new alternatives, provided every active remainder pauses or
-      ends after finite ordinary computation and finitely many answers.}
+      the supply itself can let each round finish when the supply
+      pauses or ends after a finite prefix of new alternatives in each
+      round and every active remainder pauses or ends after finite
+      ordinary computation and finitely many answers.}
 ]
 
 As before, local observations must not hide the pauses needed for

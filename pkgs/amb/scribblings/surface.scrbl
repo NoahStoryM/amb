@@ -197,12 +197,11 @@ building the @tech/refer{stream}.
 
 The @tech{pauses} of the search are skipped, unless
 @racket[handler-expr] is given.  It must produce a @racket[thunk] (or
-@racket[#f] to skip pauses in untyped code; Typed Racket clients should
-omit @racket[#:on-pause] to skip pauses), which is called once for each
-pause (@racket[_n] times for a batch of @racket[_n]).  The values that
-it returns become one element of the @tech/refer{stream}, in place of
-the pause; they do not go back into the search.  The handler is called
-by whoever reads the @tech/refer{stream}, outside the search.
+@racket[#f] to skip pauses), which is called once for each pause
+(@racket[_n] times for a batch of @racket[_n]).  The values that it
+returns become one element of the @tech/refer{stream}, in place of the
+pause; they do not go back into the search.  The handler is called by
+whoever reads the @tech/refer{stream}, outside the search.
 
 @amb-examples[
 (define (p) 'pause)
@@ -213,11 +212,10 @@ by whoever reads the @tech/refer{stream}, outside the search.
 
 @defproc[(in-amb* [thk (-> any)] [handler (or/c #f (-> any)) #f]) stream?]{
 The procedure form of @racket[in-amb]: the search of
-@racket[(thk)].  The pause handler is an optional argument (Typed
-Racket clients should omit it rather than passing @racket[#f] to skip
-pauses).  Like @racket[in-amb], in a @racket[for] clause it expands
-directly to the single-pass @tech/refer{sequence} of @racket[in-amb*/do],
-without building a @tech/refer{stream}.
+@racket[(thk)].  The pause handler is an optional argument.  Like
+@racket[in-amb], in a @racket[for] clause it expands directly to the
+single-pass @tech/refer{sequence} of @racket[in-amb*/do], without
+building a @tech/refer{stream}.
 }
 
 @defform[(in-amb/do expr maybe-handler)
