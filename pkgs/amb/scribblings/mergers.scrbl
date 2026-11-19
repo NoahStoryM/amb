@@ -1,6 +1,7 @@
 #lang scribble/manual
 
 @(require (for-label racket/base
+                     racket/contract/base
                      racket/stream
                      amb
                      amb/base
@@ -27,10 +28,10 @@ end     ∨ t  =  t
 They differ in what a pause of the first generator does:
 
 @verbatim[#:indent 2]{
-amb-append       pause s ∨ t        =  pause (s ∨ t)    s keeps the turn
-amb-interleave   pause s ∨ t        =  pause (t ∨ s)    the turn passes on
-amb-alternate    pause s ∨ t        =  pause (t ∨ s)    the turn passes on
-amb-level        pause s ∨ pause t  =  pause (s ∨ t)    both wait together
+amb-append       (pause s) ∨ t          =  pause (s ∨ t)    s keeps the turn
+amb-interleave   (pause s) ∨ t          =  pause (t ∨ s)    the turn passes on
+amb-alternate    (pause s) ∨ t          =  pause (t ∨ s)    the turn passes on
+amb-level        (pause s) ∨ (pause t)  =  pause (s ∨ t)    both wait together
 }
 
 @defproc[(amb-append [s (-> any)] [t (-> any)]) (-> any)]{

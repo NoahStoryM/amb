@@ -69,9 +69,9 @@ imports the untyped implementations of this library through
 @racketidfont{unsafe-require/typed/provide}.  It trusts them to
 preserve the declared types, instead of adding run-time contracts to
 their own checks of arguments and of the generator protocol.  Shallow
-Typed Racket is kept so that the macros expand in every client: on
-Racket 9.3, macros defined in Deep Typed Racket are rejected in Shallow
-clients.  Clients may use Deep, Shallow or Optional Typed Racket.
+Typed Racket is kept so that the macros expand in every client: macros
+defined in Deep Typed Racket are rejected in Shallow clients.  Clients
+may use Deep, Shallow or Optional Typed Racket.
 
 This boundary is trusted; it does not protect against arbitrary
 untyped code.  The protocol checks tell an answer from a pause or the
@@ -82,15 +82,14 @@ answers; if it makes up an answer of another type, the types of a
 typed observer no longer hold.  The same holds for an untyped shuffler,
 which must leave thunks of the right type in the vector.
 
-On Racket 9.3, Deep @racket[require/typed] cannot generate a contract
-for the variable-arity polymorphic @racketidfont{Merger}.  A custom
-merger can be written in typed code, or imported through an explicitly
-trusted @racketidfont{unsafe-require/typed}.  The standard mergers of
-the library use such a trusted boundary and do not seal the answer
-lists.
+Deep @racket[require/typed] cannot generate a contract for the
+variable-arity polymorphic @racketidfont{Merger}.  A custom merger can
+be written in typed code, or imported through an explicitly trusted
+@racketidfont{unsafe-require/typed}.  The standard mergers of the
+library use such a trusted boundary and do not seal the answer lists.
 
 
-@section[#:tag "typed-limitations"]{Limitations on Racket 9.3}
+@section[#:tag "typed-limitations"]{Known Typed Racket Limitations}
 
 @itemlist[
 @item{The type checker of Typed Racket's @racket[for] raises an
