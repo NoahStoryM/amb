@@ -35,50 +35,50 @@ directly.
 
 @section[#:tag "protocol"]{The Generator Protocol}
 
-A search is represented by a @deftech{generator}: a procedure of no
-arguments that returns two values, a @deftech{result} and the
-generator of what comes after it.
+A search is represented by a @deftech{generator}: a thunk that returns
+two values—a @deftech{result} for the next step and a generator for
+the rest of the search.
 
 @racketgrammar*[
-#:literals (list? exact-positive-integer?)
+#:literals (-> values list? exact-positive-integer?)
 [generator (-> (values result generator))]
 [result list? #f exact-positive-integer?]]
 
 @itemlist[
-@item{A @bold{list} is an answer: the list of its values.  The empty
-      list is an answer of no values, not the end.}
-@item{@racket[#f] is the end.  The generator returned with it must
-      not be called.}
-@item{A positive integer @racket[_n] is a batch of @racket[_n]
+@item{A @bold{list} is an answer holding its return values.  The empty
+      list @racket['()] represents a zero-valued answer, not the end.}
+@item{@racket[#f] signals the end of the search.  The companion
+      generator returned alongside @racket[#f] must not be called.}
+@item{A positive integer @racket[_n] represents a batch of @racket[_n]
       @deftech{logical pauses}, followed by the returned generator.
-      For @racket[(> _n 1)], the same events can be represented by a
-      single pause, then @racket[(- _n 1)] pauses, then that generator.
-      When @racket[_n] is @racket[1], the single pause leads directly
-      to the returned generator.}
+      When @racket[(> _n 1)], this is equivalent to one pause followed
+      by @racket[(- _n 1)] pauses and then that generator; when
+      @racket[_n] is @racket[1], the pause leads directly to the
+      returned generator.}
 ]
 
 Expanding each batch @racket[_n] into @racket[_n] individual pauses
-gives a generator's sequence of @deftech{logical events}.  Throughout
+yields a generator's sequence of @deftech{logical events}.  Throughout
 this manual, two generators are considered equivalent when they produce
-the same logical events (and diverge in the same places), even if they
-group pauses into different batches.
+the same logical events (and diverge in the same places), regardless
+of how pauses are batched.
 
-@racket[0] is not a result.  A generator that returns anything else
-is in error, and whoever reads the result raises
+@racket[0] is not a valid result.  If a generator returns anything
+outside the grammar above, the consumer raises
 @racket[exn:fail:contract].
 
-A list or @racket[#f] is what @racket[sequence-generate*] returns, so
-@racket[(λ () (sequence-generate* _seq))] is a generator without
-pauses.
+Because @racket[sequence-generate*] already returns either a list of
+values or @racket[#f] together with the next step,
+@racket[(λ () (sequence-generate* _seq))] is a pause-free generator
+for any @tech/refer{sequence}.
 
-A generator is @bold{single-pass}: it, and each generator that it
-returns, is called at most once.  Calling one twice would run again a
-part of the computation that has already run.
+Generators are @bold{single-pass}: every generator—and each generator
+it returns—may be called at most once.  Calling a generator twice
+would replay part of a computation that has already run.
 
-Generators appear in three places: @racket[make-amb] takes the
-generator that supplies the alternatives of a choice,
-@racket[amb-generate*] returns the generator of a search, and a
-@tech{merger} makes one generator of two.
+Generators appear in three places: @racket[make-amb] consumes a
+generator of alternatives, @racket[amb-generate*] exposes a search as
+a generator, and a @tech{merger} combines two generators into one.
 
 
 @section{Core Primitives}
@@ -128,16 +128,16 @@ For example, @racket[(sequence->amb _seq)] is
 (stream->list (in-amb (make-amb (countdown 3))))
 ]
 
-The alternatives @racket[_a], @racket[_b] are merged from the right by
+The alternatives @racket[_m], @racket[_n] are merged from the right by
 the merger @racket[_μ] that is current where the choice is made, and
 the last one is merged with the end of the supply:
 
 @racketblock[
-(_μ _K_a (_μ _K_b _end))
+(_μ _kₘ (_μ _kₙ _end))
 ]
 
-where @racket[_K_a] is the generator of the rest of the computation
-with the alternative @racket[_a].  The inner merge is not made before
+where @racket[_kₘ] is the generator of the rest of the computation
+with the alternative @racket[_m].  The inner merge is not made before
 the outer one turns to it, so @racket[next] is not asked for an
 alternative before its turn.  @racket[make-amb] keeps the merge with
 the end whatever the merger is; for a merger that has the end as a
@@ -207,8 +207,8 @@ and for the requirements on a merger of one's own.
 Some code runs for a choice without being part of the search:
 
 @itemlist[
-@item{the @tech{generator} given to @racket[make-amb], and the sequence
-      given to @racket[sequence->amb];}
+@item{the @tech{generator} given to @racket[make-amb], and the
+      @tech/refer{sequence} given to @racket[sequence->amb];}
 @item{the @racket[_for-clause]s and @racket[_break-clause]s of
       @racket[for/amb] and @racket[for*/amb], and their
       @racket[#:length] expression;}
@@ -218,7 +218,7 @@ Some code runs for a choice without being part of the search:
 This code runs when the merger of the choice turns to the next
 alternative, which may be long after the choice was made, and in
 another dynamic context.  An effect there has no meaning for the
-search, and is an error:
+search, and raises an error.
 
 @amb-examples[
 (eval:error
@@ -226,13 +226,13 @@ search, and is an error:
 ]
 
 The @racket[_body] of @racket[for/amb], and the expressions of
-@racket[amb], are part of the search:
+@racket[amb], are part of the search.
 
 @amb-examples[
 (stream->list (in-amb (for/amb ([x '(1 2 3)]) (if (amb #t #f) x (- x)))))
 ]
 
-A search of its own is not concerned, wherever it runs:
+An independent search started inside supply code is unaffected.
 
 @amb-examples[
 (stream->list
@@ -247,25 +247,28 @@ the iteration that has the effect.
 
 @deftogether[(@defform[(with-amb-mark expr)]
               @defproc[(call-with-amb-mark [thk (-> any)]) any])]{
-Evaluates @racket[expr], or calls @racket[thk], as code that supplies
-alternatives: an effect of the enclosing search in it is an error.
+Marks @racket[expr] (or @racket[(thk)]) as code that supplies
+alternatives, so that any effect aimed at the enclosing search raises
+@racket[exn:fail:contract].  @racket[(with-amb-mark expr)] is
+shorthand for @racket[(call-with-amb-mark (λ () expr))], and both
+return all values produced by @racket[expr] or @racket[(thk)],
+including zero values.
 
-@racket[(with-amb-mark expr)] is shorthand for
-@racket[(call-with-amb-mark (λ () expr))].  Both return all the values
-of @racket[expr] or @racket[(thk)], none included.
+@racket[make-amb] already marks its generator automatically.  You need
+@racket[with-amb-mark] when writing a custom choice form that gathers
+its alternatives @emph{before} calling @racket[make-amb]—for example,
+collecting thunks into a list or vector, just as @racket[for/amb] with
+@racket[#:length] does.  Without the mark, a stray @racket[amb] inside
+that collection loop would run as part of the enclosing search and
+silently duplicate the rest of the collection for each branch instead
+of failing fast.
 
-@racket[make-amb] marks its generator in this way.  A form that
-collects its alternatives before it calls @racket[make-amb], as
-@racket[for/amb] with @racket[#:length] does, should use one of these
-for the code that collects them.  Without the mark, that code would be
-part of the search, and a choice in it would run the rest of the
-collection once for each alternative.
-
-The mark only refuses effects aimed at the enclosing search: it does
-not start a search of its own, and it does not interfere with a nested
-search started inside it (such as an @racket[in-amb] or
-@racket[amb-generate*] inside @racket[expr]).  Adding a mark never
-makes a refused effect valid.
+The mark only blocks effects targeting the enclosing search: it does
+not start a search of its own, and an independent nested search
+started inside @racket[expr] (via @racket[in-amb] or
+@racket[amb-generate*]) runs normally.  In the example below,
+@racket[with-amb-mark] catches the @racket[(amb #t #f)] inside the
+@racket[for/list] that builds the thunk list for @racket[choose-among].
 
 @amb-examples[
 (define (choose-among . thunks)
@@ -279,27 +282,5 @@ makes a refused effect valid.
 ]
 }
 
-@subsection{Where Host Code Runs}
-
-The boundary of a search protects the body of the search and the
-continuations that it captures.  An effect leaves its search before
-any code that interprets the choice runs, and only the continuation of
-the effect, when it is resumed, is inside a search again.  So:
-
-@itemlist[
-@item{The body of a search, and every resumed continuation, run inside
-      the search.}
-@item{The supply of a choice, and its merger from the first call on,
-      run in the dynamic context of whoever calls them: first the
-      caller of the search, later whoever asks for the next event.
-      They follow the same rule, but need not see the same context.  An
-      effect in a merger belongs to the search around that caller, if
-      there is one.}
-@item{The handler of @racket[#:on-pause] runs outside the search that
-      it observes.  An effect in it belongs to the search around the
-      observer, if there is one.}
-@item{Outside any search, an effect raises
-      @racket[exn:fail:contract].  With a supply mark active it reports
-      the supply-phase error.  Otherwise its message ends in
-      @litchar{not in a search}.}
-]
+See @secref["host-code"] for the full rules on where host code runs
+relative to search boundaries.

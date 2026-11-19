@@ -60,5 +60,6 @@ version 2; @secref["v2"] lists the differences.
 @include-section["surface.scrbl"]
 @include-section["core.scrbl"]
 @include-section["mergers.scrbl"]
+@include-section["boundaries.scrbl"]
 @include-section["typed.scrbl"]
 @include-section["v2.scrbl"]

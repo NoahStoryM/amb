@@ -207,7 +207,7 @@ scheduling, and every choice involved must use the corresponding fair
 merger.  Under these conditions, @racket[amb-interleave] and
 @racket[amb-alternate] reach every answer that lies at a finite
 position in the supply and after finitely many events.  The following
-search meets the conditions for @racket[amb-interleave]:
+search meets these conditions for @racket[amb-interleave].
 
 @amb-examples[
 (require amb/merge)

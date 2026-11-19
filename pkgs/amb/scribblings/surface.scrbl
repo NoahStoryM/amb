@@ -38,7 +38,7 @@ collected into a mutable @tech/refer{vector}, on which
 (stream->list (in-amb (amb (amb 1 2 3) (amb 'a 'b 'c))))
 ]
 
-An @tech{alternative} may return several @racket[values]:
+An @tech{alternative} may return multiple @racket[values].
 
 @amb-examples[
 (for/list ([(i j) (in-amb (amb (values 1 'x) (values 2 'y)))])
@@ -204,8 +204,8 @@ pause; they do not go back into the search.  The handler is called by
 whoever reads the @tech/refer{stream}, outside the search.
 
 @amb-examples[
-(define s (in-amb (begin (amb-pause) (amb 1 2)) #:on-pause (λ () 'pause)))
-(stream->list s)
+(define (p) 'pause)
+(for/list ([x (in-amb (begin (amb-pause) (amb 1 2)) #:on-pause p)]) x)
 (for/list ([x (in-amb (amb 1 (begin (amb-pause) 2) 3))]) x)
 ]
 }
@@ -232,57 +232,8 @@ iteration stopped, and once it has ended it stays empty.
 The procedure form of @racket[in-amb/do].
 }
 
-@subsection[#:tag "exceptions"]{After an Exception}
-
-What happens next depends on where the exception was raised.
-
-@itemlist[
-@item{@bold{In the pause handler.}  The pause is over.  The next read
-      continues the search after that pause, and the handler is not
-      called for it again.  This holds for the @tech/refer{stream} of
-      @racket[in-amb] and for the @tech/refer{sequence} of
-      @racket[in-amb/do] alike; the @tech/refer{stream} has no element
-      for that pause.}
-@item{@bold{In the computation of the search}, or when control leaves
-      the computation through a continuation jump.  The search cannot
-      go on, since the part that has run cannot be run again.  The
-      next read, of the @tech/refer{sequence} or of the
-      @tech/refer{stream}, raises @racket[exn:fail:contract] with the
-      message @litchar{in-amb: the search cannot go on}.  The elements
-      that a @tech/refer{stream} has already read stay in it.}
-]
-
-@amb-examples[
-(define-values (more? get)
-  (sequence-generate (in-amb/do (amb 1 (error "boom") 3))))
-(get)
-(eval:error (get))
-(eval:error (get))
-]
-
-A pause handler cannot read the element that it is producing.  While
-the handler of a pause runs, reading that element, from the
-@tech/refer{stream} or from the @tech/refer{sequence}, raises
-@racket[exn:fail:contract] with the message
-@litchar{in-amb: an element cannot be read by the handler of its own pause},
-and nothing of the search runs.  This error is an exception in the
-handler like any other: if the handler catches it and returns, the
-values that it returns are the element; if it escapes from the
-handler, the first case above applies.  The handler may read the
-elements that the @tech/refer{stream} has read before.
-
-The observers are not thread-safe, and their guarantees stop here:
-
-@itemlist[
-@item{If another thread reads an element while its pause handler is
-      running, it gets the reentrancy error described above.}
-@item{If the thread of a handler is killed while the handler runs, the
-      cleanup on exit does not run.  The element stays in the running
-      state, and every later read raises the same reentrancy error.}
-@item{Resuming the continuation of a handler several times must not be
-      used to consume the single-pass state of a search more than
-      once.}
-]
+See @secref["exceptions"] for how @racket[in-amb] and @racket[in-amb/do]
+behave after an exception or a reentrant read.
 
 
 @section[#:tag "local"]{Local Searches and First Answers}
