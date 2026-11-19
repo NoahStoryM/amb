@@ -88,8 +88,12 @@
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
                 (Sequenceof a ... a))
-             (→ (→ c) (→ d) (Sequenceof (∪ c d)))
-             (→ (→ (Values a ... a)) (→ (Values a ... a))
+             (→ (→ ⊥) False
+                (∀ (b ...) (Sequenceof b ... b)))
+             (→ (→ (Values a ... a)) False
+                (Sequenceof a ... a))
+             (→ (→ c) (Option (→ d)) (Sequenceof (∪ c d)))
+             (→ (→ (Values a ... a)) (Option (→ (Values a ... a)))
                 (Sequenceof a ... a))))]
   [in-amb*/do
    (∀ (c d a ...)
@@ -97,8 +101,12 @@
                 (∀ (b ...) (Sequenceof b ... b)))
              (→ (→ (Values a ... a))
                 (Sequenceof a ... a))
-             (→ (→ c) (→ d) (Sequenceof (∪ c d)))
-             (→ (→ (Values a ... a)) (→ (Values a ... a))
+             (→ (→ ⊥) False
+                (∀ (b ...) (Sequenceof b ... b)))
+             (→ (→ (Values a ... a)) False
+                (Sequenceof a ... a))
+             (→ (→ c) (Option (→ d)) (Sequenceof (∪ c d)))
+             (→ (→ (Values a ... a)) (Option (→ (Values a ... a)))
                 (Sequenceof a ... a))))])
 
 

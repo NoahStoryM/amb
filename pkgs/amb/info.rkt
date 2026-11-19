@@ -14,7 +14,7 @@
     "srfi-lib"
     "srfi-doc"))
 
-(define scribblings '(("scribblings/amb.scrbl")))
+(define scribblings '(("scribblings/amb.scrbl" (multi-page))))
 
 (define clean '("compiled" "private/compiled"))
 (define test-omit-paths '(#px"^((?!/tests/).)*$"))
