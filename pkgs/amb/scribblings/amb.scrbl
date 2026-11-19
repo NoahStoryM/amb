@@ -41,8 +41,8 @@ three layers:
       (@secref["typed"]) gives the same interface Typed Racket types.}
 @item{@racketmodname[amb/base] (@secref["base"]) is the core on which
       everything else is built.  It defines the @tech{generator}
-      protocol and the primitive effects: @racket[amb-generate*] turns
-      a search into a generator of events (reifying it), and
+      protocol and the primitive effects: @racket[(λ () (amb-generate* _thk))]
+      turns a search into a generator of events (reifying it), and
       @racket[make-amb] turns a generator of alternatives into a choice
       (reflecting it), alongside @racket[amb-fail] and
       @racket[amb-pause].}

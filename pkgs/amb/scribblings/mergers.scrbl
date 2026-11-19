@@ -187,20 +187,21 @@ alternative starts with a pause.  That opening pause alone is not
 enough for every merger:
 
 @itemlist[
-@item{With @racket[amb-interleave], each alternative's continuation
-      must also pause or end after finitely many answers and finite
-      ordinary computation.  Otherwise one alternative can keep
-      producing answers without ever giving the later alternatives
+@item{With @racket[amb-interleave], every scheduled remainder—each time
+      an alternative is resumed—must pause or end after finite ordinary
+      computation and finitely many answers.  Otherwise one alternative
+      can keep producing answers without ever giving later alternatives
       their turn.}
-@item{With @racket[amb-alternate], each alternative's continuation
-      must produce its next event or end after finite ordinary
-      computation.  Because answers pass the turn too, an alternative
-      that produces infinitely many answers needs no further pauses.}
+@item{With @racket[amb-alternate], every requested remainder must
+      produce its next event or end after finite ordinary computation.
+      Because answers pass the turn too, an alternative that produces
+      infinitely many answers needs no further pauses.}
 @item{With @racket[amb-level], a pause-free infinite supply cannot
       finish the first round: before returning the first merged pause,
       it would have to start infinitely many alternatives.  Pauses in
-      the supply itself can still let each round finish after a finite
-      prefix of alternatives.}
+      the supply itself can let each round finish after a finite prefix
+      of new alternatives, provided every active remainder pauses or
+      ends after finite ordinary computation and finitely many answers.}
 ]
 
 As before, local observations must not hide the pauses needed for

@@ -92,7 +92,7 @@ library use such a trusted boundary and do not seal the answer lists.
 @section[#:tag "typed-limitations"]{Known Typed Racket Limitations}
 
 @itemlist[
-@item{The type checker of Typed Racket's @racket[for] raises an
+@item{The type checker of Typed Racket's @racket[for] can raise an
       internal error for a clause with no identifiers over a
       zero-valued sequence, including @racket[(in-amb/do (values))].
       Zero-valued computations themselves work: receive their values

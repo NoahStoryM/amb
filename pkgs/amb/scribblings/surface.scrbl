@@ -197,11 +197,12 @@ building the @tech/refer{stream}.
 
 The @tech{pauses} of the search are skipped, unless
 @racket[handler-expr] is given.  It must produce a @racket[thunk] (or
-@racket[#f] to skip pauses), which is called once for each pause
-(@racket[_n] times for a batch of @racket[_n]).  The values that it
-returns become one element of the @tech/refer{stream}, in place of the
-pause; they do not go back into the search.  The handler is called by
-whoever reads the @tech/refer{stream}, outside the search.
+@racket[#f] to skip pauses in untyped code; Typed Racket clients should
+omit @racket[#:on-pause] to skip pauses), which is called once for each
+pause (@racket[_n] times for a batch of @racket[_n]).  The values that
+it returns become one element of the @tech/refer{stream}, in place of
+the pause; they do not go back into the search.  The handler is called
+by whoever reads the @tech/refer{stream}, outside the search.
 
 @amb-examples[
 (define (p) 'pause)
@@ -212,10 +213,11 @@ whoever reads the @tech/refer{stream}, outside the search.
 
 @defproc[(in-amb* [thk (-> any)] [handler (or/c #f (-> any)) #f]) stream?]{
 The procedure form of @racket[in-amb]: the search of
-@racket[(thk)].  The pause handler is an optional argument.  Like
-@racket[in-amb], in a @racket[for] clause it expands directly to the
-single-pass @tech/refer{sequence} of @racket[in-amb*/do], without
-building a @tech/refer{stream}.
+@racket[(thk)].  The pause handler is an optional argument (Typed
+Racket clients should omit it rather than passing @racket[#f] to skip
+pauses).  Like @racket[in-amb], in a @racket[for] clause it expands
+directly to the single-pass @tech/refer{sequence} of @racket[in-amb*/do],
+without building a @tech/refer{stream}.
 }
 
 @defform[(in-amb/do expr maybe-handler)
@@ -255,13 +257,21 @@ composition of @racket[make-amb] and @racket[amb-generate*]:
 
 The pauses of the local search are pauses of the search around it.
 
-At the end of a computation, @racket[(amb-local expr)] has the same
-@tech{logical events} as @racket[expr] when the enclosing choice uses
-one of the mergers of @racketmodname[amb/merge].  When the computation
-goes on after it, the order can change: the enclosing merger schedules
-the rest of the computation from the local search's answers.  If
-@racket[amb-append] is used throughout, both forms have the same
-logical events for any continuation.
+Within the search-event model (fixing the same inner computation and
+mergers, and assuming the computation does not observe host dynamic
+environment differences such as parameters across the search
+boundary; see @secref["host-code"]):
+
+@itemlist[
+@item{At the end of a computation, @racket[(amb-local expr)] has the
+      same @tech{logical events} as @racket[expr] when the enclosing
+      choice uses one of the mergers of @racketmodname[amb/merge].}
+@item{When the computation goes on after it, the order can change: the
+      enclosing merger schedules the rest of the computation from the
+      local search's answers.  If @racket[amb-append] is used
+      throughout, both forms have the same logical events for any
+      continuation.}
+]
 
 @amb-examples[
 (require amb/merge)

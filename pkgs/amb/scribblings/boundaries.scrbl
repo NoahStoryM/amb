@@ -27,13 +27,22 @@ again.  So:
 @itemlist[
 @item{The body of a search, and every resumed continuation, run inside
       the search.}
-@item{The supply of a choice (@secref["supply"]), and its
-      @tech{merger} from the first call on, run in the
-      @tech/refer{dynamic extent} of whoever calls them: first the
-      caller of the search, later whoever asks for the next event.
-      They follow the same rule, but need not see the same context.
-      An effect in a merger belongs to the search around that caller,
-      if there is one.}
+@item{Eager pre-collection and shuffling (@racket[for/amb] with
+      @racket[#:length], its length expression and clauses/guards, and
+      @racket[current-amb-shuffler]) run at the choice point
+      @emph{before} @racket[make-amb] leaves the search, under a supply
+      mark (@secref["supply"]).  They therefore see the search body's
+      dynamic parameters, while effects aimed at the enclosing search
+      are rejected.}
+@item{On-demand supply (the @tech{generator} of @racket[make-amb], the
+      @tech/refer{sequence} of @racket[sequence->amb], and
+      @racket[for/amb] clauses without @racket[#:length]), and a
+      choice's @tech{merger} from its first call on, run @emph{after}
+      leaving the search, in the @tech/refer{dynamic extent} of
+      whoever calls them: first the caller of the search, later whoever
+      asks for the next event.  They follow the same rule, but need not
+      see the same context.  An effect in a merger belongs to the
+      search around that caller, if there is one.}
 @item{The handler of @racket[#:on-pause] runs outside the search that
       it observes.  An effect in it belongs to the search around the
       observer, if there is one.}
