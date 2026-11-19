@@ -98,12 +98,13 @@ has four:
 
 ** Pauses and Fairness
 
-=(amb-pause)= is where a merger may pass the turn on to another
-alternative.  Its optional count satisfies =natural?= and defaults to
-=1=.  =(amb-pause 0)= continues immediately without pausing.
-A computation that runs forever without an answer and without a
-pause keeps the turn, whatever the merger: a fair search needs
-pauses in the program.
+=(amb-pause)= reports one pause.  Its optional count satisfies
+=natural?= and defaults to =1=.  With a count of =0=, the computation
+continues immediately.
+
+A merger may pass the turn to another alternative at a pause.  A
+computation that runs forever without reporting an answer or a pause
+keeps the turn under any of the standard mergers.
 
 #+begin_src racket
 (define (pythagorean)
@@ -143,13 +144,15 @@ An observer sees the pauses when it asks for them:
 A search folds a direct-style computation into a /generator/ of
 events: a procedure of no arguments that returns a result (a list of
 values for an answer, =#f= for the end, a positive integer =n= for =n=
-pauses) and the generator of what comes after.  Every step reports an
-event or the end, so a batch always has at least one pause.
-A search is a prompt.  Failure aborts to the prompt and reports the
-end.  Choices and pauses capture the continuation up to the prompt
-and leave the search (=shift0= / =reset0=, written with the primitives
-of =racket/base=).  A pause reports its batch before the continuation
-resumes.
+pauses) and the generator of what comes after.  Every batch accounts
+for at least one pause.
+
+A prompt delimits the search.  Failure aborts to the prompt and
+reports the end.  Choices and pauses capture the continuation up to
+the prompt and leave the search (=shift0= / =reset0=, written with
+the primitives of =racket/base=).  A pause reports its whole batch
+before the branch resumes.
+
 In the following schematic, =(k a)= resumes the continuation with =a=
 in its own search and returns the first event and the remaining
 generator.  A choice among =a= and =b= has the generator
