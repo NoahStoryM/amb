@@ -85,7 +85,7 @@
         (cond
           [(list? v) (values v (elements after handler))]
           [(not v) (values #f raise-empty-sequence-error)]
-          [(pause-count? v)
+          [(exact-positive-integer? v)
            (if handler
                (let ([after (pauses (sub1 v) after)])
                  (set! resume after)
@@ -111,7 +111,7 @@
       (cond
         [(list? v) (values v after)]
         [(not v) (values #f raise-empty-sequence-error)]
-        [(pause-count? v) (loop after)]
+        [(exact-positive-integer? v) (loop after)]
         [else (raise-result-error 'in-amb v)]))))
 
 (define (in-amb*/do thk [handler #f])

@@ -68,6 +68,13 @@
 (case wind-pause
   (events (λ () (dynamic-wind (λ () (log! 'in)) (λ () (amb-pause) (log! 'resumed) 'x) (λ () (log! 'out)))))
   ((P (x)) (in out in resumed out)))
+(case wind-pause-batch
+  (for/list ([v (in-amb/do (dynamic-wind (λ () (log! 'in))
+                                         (λ () (amb-pause 3) (log! 'resumed) 'x)
+                                         (λ () (log! 'out)))
+                             #:on-pause (λ () 'P))])
+    v)
+  ((P P P x) (in out in resumed out)))
 (case wind-interleave
   (parameterize ([current-amb-merger amb-interleave])
     (events (λ () (dynamic-wind (λ () (log! 'in))
@@ -181,6 +188,10 @@
   ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
 (case barrier-pause (events (λ () (in-barrier (amb-pause))))
   ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
+(case barrier-pause-batch (events (λ () (in-barrier (amb-pause 3))))
+  ((error "call-with-composable-continuation: cannot capture past continuation barrier") ()))
+(case barrier-pause-zero (events (λ () (in-barrier (amb-pause 0)) 'answer))
+  (((answer)) ()))
 (case handler-fail (events (λ () (in-exception-handler (amb-fail))))
   (() ()))
 (case handler-choice (events (λ () (in-exception-handler (amb 1 2))))

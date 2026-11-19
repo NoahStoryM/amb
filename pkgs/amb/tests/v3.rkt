@@ -82,8 +82,47 @@
   (check-exn #rx"in-amb: contract violation.*given: 0"
              (λ () (events (with (λ (s t) zero) (amb 1 2))))))
 
+(test-case "amb-pause emits the count in one generator step and resumes with void"
+  (define-values (v next) (amb-generate* (λ () (void? (amb-pause 3)))))
+  (define-values (answer _) (next))
+  (check-equal? v 3)
+  (check-equal? answer '(#t))
+  (check-equal? (events (begin (amb-pause 1) 'answer))
+                (events (begin (amb-pause) 'answer))))
+
+(test-case "amb-pause validates an explicit count and checks the search context"
+  (for ([n '(0.0 -1 1.0 1/2 #f)])
+    (check-exn #rx"amb-pause: contract violation.*expected: natural[?]"
+               (λ () (amb-generate* (λ () (amb-pause n))))))
+  (check-exn #rx"amb-pause: not in a search" (λ () (amb-pause 3)))
+  (check-exn #rx"amb-pause: not allowed while the alternatives of a choice are supplied"
+             (λ () (amb-generate*
+                    (λ () (make-amb (λ () (amb-pause 3))))))))
+
+(test-case "amb-pause with zero returns void without reporting an event"
+  (check-true (void? (amb-pause 0)))
+  (define-values (v _)
+    (amb-generate* (λ () (amb-pause 0) 'answer)))
+  (check-equal? v '(answer))
+  (check-equal? (events (make-amb (λ () (amb-pause 0) (values '(answer) (source)))))
+                '(answer)))
+
+(test-case "an observer demands handled pauses one at a time"
+  (define calls 0)
+  (check-equal?
+   (for/first ([v (in-amb/do (begin (amb-pause (expt 2 80)) (error "resumed too soon"))
+                              #:on-pause (λ () (set! calls (add1 calls)) 'P))])
+     v)
+   'P)
+  (check-equal? calls 1))
+
 
 ;; ---- 4. mergers ----
+
+(test-case "the standard mergers schedule a batch as consecutive logical pauses"
+  (for ([m mergers])
+    (check-equal? (with m (events (amb (begin (amb-pause 3) 'left) (later 2 'right))))
+                  (with m (events (amb (later 3 'left) (later 2 'right)))))))
 
 ;; every merge starts with a pause, then is amb-append
 (define ((tick-append s t)) (values 1 (amb-append s t)))

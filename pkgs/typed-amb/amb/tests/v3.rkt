@@ -75,6 +75,14 @@
   (check-equal? (events (zero-local)) '(7))
   (check-equal? (events ((inst amb-local* Integer) (λ () : Integer (amb-fail)))) '()))
 
+(test-case "amb-pause accepts an optional natural count"
+  (define (forward [fuel : Natural])
+    (events (begin (base:amb-pause (quotient fuel 2)) 7)))
+  (check-equal? (forward 6) '(P P P 7))
+  (check-equal? (forward 0) '(7))
+  (define pause-once : (→ Void) amb-pause)
+  (check-equal? (events (begin (pause-once) 7)) '(P 7)))
+
 (test-case "with-amb-mark forwards zero or multiple values"
   (define-values (a b) (with-amb-mark (values 1 'x)))
   (check-equal? (list a b) '(1 x))

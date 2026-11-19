@@ -11,7 +11,7 @@
 ;;
 ;;   return vs    the answer vs, and then the end
 ;;   amb-fail     the end
-;;   amb-pause    one pause, and then k
+;;   amb-pause    a batch of pauses if the count is positive, and then k
 ;;   make-amb     for the alternatives a, b that it is supplied with,
 ;;                  (merge (λ () (k a)) (λ () (merge (λ () (k b)) end)))
 ;;                where merge is the merger of the choice
@@ -169,7 +169,7 @@
        (let-values ([(v next) (with-amb-mark (next))])
          (cond
            [(list? v) ((merge (λ () (resume k v)) (λ () (loop next))))]
-           [(pause-count? v) (values v (λ () (loop next)))]
+           [(exact-positive-integer? v) (values v (λ () (loop next)))]
            [(not v) (values v next)]
            [else (raise-result-error 'make-amb v)]))))))
 
@@ -187,8 +187,10 @@
   (check-effect 'amb-fail)
   (abort/cc amb-prompt-tag end))
 
-;; The search pauses here: a merger may pass the turn on to another
-;; alternative.  Returns (void) when the computation goes on.
-(define (amb-pause)
-  (check-effect 'amb-pause)
-  (leave-search (λ (k) (values 1 (λ () (in-search (λ () (k (void)))))))))
+;; Zero returns void at the call site. A positive count suspends once.
+(define (amb-pause [n 1])
+  (unless (eqv? n 0)
+    (check-effect 'amb-pause)
+    (unless (exact-positive-integer? n)
+      (raise-argument-error 'amb-pause "natural?" n))
+    (leave-search (λ (k) (values n (λ () (in-search (λ () (k (void))))))))))

@@ -20,7 +20,7 @@
 
 (require (only-in "data/sequence.rkt" raise-empty-sequence-error))
 
-(provide end pauses pause-count? raise-result-error)
+(provide end pauses raise-result-error)
 
 ;; The generator of nothing.
 (define (end) (values #f raise-empty-sequence-error))
@@ -30,9 +30,6 @@
   (if (eq? n 0)
       g
       (λ () (values 1 (pauses (sub1 n) g)))))
-
-(define (pause-count? v)
-  (and (exact-integer? v) (positive? v)))
 
 ;; A generator returned something that is not a Result.
 (define (raise-result-error who v)

@@ -65,7 +65,7 @@
          (Values (∪ (List a ... a) #f Positive-Integer)
                  (Generatorof (List a ... a)))))]
   [amb-fail  (→ ⊥)]
-  [amb-pause (→ Void)]
+  [amb-pause (→* () (Natural) Void)]
   [call-with-amb-mark
    (∀ (a ...)
       (case→ (→ (→ ⊥) ⊥)
@@ -84,27 +84,19 @@
    ;; The type variables c and d come first, so an explicit
    ;; instantiation must supply them: (inst in-amb* c d a ...).
    (∀ (c d a ...)
-      (case→ (→ (→ ⊥)
-                (∀ (b ...) (Sequenceof b ... b)))
-             (→ (→ (Values a ... a))
-                (Sequenceof a ... a))
-             (→ (→ ⊥) False
-                (∀ (b ...) (Sequenceof b ... b)))
-             (→ (→ (Values a ... a)) False
-                (Sequenceof a ... a))
+      (case→ (→* ((→ ⊥)) (False)
+                 (∀ (b ...) (Sequenceof b ... b)))
+             (→* ((→ (Values a ... a))) (False)
+                 (Sequenceof a ... a))
              (→ (→ c) (Option (→ d)) (Sequenceof (∪ c d)))
              (→ (→ (Values a ... a)) (Option (→ (Values a ... a)))
                 (Sequenceof a ... a))))]
   [in-amb*/do
    (∀ (c d a ...)
-      (case→ (→ (→ ⊥)
-                (∀ (b ...) (Sequenceof b ... b)))
-             (→ (→ (Values a ... a))
-                (Sequenceof a ... a))
-             (→ (→ ⊥) False
-                (∀ (b ...) (Sequenceof b ... b)))
-             (→ (→ (Values a ... a)) False
-                (Sequenceof a ... a))
+      (case→ (→* ((→ ⊥)) (False)
+                 (∀ (b ...) (Sequenceof b ... b)))
+             (→* ((→ (Values a ... a))) (False)
+                 (Sequenceof a ... a))
              (→ (→ c) (Option (→ d)) (Sequenceof (∪ c d)))
              (→ (→ (Values a ... a)) (Option (→ (Values a ... a)))
                 (Sequenceof a ... a))))])
