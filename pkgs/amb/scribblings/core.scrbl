@@ -64,11 +64,14 @@ this manual, two generators are considered equivalent when they produce
 the same logical events (and diverge in the same places), regardless
 of how pauses are batched.
 
-A pause batch is always nonempty so that every generator step either
-reports at least one logical event or signals the end.  A batch of
-@racket[0] would be an extra step for consumers to skip.  In direct
-style, @racket[(amb-pause 0)] returns immediately, so the search can
-continue to its next event.
+With positive counts, a run of @racket[_n] logical pauses can be
+split into at most @racket[_n] batches.  Each batch strictly decreases
+the number of pauses left in the run.  A zero count would leave that
+number unchanged.  If zero were allowed, a generator could return
+empty batches forever: each call could return while a consumer
+waiting for the next logical event would run forever.
+In direct style, @racket[(amb-pause 0)] returns immediately without
+emitting a batch.
 
 If a generator returns an invalid first value, such as @racket[0],
 the consumer raises @racket[exn:fail:contract].  The second value is
