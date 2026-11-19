@@ -20,6 +20,15 @@
 
 (provide in-amb* in-amb*/do)
 
+(define (raise-interrupted-search)
+  (raise
+   (exn:fail:contract
+    (string-append
+     "in-amb: the search cannot go on;\n"
+     " its last step has not returned: it is still running,\n"
+     " it raised an exception, or control escaped from it")
+    (current-continuation-marks))))
+
 ;; The elements of the generator `gen`, in the shape that
 ;; `sequence-generate*` returns: (values (or/c list? #f) next).
 ;;
@@ -71,14 +80,7 @@
       (set! gen resume)
       (set! resume #f))
     (let loop ([gen* (begin0 gen (set! gen #f))])
-      (unless gen*
-        (raise
-         (exn:fail:contract
-          (string-append
-           "in-amb: the search cannot go on;\n"
-           " its last step has not returned: it is still running,\n"
-           " it raised an exception, or control escaped from it")
-          (current-continuation-marks))))
+      (unless gen* (raise-interrupted-search))
       (let-values ([(v after) (gen*)])
         (cond
           [(list? v) (values v (elements after handler))]
@@ -97,8 +99,23 @@
           [else (raise-result-error 'in-amb v)]))))
   next)
 
-(define ((make make-sequence) thk [handler #f])
-  (make-sequence (elements (λ () (amb-generate* thk)) handler)))
+(define (in-amb* thk [handler #f])
+  (make-stream (elements (λ () (amb-generate* thk)) handler)))
 
-(define in-amb*    (make make-stream))
-(define in-amb*/do (make make-sequence))
+;; The sequence holds the raw generator, so this function only needs to
+;; find the next answer and can return its successor directly.
+(define (next-answer gen)
+  (unless gen (raise-interrupted-search))
+  (let loop ([gen gen])
+    (let-values ([(v after) (gen)])
+      (cond
+        [(list? v) (values v after)]
+        [(not v) (values #f raise-empty-sequence-error)]
+        [(pause-count? v) (loop after)]
+        [else (raise-result-error 'in-amb v)]))))
+
+(define (in-amb*/do thk [handler #f])
+  (define (gen) (amb-generate* thk))
+  (if handler
+      (make-sequence (elements gen handler))
+      (make-sequence gen next-answer)))

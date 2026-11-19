@@ -345,12 +345,64 @@
   (check-equal? (for/list ([x d]) x) '(2 3))
   (check-equal? (for/list ([x d]) x) '()))
 
+(test-case "a single-pass observer peeks once and preserves a zero-value answer"
+  (define seen '())
+  (define d
+    (in-amb*/do
+     (λ ()
+       (call-with-values
+        (λ () (make-amb (source 4 '() 3 '(2) '(3))))
+        (λ vs
+          (set! seen (cons vs seen))
+          (apply values vs))))))
+  (define-values (more? get) (sequence-generate d))
+  (check-equal? seen '())
+  (check-true (more?))
+  (check-true (more?))
+  (check-equal? seen '(()))
+  (check-equal? (call-with-values get list) '())
+  (check-equal? (for/first ([x d]) x) 2)
+  (check-equal? (for/list ([x d]) x) '(3))
+  (check-false (more?))
+  (check-false (more?))
+  (check-equal? (for/list ([x d]) x) '())
+  (check-equal? seen '((3) (2) ())))
+
+(test-case "a single-pass observer cannot repeat an escaped search step"
+  (define leave #f)
+  (define runs 0)
+  (define-values (more? get)
+    (sequence-generate
+     (in-amb/do (amb 'first
+                     (begin (amb-pause) (set! runs (add1 runs)) (leave 'left))
+                     'last))))
+  (check-equal? (get) 'first)
+  (check-equal? (let/ec k (set! leave k) (get)) 'left)
+  (check-exn #rx"the search cannot go on" more?)
+  (check-exn #rx"the search cannot go on" get)
+  (check-equal? runs 1))
+
+(test-case "a single-pass observer rejects reentry without repeating the current step"
+  (define runs 0)
+  (define d
+    (in-amb/do
+     (amb 'first
+          (begin
+            (amb-pause)
+            (set! runs (add1 runs))
+            (when (= runs 1)
+              (check-exn #rx"the search cannot go on" (λ () (for/first ([x d]) x))))
+            'second)
+          'last)))
+  (check-equal? (for/list ([x d]) x) '(first second last))
+  (check-equal? runs 1))
+
 (test-case "a search that raised cannot go on"
   ;; what it has run is not run again
   (define runs 0)
   (define-values (more? get)
     (sequence-generate
-     (in-amb/do (amb 1 (begin (set! runs (add1 runs)) (error "boom")) 3))))
+     (in-amb/do (amb 1 (begin (amb-pause) (set! runs (add1 runs)) (error "boom")) 3))))
   (check-equal? (get) 1)
   (check-exn #rx"boom" get)
   (check-exn #rx"the search cannot go on" get)
