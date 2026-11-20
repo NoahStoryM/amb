@@ -4,12 +4,9 @@
 ;; Typed Front-End for `amb`
 ;; ===================================================================
 ;;
-;; This module gives types to the public bindings of `amb/base`,
-;; `amb/merge` and `amb/main`, and defines typed versions of the
-;; syntactic forms (`amb`, `for/amb`, `in-amb`, ...), which cannot be
-;; imported with `require/typed`.  Runtime helpers shared with amb/main
-;; are imported from amb/private/choice; their implementations stay in
-;; the untyped package.
+;; This module gives types to the additional procedures of `amb/main`
+;; and defines typed versions of its choice syntax.  Runtime helpers
+;; shared with amb/main come from amb/private/choice.
 ;;
 ;; The untyped implementation is a trusted boundary: its own checks
 ;; enforce the generator protocol, and these declarations supply static
@@ -17,60 +14,17 @@
 
 (require typed/racket/unsafe
          (for-syntax racket/base syntax/parse)
-         racket/vector)
+         racket/vector
+         "../base.rkt"
+         (only-in "types.rkt" ⊥))
 
-(provide Generatorof Merger
-         amb amb-local
+(provide amb amb-local
          for/amb for*/amb)
-
-
-;; ---- The generator protocol ----
-;;
-;; A merger preserves the complete list of an element's return values.
-;; The dotted variables fix that list's arity at each instantiation;
-;; `list?` therefore distinguishes an answer in typed implementations.
-;;
-;; Unsafe imports below trust our untyped implementation to preserve
-;; these types. Protocol checks alone do not establish parametricity
-;; for arbitrary untyped mergers supplied by clients.
-(define-type (Generatorof a)
-  (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
-(define-type Merger
-  (∀ (a ...)
-     (→ (Generatorof (List a ... a))
-        (Generatorof (List a ... a))
-        (Generatorof (List a ... a)))))
-
-(define-type ⊥ Nothing)
 
 
 ;; ---- Typed Re-Exports ----
 
-(unsafe-require/typed/provide amb/merge
-  [amb-append     Merger]
-  [amb-interleave Merger]
-  [amb-alternate  Merger]
-  [amb-level      Merger])
-
-;; `in-amb*` and `in-amb*/do` take an optional pause handler; the
-;; sequence type is the union of the body's type and the handler's.
 (unsafe-require/typed/provide amb
-  [make-amb
-   (∀ (a ...)
-      (→ (Generatorof (List a ... a))
-         (Values a ... a)))]
-  [amb-generate*
-   (∀ (a ...)
-      (→ (→ (Values a ... a))
-         (Values (∪ (List a ... a) #f Positive-Integer)
-                 (Generatorof (List a ... a)))))]
-  [amb-fail  (→ ⊥)]
-  [amb-pause (→* () (Natural) Void)]
-  [call-with-amb-mark
-   (∀ (a ...)
-      (case→ (→ (→ ⊥) ⊥)
-             (→ (→ (Values a ... a)) (Values a ... a))))]
-  [current-amb-merger   (Parameter Merger)]
   [current-amb-shuffler (Parameter (→ Mutable-VectorTop Void))]
   [sequence->amb
    (∀ (a ...)
@@ -80,6 +34,8 @@
    (∀ (a ...)
       (→ (→ (Values a ... a))
          (Values a ... a)))]
+  ;; The observer sequence type includes the results of the body and
+  ;; the optional pause handler.
   [in-amb*
    ;; The type variables c and d come first, so an explicit
    ;; instantiation must supply them: (inst in-amb* c d a ...).
@@ -118,12 +74,6 @@
   [choose-none (→ ⊥)]
   [make-choice-generator
    (∀ (a) (→ (→ (→ a Void) Void) (Generatorof (List a))))])
-
-;; Use the typed procedure binding, just as the untyped syntax does.
-(provide with-amb-mark)
-(define-syntax-rule (with-amb-mark e)
-  (call-with-amb-mark (λ () e)))
-
 
 ;; ---- amb Syntax ----
 

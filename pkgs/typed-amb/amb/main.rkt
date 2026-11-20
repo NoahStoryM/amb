@@ -4,7 +4,7 @@
 ;; Public API for `typed-amb` library
 ;; ===================================================================
 ;;
-;; This module re-exports the typed core from `typed/amb/private/amb`
+;; This module re-exports the typed core from `typed/amb/base`
 ;; and adds `define-sequence-syntax` wrappers so that `in-amb` and
 ;; `in-amb*` work efficiently inside `for` comprehensions.
 ;;
@@ -21,7 +21,8 @@
 ;; is needed — Typed Racket's type system enforces the thunk
 ;; contract statically.
 
-(require "private/amb.rkt"
+(require "base.rkt"
+         "private/amb.rkt"
          (for-syntax racket/base syntax/parse))
 
 (provide Generatorof Merger

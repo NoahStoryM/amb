@@ -2,7 +2,13 @@
 
 ;; The typed `amb/merge`: the standard mergers.
 
-(require "private/amb.rkt")
+(require typed/racket/unsafe
+         "private/types.rkt")
 
-(provide Generatorof Merger
-         amb-append amb-interleave amb-alternate amb-level)
+(provide Generatorof Merger)
+
+(unsafe-require/typed/provide amb/merge
+  [amb-append     Merger]
+  [amb-interleave Merger]
+  [amb-alternate  Merger]
+  [amb-level      Merger])
