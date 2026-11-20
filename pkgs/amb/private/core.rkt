@@ -31,7 +31,7 @@
 
 (require "tag.rkt"
          "generator.rkt"
-         (only-in "../merge.rkt" amb-append))
+         "append.rkt")
 
 (provide make-amb
          empty-choice

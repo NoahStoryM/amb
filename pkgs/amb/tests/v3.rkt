@@ -38,8 +38,13 @@
   (check-eq? amb-fail base:amb-fail)
   (check-eq? amb-pause base:amb-pause)
   (check-eq? current-amb-merger base:current-amb-merger)
-  (check-eq? call-with-amb-mark base:call-with-amb-mark)
-  (check-eq? (current-amb-merger) amb-append))
+  (check-eq? call-with-amb-mark base:call-with-amb-mark))
+
+(test-case "amb/base uses the default merger without loading amb/merge"
+  (parameterize ([current-namespace (make-base-namespace)])
+    (define merger (dynamic-require 'amb/base 'current-amb-merger))
+    (check-false (module-declared? 'amb/merge))
+    (check-eq? (merger) (dynamic-require 'amb/merge 'amb-append))))
 
 (test-case "choice runtime is shared without exporting its helpers"
   (check-eq? sequence->amb choice:sequence->amb)
