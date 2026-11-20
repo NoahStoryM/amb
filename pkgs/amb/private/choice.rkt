@@ -110,6 +110,9 @@
   (with-amb-mark ((current-amb-shuffler) mutable-empty-vector))
   (empty-choice))
 
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
+
 ;; Turn a producer into a single-pass generator.  The producer calls
 ;; yield once for each alternative; each next call resumes it there.
 (define (make-choice-generator produce)
@@ -119,10 +122,10 @@
     (define choice (call/cc values tag))
     (when choice
       (set! retry choice)
-      (abort-current-continuation tag (list alt))))
+      (abort/cc tag (list alt))))
   (define (next)
     (values
-     (call-with-continuation-prompt
+     (call/prompt
       (λ ()
         (when retry (retry #f))
         (produce yield)

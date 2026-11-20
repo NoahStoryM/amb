@@ -12,6 +12,9 @@
          (prefix-in base: amb/base)
          (prefix-in choice: "../private/choice.rkt"))
 
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
+
 (define mergers (list amb-append amb-interleave amb-alternate amb-level))
 (define-syntax-rule (events e)
   (for/list ([x (in-amb/do e #:on-pause (λ () 'P))]) x))
@@ -626,10 +629,9 @@
   (define reentry #rx"in-amb: an element cannot be read by the handler of its own pause")
   (define tag (make-continuation-prompt-tag 'other))
   (define wraps
-    (list call-with-continuation-prompt
-          (λ (thk) (call-with-continuation-prompt thk tag))
-          (λ (thk) (call-with-continuation-prompt
-                    (λ () (call-with-continuation-prompt thk tag))))
+    (list call/prompt
+          (λ (thk) (call/prompt thk tag))
+          (λ (thk) (call/prompt (λ () (call/prompt thk tag))))
           ;; a search is a prompt, too
           (λ (thk) (stream-first (in-amb* thk)))))
 
@@ -712,17 +714,17 @@
   (define tag (make-continuation-prompt-tag 'other))
   (for ([leave (list (λ () (error "boom"))
                      (λ () (raise 'not-an-exn))
-                     (λ () (abort-current-continuation (default-continuation-prompt-tag)
-                                                       (λ () 'aborted)))
-                     (λ () (abort-current-continuation tag 'aborted))
-                     (λ () (call-with-continuation-prompt (λ () (error "boom")))))])
+                     (λ () (abort/cc (default-continuation-prompt-tag)
+                                     (λ () 'aborted)))
+                     (λ () (abort/cc tag 'aborted))
+                     (λ () (call/prompt (λ () (error "boom")))))])
     (define runs 0)
     (define calls 0)
     (define (read s)
       (let/ec k
-        (call-with-continuation-prompt
+        (call/prompt
          (λ ()
-           (call-with-continuation-prompt
+           (call/prompt
             (λ () (with-handlers ([(λ (e) #t) (λ (e) (k 'left))])
                     (stream-first s)))
             (default-continuation-prompt-tag)
