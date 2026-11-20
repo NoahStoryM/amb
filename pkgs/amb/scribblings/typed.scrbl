@@ -19,7 +19,7 @@ and @racketidfont{typed/amb/merge} do the same for
 @itemlist[
 @item{@racket[(Generatorof _a)] is the type of a @tech{generator}
       whose answers have the type @racket[_a]:
-      @racket[(→ (Values (∪ _a #f Positive-Integer) (Generatorof _a)))].
+      @racket[(→ (Values (∪ _a False Positive-Integer) (Generatorof _a)))].
       @racket[_a] must be a type of lists, since an answer is the list
       of its values; nothing checks this.}
 @item{@racketidfont{Merger} is

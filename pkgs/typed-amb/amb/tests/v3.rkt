@@ -9,7 +9,7 @@
   (for/list : Events ([x (in-amb/do e #:on-pause (λ () 'P))]) x))
 
 ;; a generator from its results
-(: source (→ (∪ (List Integer) #f Positive-Integer) * (Generatorof (List Integer))))
+(: source (→ (∪ (List Integer) False Positive-Integer) * (Generatorof (List Integer))))
 (define ((source . rs))
   (if (null? rs)
       (values #f (source))

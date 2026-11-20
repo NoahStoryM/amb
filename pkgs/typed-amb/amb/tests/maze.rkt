@@ -6,7 +6,7 @@
 
 (define-predicate direction? (∪ 'up 'down 'left 'right))
 
-(: maze (Listof (Listof (∪ #t #f '**))))
+(: maze (Listof (Listof (∪ Boolean '**))))
 (define maze
   '((#t #t #t #t #t #t #t #t #t #t)
     (#t #f #f #f #f #f #f #f #f #t)
