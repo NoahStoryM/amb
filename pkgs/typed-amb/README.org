@@ -49,7 +49,7 @@ The types of the generator protocol:
 
 #+begin_src racket
 (define-type (Generatorof a)                 ; a: the type of an answer, a list
-  (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
+  (→ (Values (∪ a False Positive-Integer) (Generatorof a))))
 (define-type Merger                          ; keeps the types of the values
   (∀ (a ...)
     (→ (Generatorof (List a ... a))

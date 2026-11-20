@@ -9,7 +9,7 @@
 ;; these types. Protocol checks alone do not establish parametricity
 ;; for arbitrary untyped mergers supplied by clients.
 (define-type (Generatorof a)
-  (→ (Values (∪ a #f Positive-Integer) (Generatorof a))))
+  (→ (Values (∪ a False Positive-Integer) (Generatorof a))))
 
 (define-type Merger
   (∀ (a ...)

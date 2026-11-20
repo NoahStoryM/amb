@@ -16,7 +16,7 @@
   [amb-generate*
    (∀ (a ...)
       (→ (→ (Values a ... a))
-         (Values (∪ (List a ... a) #f Positive-Integer)
+         (Values (∪ (List a ... a) False Positive-Integer)
                  (Generatorof (List a ... a)))))]
   [amb-fail  (→ ⊥)]
   [amb-pause (→* () (Natural) Void)]
