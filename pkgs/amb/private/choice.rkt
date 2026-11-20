@@ -76,7 +76,7 @@
   (define pos 0)                        ; the slot of the live generator
   (define off 0)                        ; the slot of the original at 0 of vec
   (define ((take i))
-    (unless (eq? i pos) (raise-called-again-error))
+    (unless (eqv? i pos) (raise-called-again-error))
     (set! pos (add1 i))
     (if (< i len)
         (let* ([j (- i off)]

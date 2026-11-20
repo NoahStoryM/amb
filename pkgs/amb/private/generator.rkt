@@ -27,7 +27,7 @@
 
 ;; n pauses, then g.
 (define (pauses n g)
-  (if (eq? n 0)
+  (if (eqv? n 0)
       g
       (λ () (values 1 (pauses (sub1 n) g)))))
 
