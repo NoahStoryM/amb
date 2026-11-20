@@ -11,7 +11,8 @@
 ;; Every test case of v2 is here under its v2 name.  A case whose v2
 ;; expectation no longer holds is marked CONFLICT, checks what v3 does,
 ;; and is listed with its v2 expectation in v2-conflicts.rkt.
-(require rackunit racket/sequence racket/stream amb amb/merge)
+(require (only-in racket/base [call-with-continuation-prompt call/prompt])
+         rackunit racket/sequence racket/stream amb amb/merge)
 
 (define suspend amb-pause)
 (define (P) 'P)
@@ -259,11 +260,11 @@
 ;; not tested here.
 (test-case "another prompt between (amb) and the search does not hide the handler"
   (define tag (make-continuation-prompt-tag))
-  (check-equal? (stream->list (in-amb (call-with-continuation-prompt
-                                       (λ () (+ 1 (amb 1 (begin (amb-pause) 10))))
-                                       tag)
-                                      #:on-pause (λ () 'P)))
-                '(2 P 11)))
+  (check-equal?
+   (stream->list
+    (in-amb (call/prompt (λ () (+ 1 (amb 1 (begin (amb-pause) 10)))) tag)
+            #:on-pause (λ () 'P)))
+   '(2 P 11)))
 
 ;; CONFLICT: (amb) in a body fails.
 (test-case "(amb) in a for/amb body"

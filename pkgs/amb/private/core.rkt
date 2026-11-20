@@ -29,7 +29,11 @@
 ;; prompt again; that is what puts the code of an effect outside the
 ;; search.  The prompts are installed nowhere else.
 
-(require "tag.rkt"
+(require (only-in racket/base
+                  [call-with-continuation-prompt call/prompt]
+                  [call-with-composable-continuation call/comp]
+                  [abort-current-continuation abort/cc])
+         "tag.rkt"
          "generator.rkt"
          (only-in "../merge.rkt" amb-append))
 
@@ -118,11 +122,6 @@
   (unless (and (procedure? thk) (procedure-arity-includes? thk 0))
     (raise-argument-error 'amb-generate* "(-> any)" thk))
   (in-search (λ () (values (call-with-values thk list) end))))
-
-;; The names of racket/control for the primitives of racket/base.
-(define call/prompt call-with-continuation-prompt)
-(define call/comp call-with-composable-continuation)
-(define abort/cc abort-current-continuation)
 
 ;; (let/comp k body ...) binds k to the composable continuation up to
 ;; the nearest search, as let/cc does for call/cc.

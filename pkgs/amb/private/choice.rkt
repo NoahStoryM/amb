@@ -3,7 +3,10 @@
 ;; Runtime support for the choice syntax in amb/main and typed/amb.
 ;; Keep it here so the typed front end only needs to give it types.
 
-(require (only-in racket/vector vector-copy)
+(require (only-in racket/base
+                  [call-with-continuation-prompt call/prompt]
+                  [abort-current-continuation abort/cc])
+         (only-in racket/vector vector-copy)
          "core.rkt"
          (only-in "generator.rkt" end))
 
@@ -119,10 +122,10 @@
     (define choice (call/cc values tag))
     (when choice
       (set! retry choice)
-      (abort-current-continuation tag (list alt))))
+      (abort/cc tag (list alt))))
   (define (next)
     (values
-     (call-with-continuation-prompt
+     (call/prompt
       (λ ()
         (when retry (retry #f))
         (produce yield)
