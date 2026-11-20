@@ -47,38 +47,35 @@ the rest of the search.
 
 @itemlist[
 @item{A @bold{list} is an answer holding its return values.  The empty
-      list @racket['()] is an answer with zero values.}
-@item{@racket[#f] signals the end of the search.  The consumer stops
-      here without calling the returned generator.}
+      list @racket['()] represents a zero-valued answer, not the end.}
+@item{@racket[#f] signals the end of the search.  The returned
+      generator must not be called.}
 @item{A positive integer @racket[_n] reports a batch of @racket[_n]
-      @deftech{logical pauses}.  After those pauses, the returned
-      generator supplies the next step.}
+      @deftech{logical pauses}, followed by the returned generator.}
 ]
 
-Expanding each batch into individual pauses gives the generator's
-sequence of @deftech{logical events}.  For example, one batch of
-@racket[3] gives the same three pauses as batches of @racket[1] and
-@racket[2].  In this manual, generators are equivalent when they
-produce the same logical events and diverge in the same places.
+Expanding each batch into individual pauses yields a generator's
+sequence of @deftech{logical events} (for instance, a batch of
+@racket[3] produces the same three pauses as batches of @racket[1] and
+@racket[2]).  Throughout this manual, two generators are considered
+equivalent when they produce the same logical events and diverge in
+the same places, regardless of how pauses are batched.
 
-Every batch accounts for at least one pause.  The number of pauses
-left in a run strictly decreases with each batch, so @racket[_n]
-pauses take at most @racket[_n] batches.  A batch of @racket[0]
-would leave the remaining count unchanged.  A generator could then
-keep returning empty batches, with each call completing while the
-consumer waits forever for the next logical event.
-
-A consumer raises @racket[exn:fail:contract] for an invalid result
-such as @racket[0].  The returned generator is checked when the
-consumer calls it.
+@racket[0] is not a valid result: every batch must account for at
+least one pause so that each step makes progress—otherwise a generator
+could return empty batches forever without reaching the next logical
+event.  If a generator returns an invalid first value (not a list,
+@racket[#f], or a positive integer), the consumer raises
+@racket[exn:fail:contract]; the returned generator is not checked
+unless it is called.
 
 Generators are @bold{single-pass}: every generator—and each generator
 it returns—must be called at most once.  The behavior of calling a
 generator more than once is unspecified (for example, the library's
 vector-backed choice generators raise @racket[exn:fail:contract]).
 
-@racket[sequence-generate*] already returns an answer list or
-@racket[#f] along with the next step, so
+Because @racket[sequence-generate*] already returns an answer list or
+@racket[#f] along with the next step,
 @racket[(λ () (sequence-generate* _seq))] is a pause-free generator
 for any @tech/refer{sequence}.
 
@@ -174,23 +171,19 @@ still a choice.
 }
 
 @defproc[(amb-pause [n natural? 1]) void?]{
-With a positive @racket[n], @racket[amb-pause] suspends the current
-branch once and reports a batch of @racket[n] logical pauses.  The
-call returns @racket[(void)] when the branch resumes after the batch.
-A @racket[dynamic-wind] around the call is exited once on suspension
-and re-entered on resumption.
+Reports @racket[n] @tech{logical pauses} and returns @racket[(void)]
+when the computation resumes.  When @racket[n] is positive, the branch
+suspends once—so an enclosing @racket[dynamic-wind] is exited and
+re-entered once—and emits the @racket[n] pauses as a single batch.
+When @racket[n] is @racket[0], @racket[amb-pause] is a no-op that
+returns @racket[(void)] immediately without emitting an event, even
+outside a search or while alternatives are being supplied.
 
-With @racket[0], the call returns @racket[(void)] immediately and
-emits no event.  This also works outside a search and while a
-choice's alternatives are being supplied.
-
-A @tech{merger} can pass the turn to another alternative at each
-logical pause, including between pauses in the same batch.  The
-default merger, @racket[amb-append], lets the paused branch keep the
-turn.  See @secref["fairness"].
-
-An observer skips pauses by default.  With @racket[#:on-pause], it
-calls the handler once per logical pause.
+A @tech{merger} may pass the turn to another alternative at every
+logical pause, including between pauses in the same batch; the default
+merger, @racket[amb-append], lets the paused branch keep the turn
+(@secref["fairness"]).  Observers skip pauses by default, or call
+their @racket[#:on-pause] handler once per logical pause.
 
 @amb-examples[
 (stream->list (in-amb (begin (amb-pause) 'x)))
