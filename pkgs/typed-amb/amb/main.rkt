@@ -16,10 +16,7 @@
          "base.rkt"
          (only-in "private/types.rkt" ⊥))
 
-(provide Generatorof Merger
-         make-amb amb-generate* amb-fail amb-pause
-         current-amb-merger
-         with-amb-mark call-with-amb-mark
+(provide (all-from-out "base.rkt")
          amb for/amb for*/amb
          amb-local amb-local*
          sequence->amb
