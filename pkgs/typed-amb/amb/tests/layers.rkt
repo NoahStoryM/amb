@@ -2,10 +2,11 @@
 
 (require rackunit)
 
-(test-case "typed/amb/base loads the core without choices or observers"
+(test-case "typed/amb/base loads the core without the standard mergers or surface syntax"
   (parameterize ([current-namespace (make-base-namespace)])
     (dynamic-require 'typed/amb/base #f)
     (check-true (module-declared? 'amb/base))
+    (check-false (module-declared? 'amb/merge))
     (check-false (module-declared? 'amb/main))
     (check-false (module-declared? 'amb/private/choice))
     (check-false (module-declared? 'amb/private/observe))))
