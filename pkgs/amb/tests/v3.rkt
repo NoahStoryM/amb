@@ -4,16 +4,16 @@
 ;; `amb-pause`, `amb-generate*`, and `#:on-pause`.  The section numbers
 ;; are those of V3-PLAN.md.
 
-(require (only-in racket/base
-                  [call-with-continuation-prompt call/prompt]
-                  [abort-current-continuation abort/cc])
-         rackunit
+(require rackunit
          racket/list
          racket/stream
          amb
          amb/merge
          (prefix-in base: amb/base)
          (prefix-in choice: "../private/choice.rkt"))
+
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
 
 (define mergers (list amb-append amb-interleave amb-alternate amb-level))
 (define-syntax-rule (events e)

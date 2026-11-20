@@ -11,8 +11,9 @@
 ;; Every test case of v2 is here under its v2 name.  A case whose v2
 ;; expectation no longer holds is marked CONFLICT, checks what v3 does,
 ;; and is listed with its v2 expectation in v2-conflicts.rkt.
-(require (only-in racket/base [call-with-continuation-prompt call/prompt])
-         rackunit racket/sequence racket/stream amb amb/merge)
+(require rackunit racket/sequence racket/stream amb amb/merge)
+
+(define call/prompt call-with-continuation-prompt)
 
 (define suspend amb-pause)
 (define (P) 'P)

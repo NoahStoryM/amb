@@ -3,10 +3,7 @@
 ;; Runtime support for the choice syntax in amb/main and typed/amb.
 ;; Keep it here so the typed front end only needs to give it types.
 
-(require (only-in racket/base
-                  [call-with-continuation-prompt call/prompt]
-                  [abort-current-continuation abort/cc])
-         (only-in racket/vector vector-copy)
+(require (only-in racket/vector vector-copy)
          "core.rkt"
          (only-in "generator.rkt" end))
 
@@ -112,6 +109,9 @@
 (define (choose-none)
   (with-amb-mark ((current-amb-shuffler) mutable-empty-vector))
   (empty-choice))
+
+(define call/prompt call-with-continuation-prompt)
+(define abort/cc abort-current-continuation)
 
 ;; Turn a producer into a single-pass generator.  The producer calls
 ;; yield once for each alternative; each next call resumes it there.
